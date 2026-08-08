@@ -4,9 +4,12 @@ from contextlib import asynccontextmanager
 from time import monotonic
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from zksato.approvals import ApprovalRepository, ApprovalRequest, LiveApproval
 from zksato.auth import AuthManager, Principal, Role, require_roles
 from zksato.automation import AutomationEngine
 from zksato.backtest import Backtester
@@ -37,15 +40,23 @@ from zksato.observability import HTTP_LATENCY, HTTP_REQUESTS, metrics_response
 from zksato.persistence import build_store
 from zksato.reconcile import ReconciliationService, ReconciliationWorker
 from zksato.scanner import MarketScanner
+from zksato.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from zksato.service import RiskRejectedError, TradingModeError, TradingService
+from zksato.tfex import SettradeTfexGateway, TfexOrderSubmission, TfexRiskDecision, TfexRiskEngine
 
 settings = get_settings()
 store = build_store(settings)
+approvals = ApprovalRepository(settings.database_url)
 if settings.trading_mode == "paper":
     broker = PaperBroker(store=store, initial_cash=settings.initial_cash)
 else:
     broker = SettradeBroker(settings=settings)
-service = TradingService(settings=settings, broker=broker, store=store)
+service = TradingService(
+    settings=settings,
+    broker=broker,
+    store=store,
+    approvals=approvals,
+)
 automation = AutomationEngine(settings=settings, store=store, service=service)
 demo_feed = DemoMarketFeed(automation=automation)
 backtester = Backtester()
@@ -61,13 +72,18 @@ outbox_dispatcher = OutboxDispatcher(
     webhook_url=settings.notification_webhook_url,
 )
 settrade_feed: SettradeRealtimeFeed | None = None
+tfex_gateway: SettradeTfexGateway | None = None
+tfex_risk = TfexRiskEngine(settings)
 
 read_access = require_roles(auth, Role.READ_ONLY)
 strategy_access = require_roles(auth, Role.STRATEGY_OPERATOR)
 order_access = require_roles(auth, Role.ORDER_APPROVER)
+risk_access = require_roles(auth, Role.RISK_ADMIN)
 ReadPrincipal = Annotated[Principal, Depends(read_access)]
 StrategyPrincipal = Annotated[Principal, Depends(strategy_access)]
 OrderPrincipal = Annotated[Principal, Depends(order_access)]
+RiskPrincipal = Annotated[Principal, Depends(risk_access)]
+LiveApprovalHeader = Annotated[str | None, Header(alias="X-Live-Approval-Id")]
 
 
 @asynccontextmanager
@@ -78,6 +94,9 @@ async def lifespan(_: FastAPI):
     yield
     await reconciliation_worker.stop()
     await outbox_dispatcher.stop()
+    if settrade_feed is not None:
+        settrade_feed.stop()
+    approvals.close()
     store.close()
 
 
@@ -87,6 +106,21 @@ app = FastAPI(
     description="Risk-first automated trading control plane with dashboard",
     lifespan=lifespan,
 )
+app.add_middleware(
+    RateLimitMiddleware,
+    requests_per_minute=settings.rate_limit_per_minute,
+)
+app.add_middleware(SecurityHeadersMiddleware)
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Live-Approval-Id"],
+        allow_credentials=False,
+    )
+if settings.trusted_hosts:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 
 
 @app.middleware("http")
@@ -104,6 +138,20 @@ async def observe_http(request: Request, call_next):
     return response
 
 
+def _tfex_gateway() -> SettradeTfexGateway:
+    global tfex_gateway
+    if settings.trading_mode == "paper":
+        raise HTTPException(status_code=409, detail="TFEX gateway requires sandbox/live mode")
+    if not settings.settrade_tfex_configured:
+        raise HTTPException(status_code=409, detail="Settrade TFEX credentials are incomplete")
+    if tfex_gateway is None:
+        try:
+            tfex_gateway = SettradeTfexGateway(settings)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return tfex_gateway
+
+
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def dashboard_page() -> str:
     if not settings.dashboard_enabled:
@@ -119,6 +167,7 @@ async def health() -> dict[str, object]:
         "mode": settings.trading_mode,
         "automation": automation.status.state,
         "settrade_configured": settings.settrade_configured,
+        "settrade_tfex_configured": settings.settrade_tfex_configured,
         "persistence": "sql" if settings.database_url else "memory",
         "persistence_healthy": database_healthy,
     }
@@ -143,10 +192,12 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
         "trading_mode": settings.trading_mode,
         "live_trading_enabled": settings.live_trading_enabled,
         "live_requires_confirmation": settings.live_requires_confirmation,
+        "require_distinct_approver": settings.require_distinct_approver,
         "automation_enabled": settings.automation_enabled,
         "auth_required": settings.auth_required,
         "persistence_enabled": bool(settings.database_url),
         "settrade_configured": settings.settrade_configured,
+        "settrade_tfex_configured": settings.settrade_tfex_configured,
         "watchlist": settings.watchlist,
         "risk": {
             "kill_switch": settings.kill_switch,
@@ -162,6 +213,8 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
             "max_symbol_exposure_pct": settings.max_symbol_exposure_pct,
             "market_data_stale_seconds": settings.market_data_stale_seconds,
             "require_stop_loss": settings.require_stop_loss,
+            "max_tfex_contracts": settings.max_tfex_contracts,
+            "max_tfex_margin_usage_pct": settings.max_tfex_margin_usage_pct,
         },
     }
 
@@ -294,13 +347,44 @@ async def risk_check(submission: OrderSubmission, _principal: ReadPrincipal) -> 
     return service.check_risk(submission)
 
 
+@app.post("/v1/live-approvals", response_model=LiveApproval, status_code=201)
+async def create_live_approval(
+    request: ApprovalRequest,
+    principal: RiskPrincipal,
+) -> LiveApproval:
+    if settings.trading_mode != "live":
+        raise HTTPException(status_code=409, detail="live approvals are only valid in live mode")
+    ttl = request.ttl_seconds or settings.live_approval_ttl_seconds
+    approval = approvals.create(request.intent, created_by=principal.subject, ttl_seconds=ttl)
+    store.add_audit(
+        "live_approval.created",
+        f"approval created for {request.intent.side.value} {request.intent.symbol}",
+        {"approval_id": str(approval.id), "created_by": principal.subject},
+    )
+    return approval
+
+
+@app.get("/v1/live-approvals", response_model=list[LiveApproval])
+async def list_live_approvals(
+    _principal: RiskPrincipal,
+    limit: int = 100,
+) -> list[LiveApproval]:
+    return approvals.list_recent(min(max(limit, 1), 1000))
+
+
 @app.post("/v1/orders", response_model=OrderRecord, status_code=201)
 async def place_order(
     submission: OrderSubmission,
-    _principal: OrderPrincipal,
+    principal: OrderPrincipal,
+    approval_id: LiveApprovalHeader = None,
 ) -> OrderRecord:
     try:
-        return await service.submit(submission, automated=False)
+        return await service.submit(
+            submission,
+            automated=False,
+            actor=principal.subject,
+            approval_id=approval_id,
+        )
     except RiskRejectedError as exc:
         raise HTTPException(status_code=422, detail=exc.decision.model_dump()) from exc
     except TradingModeError as exc:
@@ -371,5 +455,50 @@ async def backtest(request: BacktestRequest, _principal: ReadPrincipal) -> Backt
         "backtest.completed",
         f"backtest {result.symbol}: {result.total_return_pct:.2f}%",
         {"trades": result.total_trades, "drawdown": result.max_drawdown_pct},
+    )
+    return result
+
+
+@app.get("/v1/tfex/account")
+async def tfex_account(_principal: ReadPrincipal) -> dict[str, object]:
+    return await _tfex_gateway().account()
+
+
+@app.get("/v1/tfex/portfolio")
+async def tfex_portfolio(_principal: ReadPrincipal) -> list[dict[str, object]]:
+    return await _tfex_gateway().portfolio()
+
+
+@app.get("/v1/tfex/orders")
+async def tfex_orders(_principal: ReadPrincipal) -> list[dict[str, object]]:
+    return await _tfex_gateway().orders()
+
+
+@app.post("/v1/tfex/risk/check", response_model=TfexRiskDecision)
+async def tfex_risk_check(
+    submission: TfexOrderSubmission,
+    _principal: ReadPrincipal,
+) -> TfexRiskDecision:
+    return tfex_risk.evaluate(submission)
+
+
+@app.post("/v1/tfex/orders/uat")
+async def tfex_place_uat_order(
+    submission: TfexOrderSubmission,
+    principal: OrderPrincipal,
+) -> dict[str, object]:
+    if settings.trading_mode != "sandbox":
+        raise HTTPException(status_code=409, detail="TFEX mutation is UAT-only")
+    decision = tfex_risk.evaluate(submission)
+    if not decision.approved:
+        raise HTTPException(status_code=422, detail=decision.model_dump())
+    try:
+        result = await _tfex_gateway().place_uat_order(submission.intent)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    store.add_audit(
+        "tfex.uat_order.submitted",
+        f"TFEX UAT {submission.intent.side.value} {submission.intent.symbol}",
+        {"actor": principal.subject, "volume": submission.intent.volume},
     )
     return result

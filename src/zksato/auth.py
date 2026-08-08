@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 from dataclasses import dataclass
 from enum import StrEnum
@@ -67,7 +68,8 @@ class AuthManager:
                         status_code=500,
                         detail="invalid server role mapping",
                     ) from exc
-                return Principal(subject="api-key", role=role)
+                digest = hashlib.sha256(token.encode()).hexdigest()[:16]
+                return Principal(subject=f"api-key:{digest}", role=role)
         raise HTTPException(status_code=401, detail="invalid credentials")
 
     @staticmethod

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     live_trading_enabled: bool = False
     live_requires_confirmation: bool = True
     live_confirmation_token: str | None = None
+    legacy_live_token_enabled: bool = False
+    live_approval_ttl_seconds: int = Field(default=120, ge=15, le=3600)
+    require_distinct_approver: bool = True
     automation_enabled: bool = True
     dashboard_enabled: bool = True
     poll_interval_seconds: float = Field(default=2.0, ge=0.25, le=60)
@@ -33,6 +36,9 @@ class Settings(BaseSettings):
 
     auth_required: bool = False
     api_keys: str = ""
+    rate_limit_per_minute: int = Field(default=600, ge=10, le=100_000)
+    allowed_origins: str = ""
+    allowed_hosts: str = ""
 
     market_data_stale_seconds: float = Field(default=10.0, gt=0, le=300)
     max_positions: int = Field(default=5, ge=1, le=100)
@@ -49,6 +55,9 @@ class Settings(BaseSettings):
     max_spread_pct: float = Field(default=3.0, gt=0, le=100)
     require_stop_loss: bool = True
     kill_switch: bool = False
+
+    max_tfex_contracts: int = Field(default=20, ge=1, le=10_000)
+    max_tfex_margin_usage_pct: float = Field(default=50.0, gt=0, le=100)
 
     default_strategy: Literal["ema_cross", "rsi_reversion", "breakout"] = "ema_cross"
     default_order_size: int = Field(default=100, ge=1)
@@ -71,6 +80,14 @@ class Settings(BaseSettings):
         return [item.strip().upper() for item in self.default_watchlist.split(",") if item.strip()]
 
     @property
+    def cors_origins(self) -> list[str]:
+        return [item.strip() for item in self.allowed_origins.split(",") if item.strip()]
+
+    @property
+    def trusted_hosts(self) -> list[str]:
+        return [item.strip() for item in self.allowed_hosts.split(",") if item.strip()]
+
+    @property
     def settrade_configured(self) -> bool:
         return all(
             [
@@ -78,6 +95,18 @@ class Settings(BaseSettings):
                 self.settrade_app_secret,
                 self.settrade_broker_id,
                 self.settrade_account_no,
+                self.settrade_pin,
+            ]
+        )
+
+    @property
+    def settrade_tfex_configured(self) -> bool:
+        return all(
+            [
+                self.settrade_app_id,
+                self.settrade_app_secret,
+                self.settrade_broker_id,
+                self.settrade_derivatives_account_no,
                 self.settrade_pin,
             ]
         )

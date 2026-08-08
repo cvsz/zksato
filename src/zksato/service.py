@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 
+from zksato.approvals import ApprovalRepository
 from zksato.broker.base import Broker, BrokerAmbiguousError
 from zksato.config import Settings
 from zksato.domain import OrderRecord, OrderStatus, OrderSubmission, PortfolioSnapshot, RiskDecision
@@ -21,16 +22,30 @@ class TradingModeError(Exception):
 
 
 class TradingService:
-    def __init__(self, settings: Settings, broker: Broker, store: StateStore) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        broker: Broker,
+        store: StateStore,
+        approvals: ApprovalRepository | None = None,
+    ) -> None:
         self.settings = settings
         self.broker = broker
         self.store = store
+        self.approvals = approvals
         self.risk_engine = RiskEngine(settings)
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
         return self.risk_engine.evaluate(submission.intent, submission.risk)
 
-    async def submit(self, submission: OrderSubmission, *, automated: bool = False) -> OrderRecord:
+    async def submit(
+        self,
+        submission: OrderSubmission,
+        *,
+        automated: bool = False,
+        actor: str = "system",
+        approval_id: str | None = None,
+    ) -> OrderRecord:
         decision = self.check_risk(submission)
         if not decision.approved:
             RISK_REJECTIONS.inc()
@@ -41,7 +56,12 @@ class TradingService:
             )
             raise RiskRejectedError(decision)
 
-        self._enforce_execution_policy(submission, automated=automated)
+        self._enforce_execution_policy(
+            submission,
+            automated=automated,
+            actor=actor,
+            approval_id=approval_id,
+        )
         client_order_id = submission.intent.client_order_id
         claimed = False
         if client_order_id:
@@ -56,6 +76,7 @@ class TradingService:
                 "estimated_notional": decision.estimated_notional,
                 "estimated_risk_pct": decision.estimated_risk_pct or 0.0,
                 "source": submission.intent.source,
+                "actor": actor,
             },
         )
         try:
@@ -95,6 +116,7 @@ class TradingService:
                 "order_id": str(order.id),
                 "broker_order_id": order.broker_order_id or "",
                 "source": submission.intent.source,
+                "actor": actor,
             },
         )
         ORDER_SUBMISSIONS.labels(status=order.status.value).inc()
@@ -105,6 +127,8 @@ class TradingService:
         submission: OrderSubmission,
         *,
         automated: bool,
+        actor: str,
+        approval_id: str | None,
     ) -> None:
         if self.settings.trading_mode == "paper":
             return
@@ -113,15 +137,29 @@ class TradingService:
         if self.settings.trading_mode == "sandbox":
             return
         if automated:
-            message = "autonomous live execution is disabled; live orders require confirmation"
+            message = "autonomous live execution is disabled; live orders require approval"
             raise TradingModeError(message)
         if not self.settings.live_trading_enabled:
             raise TradingModeError("live trading is disabled by server policy")
-        if self.settings.live_requires_confirmation:
+        if not self.settings.live_requires_confirmation:
+            return
+        if approval_id and self.approvals is not None:
+            try:
+                self.approvals.consume(
+                    approval_id,
+                    submission.intent,
+                    consumed_by=actor,
+                    require_distinct_approver=self.settings.require_distinct_approver,
+                )
+            except ValueError as exc:
+                raise TradingModeError(str(exc)) from exc
+            return
+        if self.settings.legacy_live_token_enabled:
             expected = self.settings.live_confirmation_token
             supplied = submission.confirmation_token
-            if not expected or not supplied or not hmac.compare_digest(expected, supplied):
-                raise TradingModeError("valid live confirmation token is required")
+            if expected and supplied and hmac.compare_digest(expected, supplied):
+                return
+        raise TradingModeError("one-time intent-bound live approval is required")
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
         order = await self.broker.cancel_order(order_id)
