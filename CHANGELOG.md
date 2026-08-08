@@ -13,12 +13,15 @@ All notable changes are recorded using Keep a Changelog principles and semantic 
 - Bounded scheduled/manual performance evidence workflow.
 - Monthly/manual PostgreSQL backup-checksum-restore disaster-recovery drill.
 - Protected, non-mutating Settrade UAT certification workflow and evidence artifact.
-- Tag-driven release workflow with dependency audit, clean wheel installation, CycloneDX SBOM, SHA-256 checksums, optional artifact attestation, and GitHub Release creation.
-- Expanded GitHub Actions operating documentation, required-check guidance, repository variables, protected environment requirements, and release policy.
+- Manual protected Production Readiness workflow that evaluates runtime/external evidence, persists readiness artifacts, and generates only a non-executing manual-canary plan.
+- Tag-driven release workflow with dependency audit, clean wheel installation, CycloneDX SBOM, SHA-256 checksums, optional artifact attestation, GitHub Release creation, and versioned GHCR container publication with BuildKit provenance/SBOM metadata.
+- Expanded GitHub Actions operating documentation, required-check guidance, repository variables, protected environment requirements, release policy, and `docs/ACTIONS-OPERATIONS.md`.
+- Docker base-image maintenance through Dependabot in addition to Python and GitHub Actions updates.
 
 ### Changed
-- Dependabot Python and GitHub Actions updates are grouped and scheduled in the `Asia/Bangkok` timezone.
+- Dependabot Python, GitHub Actions, and Docker updates are grouped and scheduled in the `Asia/Bangkok` timezone.
 - Existing `CI` and `Governance` workflows now use pinned current-generation Actions and stronger fail-closed policy checks.
+- Release artifacts now include `CONTAINER_IMAGE.txt` with the immutable GHCR image digest.
 
 ## [0.4.0]
 
