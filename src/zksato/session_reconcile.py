@@ -38,7 +38,11 @@ class SessionReconciliationService:
         for fill in reversed(self.store.list_fills(limit=100_000)):
             direction = 1 if fill.side == Side.BUY else -1
             expected[fill.symbol] += direction * fill.quantity
-        expected_clean = {symbol: quantity for symbol, quantity in expected.items() if quantity != 0}
+        expected_clean = {
+            symbol: quantity
+            for symbol, quantity in expected.items()
+            if quantity != 0
+        }
 
         portfolio = await self.broker.portfolio()
         broker_positions = {
