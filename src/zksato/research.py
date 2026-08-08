@@ -19,6 +19,7 @@ from zksato.domain import (
     StrategyRun,
     StrategyVersion,
 )
+from zksato.market_rules import MarketSessionPolicy
 from zksato.store import StateStore
 from zksato.strategy import StrategyEngine
 
@@ -90,6 +91,10 @@ class ResearchService:
         self.store = store
         self.backtester = Backtester()
         self.strategy = StrategyEngine()
+        self.market_sessions = MarketSessionPolicy(
+            settings.market_timezone,
+            settings.equity_sessions,
+        )
 
     def register_strategy(
         self,
@@ -123,6 +128,8 @@ class ResearchService:
         timeframe: str = "1m",
     ) -> ReplayResult:
         bars = self.store.list_bars(symbol, timeframe=timeframe, limit=100_000)
+        if self.settings.enforce_market_sessions:
+            bars = [bar for bar in bars if self.market_sessions.state(bar.timestamp)[1]]
         prices: list[float] = []
         signals: list[Signal] = []
         for bar in bars:
@@ -135,7 +142,11 @@ class ResearchService:
             strategy=strategy.name,
             symbol=symbol.upper(),
             mode="replay",
-            inputs={"timeframe": timeframe, "bars": len(bars)},
+            inputs={
+                "timeframe": timeframe,
+                "bars": len(bars),
+                "session_filter": self.settings.enforce_market_sessions,
+            },
             output={"signals": len(signals)},
             completed_at=datetime.now(UTC),
         )
@@ -148,23 +159,32 @@ class ResearchService:
         )
 
     def walk_forward(self, request: WalkForwardRequest) -> WalkForwardResult:
+        candles = request.candles
+        if self.settings.enforce_market_sessions:
+            candles = [
+                candle
+                for candle in request.candles
+                if self.market_sessions.state(candle.timestamp)[1]
+            ]
+        if len(candles) < 20:
+            raise ValueError("at least 20 in-session candles are required for walk-forward")
         split = max(
             5,
             min(
-                len(request.candles) - 5,
-                int(len(request.candles) * request.train_fraction),
+                len(candles) - 5,
+                int(len(candles) * request.train_fraction),
             ),
         )
         train_request = BacktestRequest(
             symbol=request.symbol,
-            candles=request.candles[:split],
+            candles=candles[:split],
             strategy=request.strategy,
             initial_cash=request.initial_cash,
             order_size=request.order_size,
             commission_pct=request.commission_pct,
             slippage_pct=request.slippage_pct,
         )
-        test_request = train_request.model_copy(update={"candles": request.candles[split:]})
+        test_request = train_request.model_copy(update={"candles": candles[split:]})
         train = self.backtester.run(train_request)
         out_of_sample = self.backtester.run(test_request)
         reasons: list[str] = []
@@ -183,6 +203,7 @@ class ResearchService:
                 "test_bars": len(test_request.candles),
                 "commission_pct": request.commission_pct,
                 "slippage_pct": request.slippage_pct,
+                "session_filter": self.settings.enforce_market_sessions,
             },
             output={
                 "train_return_pct": train.total_return_pct,
