@@ -51,7 +51,7 @@ jobs:
           python -m pip install 'build>=1.2,<2' 'pip-audit>=2.8,<3'
           python -m pip install -e .
       - name: Audit release dependencies
-        run: pip-audit --strict --progress-spinner off
+        run: pip-audit --strict --skip-editable --progress-spinner off
       - name: Build wheel and source distribution
         run: python -m build
       - name: Verify built wheel installs
@@ -60,9 +60,10 @@ jobs:
           /tmp/zksato-release-venv/bin/python -m pip install --upgrade pip
           /tmp/zksato-release-venv/bin/python -m pip install dist/*.whl
           /tmp/zksato-release-venv/bin/python -c 'import zksato'
-      - name: Generate SBOM and checksums
+      - name: Generate dependency SBOM and checksums
         run: |
-          pip-audit --strict --progress-spinner off --format cyclonedx-json --output dist/sbom.cdx.json
+          pip-audit --strict --skip-editable --progress-spinner off \
+            --format cyclonedx-json --output dist/sbom.cdx.json
           (cd dist && sha256sum *.whl *.tar.gz sbom.cdx.json > SHA256SUMS)
       - name: Upload release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
