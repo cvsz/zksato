@@ -7,10 +7,14 @@ services:
       - .env
     environment:
       ZKSATO_DATABASE_URL: "postgresql+psycopg://zksato:${POSTGRES_PASSWORD:-zksato_dev_only}@postgres:5432/zksato"
+      ZKSATO_REDIS_URL: "redis://redis:6379/0"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    stop_grace_period: 30s
 
   postgres:
     image: postgres:16-alpine
@@ -25,10 +29,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
       - redis_data:/data
     healthcheck:
@@ -36,6 +41,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   postgres_data:
