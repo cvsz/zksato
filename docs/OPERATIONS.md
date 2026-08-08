@@ -8,10 +8,10 @@ The repository starts in paper mode. Do not add broker credentials until the pap
 cp .env.example .env
 docker compose up --build -d
 docker compose ps
-curl -fsS http://127.0.0.1:9999/health
+curl -fsS http://127.0.0.1:9569/health
 ```
 
-Open `http://127.0.0.1:9999/` and use **Start demo feed** to exercise market watch, portfolio, bot, alerts, orders and audit history without external market access.
+Open `http://127.0.0.1:9569/` and use **Start demo feed** to exercise market watch, portfolio, bot, alerts, orders and audit history without external market access.
 
 ## 2. Preflight checklist
 
@@ -114,10 +114,10 @@ The application kill switch blocks new risk-approved submissions; it does not cl
 Current single-node checks:
 
 ```bash
-curl -fsS http://127.0.0.1:9999/health
-curl -fsS http://127.0.0.1:9999/v1/config
-curl -fsS http://127.0.0.1:9999/v1/portfolio
-curl -fsS http://127.0.0.1:9999/v1/audit
+curl -fsS http://127.0.0.1:9569/health
+curl -fsS http://127.0.0.1:9569/v1/config
+curl -fsS http://127.0.0.1:9569/v1/portfolio
+curl -fsS http://127.0.0.1:9569/v1/audit
 ```
 
 Docker checks:
