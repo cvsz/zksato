@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zksato"
-version = "0.3.0"
+version = "0.4.0"
 description = "Risk-first automated trading platform and dashboard for SET / TFEX"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4.0",
   "pydantic>=2.10,<3.0",
   "pydantic-settings>=2.7,<3.0",
+  "redis>=5.2,<7.0",
   "sqlalchemy>=2.0,<3.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
@@ -28,6 +29,11 @@ dev = [
 settrade = [
   "settrade-v2==2.2.1",
 ]
+observability = [
+  "opentelemetry-api>=1.35,<2.0",
+  "opentelemetry-sdk>=1.35,<2.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.35,<2.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zksato"]
@@ -36,6 +42,10 @@ packages = ["src/zksato"]
 addopts = "-q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+  "performance: load/performance tests excluded from normal CI",
+  "uat: requires broker-provided UAT credentials",
+]
 
 [tool.ruff]
 target-version = "py311"
