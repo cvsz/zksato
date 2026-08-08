@@ -1,4 +1,5 @@
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from zksato.config import Settings
 from zksato.domain import OrderIntent, RiskContext, Side
