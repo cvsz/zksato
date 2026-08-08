@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     max_symbol_exposure_pct: float = Field(default=20.0, gt=0, le=100)
     max_spread_pct: float = Field(default=3.0, gt=0, le=100)
     require_stop_loss: bool = True
+    allow_equity_short_selling: bool = False
     kill_switch: bool = False
 
     max_tfex_contracts: int = Field(default=20, ge=1, le=10_000)

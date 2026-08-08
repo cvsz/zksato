@@ -9,11 +9,9 @@ from zksato.domain import (
     BotState,
     BotStatus,
     OrderIntent,
-    OrderStatus,
     OrderSubmission,
     OrderType,
     Quote,
-    RiskContext,
     Side,
     SignalAction,
 )
@@ -130,21 +128,19 @@ class AutomationEngine:
             stop_loss = price * (1 - config.stop_loss_pct / 100)
             take_profit = price * (1 + config.take_profit_pct / 100)
 
-        context = self._risk_context(portfolio, symbol, price, quantity)
-        submission = OrderSubmission(
-            intent=OrderIntent(
-                symbol=symbol,
-                side=side,
-                quantity=quantity,
-                order_type=OrderType.MARKET,
-                price=None,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                client_order_id=f"bot-{uuid4()}",
-                source=f"bot:{config.strategy.name}",
-            ),
-            risk=context,
+        intent = OrderIntent(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            order_type=OrderType.MARKET,
+            price=None,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            client_order_id=f"bot-{uuid4()}",
+            source=f"bot:{config.strategy.name}",
         )
+        context = await self.service.risk_context_for(intent)
+        submission = OrderSubmission(intent=intent, risk=context)
         try:
             order = await self.service.submit(submission, automated=True)
         except (RiskRejectedError, TradingModeError, ValueError) as exc:
@@ -155,62 +151,6 @@ class AutomationEngine:
         await self._notify(
             f"zksato {self.settings.trading_mode}: {side.value.upper()} "
             f"{quantity} {symbol} status={order.status.value}"
-        )
-
-    def _risk_context(
-        self,
-        portfolio: object,
-        symbol: str,
-        price: float,
-        quantity: int,
-    ) -> RiskContext:
-        positions = getattr(portfolio, "positions", [])
-        equity = float(getattr(portfolio, "equity", 0) or 0)
-        cash = float(getattr(portfolio, "cash", 0) or 0)
-        notional = price * quantity
-        existing_value = sum(
-            float(getattr(position, "market_value", 0) or 0)
-            for position in positions
-            if getattr(position, "symbol", "") == symbol
-        )
-        gross_value = sum(float(getattr(item, "market_value", 0) or 0) for item in positions)
-        position_pct = ((existing_value + notional) / equity * 100) if equity else 100.0
-        gross_pct = ((gross_value + notional) / equity * 100) if equity else 100.0
-        symbol_pct = ((existing_value + notional) / equity * 100) if equity else 100.0
-        daily_pnl = float(getattr(portfolio, "daily_pnl", 0) or 0)
-        daily_pnl_pct = (daily_pnl / equity * 100) if equity else 0.0
-        drawdown = 0.0
-        account = getattr(self.service.broker, "account", None)
-        if account is not None and hasattr(account, "drawdown_pct"):
-            drawdown = float(account.drawdown_pct())
-        orders = self.store.list_orders()
-        open_statuses = {
-            OrderStatus.PENDING,
-            OrderStatus.ACCEPTED,
-            OrderStatus.PARTIALLY_FILLED,
-            OrderStatus.NEEDS_RECONCILIATION,
-        }
-        today = datetime.now(UTC).date()
-        orders_today = sum(item.created_at.date() == today for item in orders)
-        open_orders = sum(item.status in open_statuses for item in orders)
-        quote = self.store.get_quote(symbol)
-        spread_pct: float | None = None
-        if quote and quote.bid and quote.offer and quote.last:
-            spread_pct = (quote.offer - quote.bid) / quote.last * 100
-        return RiskContext(
-            current_positions=len(positions),
-            daily_pnl_pct=daily_pnl_pct,
-            drawdown_pct=drawdown,
-            position_pct_after_trade=min(position_pct, 100),
-            line_available=cash,
-            reference_price=price,
-            orders_today=orders_today,
-            open_orders=open_orders,
-            portfolio_value=equity if equity > 0 else None,
-            gross_exposure_pct=max(gross_pct, 0),
-            symbol_exposure_pct=max(symbol_pct, 0),
-            quote_age_seconds=self.store.quote_age_seconds(symbol),
-            spread_pct=spread_pct,
         )
 
     async def _check_protective_exits(self, quote: Quote) -> None:
@@ -229,20 +169,16 @@ class AutomationEngine:
                 exit_reason = "take_profit"
             if not exit_reason:
                 continue
-            submission = OrderSubmission(
-                intent=OrderIntent(
-                    symbol=order.symbol,
-                    side=Side.SELL,
-                    quantity=order.filled_quantity,
-                    order_type=OrderType.MARKET,
-                    source=f"protective:{exit_reason}",
-                    client_order_id=f"exit-{order.id}-{exit_reason}",
-                ),
-                risk=RiskContext(
-                    reference_price=quote.last,
-                    quote_age_seconds=self.store.quote_age_seconds(order.symbol),
-                ),
+            intent = OrderIntent(
+                symbol=order.symbol,
+                side=Side.SELL,
+                quantity=order.filled_quantity,
+                order_type=OrderType.MARKET,
+                source=f"protective:{exit_reason}",
+                client_order_id=f"exit-{order.id}-{exit_reason}",
             )
+            context = await self.service.risk_context_for(intent)
+            submission = OrderSubmission(intent=intent, risk=context)
             try:
                 await self.service.submit(submission, automated=True)
             except (RiskRejectedError, TradingModeError, ValueError) as exc:

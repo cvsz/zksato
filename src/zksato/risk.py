@@ -23,6 +23,19 @@ class RiskEngine:
             reasons.append("market session state is unknown")
         if not context.market_data_available:
             reasons.append("trusted market data is unavailable")
+        if (
+            intent.side == Side.SELL
+            and not context.reduces_exposure
+            and not self.settings.allow_equity_short_selling
+        ):
+            reasons.append("equity short selling is disabled")
+        if (
+            intent.side == Side.SELL
+            and not self.settings.allow_equity_short_selling
+            and context.available_quantity is not None
+            and intent.quantity > context.available_quantity
+        ):
+            reasons.append("sell quantity exceeds available position")
         if opening_risk and context.daily_pnl_pct <= -abs(self.settings.max_daily_loss_pct):
             reasons.append("maximum daily loss threshold reached")
         if opening_risk and context.drawdown_pct >= self.settings.max_drawdown_pct:
@@ -54,11 +67,7 @@ class RiskEngine:
             reasons.append("reference price is required for risk estimation")
         elif estimated_notional > self.settings.max_notional_per_order:
             reasons.append("order notional exceeds configured maximum")
-        if (
-            self.settings.require_stop_loss
-            and opening_risk
-            and intent.stop_loss is None
-        ):
+        if self.settings.require_stop_loss and opening_risk and intent.stop_loss is None:
             reasons.append("stop loss is required for buy orders")
         if (
             opening_risk

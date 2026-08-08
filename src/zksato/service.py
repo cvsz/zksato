@@ -67,6 +67,7 @@ class TradingService:
             None,
         )
         existing_value = float(existing.market_value) if existing else 0.0
+        holding_qty = int(existing.quantity) if existing else 0
         gross_value = sum(float(position.market_value) for position in portfolio.positions)
         if intent.side == Side.BUY:
             symbol_after = existing_value + notional
@@ -90,13 +91,13 @@ class TradingService:
         spread_pct: float | None = None
         if quote and quote.bid and quote.offer and quote.last:
             spread_pct = (quote.offer - quote.bid) / quote.last * 100
-        holding_qty = int(existing.quantity) if existing else 0
         return RiskContext(
             current_positions=len(portfolio.positions),
             daily_pnl_pct=daily_pnl_pct,
             drawdown_pct=drawdown,
             position_pct_after_trade=min(max(position_pct, 0.0), 100.0),
             line_available=max(float(portfolio.cash), 0.0),
+            available_quantity=holding_qty,
             reference_price=reference_price,
             orders_today=orders_today,
             open_orders=open_orders,
@@ -108,7 +109,9 @@ class TradingService:
             market_session_known=True,
             market_data_available=quote is not None,
             opens_new_position=intent.side == Side.BUY and holding_qty <= 0,
-            reduces_exposure=intent.side == Side.SELL and holding_qty > 0,
+            reduces_exposure=(
+                intent.side == Side.SELL and holding_qty > 0 and intent.quantity <= holding_qty
+            ),
         )
 
     async def submit(

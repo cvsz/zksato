@@ -103,6 +103,7 @@ class RiskContext(BaseModel):
     drawdown_pct: float = Field(default=0.0, ge=0)
     position_pct_after_trade: float = Field(default=0.0, ge=0, le=100)
     line_available: float | None = Field(default=None, ge=0)
+    available_quantity: int | None = Field(default=None, ge=0)
     reference_price: float | None = Field(default=None, gt=0)
     orders_today: int = Field(default=0, ge=0)
     open_orders: int = Field(default=0, ge=0)
