@@ -106,7 +106,8 @@ jobs:
       - name: Validate YAML
         run: yamllint .github .yamllint.yml docker-compose.yml
       - name: Validate GitHub Actions syntax
-        run: "$RUNNER_TEMP/actionlint-bin" -color
+        run: |
+          "$RUNNER_TEMP/actionlint-bin" -color
       - name: Audit GitHub Actions security posture
         run: zizmor --min-severity high --min-confidence high .github/workflows
       - name: Validate shell scripts
