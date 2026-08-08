@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     market_data_stale_seconds: float = Field(default=10.0, gt=0, le=300)
     market_timezone: str = "Asia/Bangkok"
     equity_sessions: str = "09:30-12:30,14:00-16:30"
+    enforce_market_sessions: bool = False
     instrument_metadata_json: str = ""
     strict_reference_data: bool = False
     max_positions: int = Field(default=5, ge=1, le=100)
@@ -76,6 +77,8 @@ class Settings(BaseSettings):
     max_tfex_contracts: int = Field(default=20, ge=1, le=10_000)
     max_tfex_margin_usage_pct: float = Field(default=50.0, gt=0, le=100)
     tfex_expiry_restriction_days: int = Field(default=2, ge=0, le=30)
+    tfex_contract_metadata_json: str = ""
+    strict_tfex_reference_data: bool = False
 
     default_strategy: Literal["ema_cross", "rsi_reversion", "breakout"] = "ema_cross"
     default_order_size: int = Field(default=100, ge=1)
