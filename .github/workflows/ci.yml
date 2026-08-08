@@ -4,13 +4,62 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  quality:
+    name: Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Compile
+        run: python -m compileall -q src tests scripts
+      - name: Dependency consistency
+        run: python -m pip check
+      - name: Lint
+        run: ruff check .
+      - name: Shell syntax
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+      - name: Validate Compose
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+  integration:
+    name: Integration / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
     services:
       postgres:
         image: postgres:16-alpine
@@ -36,30 +85,63 @@ jobs:
           --health-retries 10
     env:
       ZKSATO_TEST_DATABASE_URL: postgresql+psycopg://zksato:zksato_test@127.0.0.1:5432/zksato_test
+      ZKSATO_REDIS_URL: redis://127.0.0.1:6379/0
       PGPASSWORD: zksato_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          python-version: "3.11"
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
           cache: pip
       - name: Install
         run: python -m pip install -e '.[dev]'
-      - name: Compile
-        run: python -m compileall -q src tests
       - name: Apply PostgreSQL migrations
         run: |
+          set -euo pipefail
           for migration in migrations/[0-9][0-9][0-9][0-9]_*.sql; do
             echo "Applying ${migration}"
             psql -h 127.0.0.1 -U zksato -d zksato_test -v ON_ERROR_STOP=1 -f "${migration}"
           done
-      - name: Dependency consistency
-        run: python -m pip check
-      - name: Lint
-        run: ruff check .
       - name: Test
         run: pytest -m "not uat and not performance"
-      - name: Validate Compose
+
+  container:
+    name: Container build and smoke
+    needs: [quality, integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Build image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: zksato:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test image
+        shell: bash
         run: |
-          cp .env.example .env
-          docker compose config --quiet
+          set -euo pipefail
+          docker run --detach --rm --name zksato-ci -p 9569:9569 zksato:ci
+          trap 'docker logs zksato-ci || true; docker stop zksato-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:9569/health >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Container failed to become healthy" >&2
+          exit 1
