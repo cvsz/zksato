@@ -31,13 +31,16 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install application and security tools
+      - name: Install application and capture resolved dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev]'
-          python -m pip install 'pip-audit>=2.8,<3' 'bandit>=1.8,<2'
+          python -m pip freeze --exclude-editable > audit-requirements.txt
+          test -s audit-requirements.txt
+      - name: Install security tools
+        run: python -m pip install 'pip-audit>=2.8,<3' 'bandit>=1.8,<2'
       - name: Audit Python dependencies
-        run: pip-audit --strict --skip-editable --progress-spinner off
+        run: pip-audit --strict --progress-spinner off -r audit-requirements.txt
       - name: Bandit static analysis
         run: bandit -q -r src -ll
       - name: Scan tracked files for high-confidence secret formats
