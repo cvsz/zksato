@@ -139,7 +139,13 @@ class SettradeBroker:
         side = Side.BUY if raw_side == "buy" else Side.SELL
         raw_type = str(payload.get("priceType", "Limit")).lower()
         order_type = OrderType.LIMIT if raw_type == "limit" else OrderType.MARKET
-        quantity = int(payload.get("vol", payload.get("volume", intent.quantity if intent else 0)) or 0)
+        quantity = int(
+            payload.get(
+                "vol",
+                payload.get("volume", intent.quantity if intent else 0),
+            )
+            or 0
+        )
         matched = int(payload.get("matched", payload.get("matchedQty", 0)) or 0)
         raw_status = str(payload.get("status", payload.get("showOrderStatus", ""))).lower()
         status = self._status(raw_status, quantity, matched)
