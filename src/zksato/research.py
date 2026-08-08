@@ -97,7 +97,11 @@ class ResearchService:
         version: str,
         config: StrategyConfig,
     ) -> StrategyVersion:
-        canonical = json.dumps(config.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+        canonical = json.dumps(
+            config.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         record = StrategyVersion(
             name=name,
             version=version,
@@ -144,7 +148,13 @@ class ResearchService:
         )
 
     def walk_forward(self, request: WalkForwardRequest) -> WalkForwardResult:
-        split = max(5, min(len(request.candles) - 5, int(len(request.candles) * request.train_fraction)))
+        split = max(
+            5,
+            min(
+                len(request.candles) - 5,
+                int(len(request.candles) * request.train_fraction),
+            ),
+        )
         train_request = BacktestRequest(
             symbol=request.symbol,
             candles=request.candles[:split],
@@ -199,9 +209,11 @@ class ResearchService:
             reasons.append("drawdown exceeds promotion threshold")
         if evidence.out_of_sample_return_pct < self.settings.research_min_oos_return_pct:
             reasons.append("out-of-sample return below threshold")
-        if evidence.requested_stage in {PromotionStage.UAT, PromotionStage.LIVE_MANUAL}:
-            if evidence.paper_sessions < 1:
-                reasons.append("paper evidence is required before UAT")
+        if (
+            evidence.requested_stage in {PromotionStage.UAT, PromotionStage.LIVE_MANUAL}
+            and evidence.paper_sessions < 1
+        ):
+            reasons.append("paper evidence is required before UAT")
         if evidence.requested_stage == PromotionStage.LIVE_MANUAL:
             if evidence.uat_orders_reconciled < 1:
                 reasons.append("reconciled UAT evidence is required before live canary")
