@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from time import monotonic
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -16,11 +16,13 @@ from zksato.backtest import Backtester
 from zksato.broker.paper import PaperBroker
 from zksato.broker.settrade import SettradeBroker
 from zksato.config import get_settings
+from zksato.coordination import CoordinationManager
 from zksato.dashboard import DASHBOARD_HTML
 from zksato.domain import (
     AlertRule,
     BacktestRequest,
     BacktestResult,
+    Bar,
     BotConfig,
     BotStatus,
     DashboardSnapshot,
@@ -33,18 +35,45 @@ from zksato.domain import (
     RiskDecision,
     ScannerResult,
     Signal,
+    StrategyConfig,
 )
 from zksato.market import DemoMarketFeed
 from zksato.market_settrade import SettradeRealtimeFeed
 from zksato.notifications import OutboxDispatcher
-from zksato.observability import HTTP_LATENCY, HTTP_REQUESTS, metrics_response
+from zksato.observability import (
+    COORDINATION_HEALTH,
+    HTTP_LATENCY,
+    HTTP_REQUESTS,
+    MARKET_FEED_AGE,
+    OUTBOX_BACKLOG,
+    bind_correlation_id,
+    configure_logging,
+    init_tracing,
+    metrics_response,
+    reset_correlation_id,
+)
 from zksato.persistence import build_store
+from zksato.production import (
+    CanaryPlan,
+    ExternalReadinessEvidence,
+    ProductionReadinessReport,
+    ProductionReadinessService,
+)
 from zksato.reconcile import ReconciliationService, ReconciliationWorker
+from zksato.research import (
+    PromotionDecision,
+    PromotionEvidence,
+    ReplayResult,
+    ResearchService,
+    WalkForwardRequest,
+    WalkForwardResult,
+)
 from zksato.scanner import MarketScanner
-from zksato.security import RateLimitMiddleware, SecurityHeadersMiddleware
+from zksato.security import RateLimitMiddleware, SecurityHeadersMiddleware, redact_sensitive
 from zksato.service import RiskRejectedError, TradingModeError, TradingService
 from zksato.tfex import (
     SettradeTfexGateway,
+    TfexContractMetadata,
     TfexOrderIntent,
     TfexOrderSubmission,
     TfexRiskDecision,
@@ -52,8 +81,14 @@ from zksato.tfex import (
 )
 
 settings = get_settings()
+configure_logging(settings.log_level, json_logs=settings.log_json)
+init_tracing(settings.otel_service_name, settings.otel_endpoint)
 store = build_store(settings)
 approvals = ApprovalRepository(settings.database_url)
+coordination = CoordinationManager(
+    settings.redis_url,
+    lock_ttl_seconds=settings.coordination_lock_ttl_seconds,
+)
 if settings.trading_mode == "paper":
     broker = PaperBroker(store=store, initial_cash=settings.initial_cash)
 else:
@@ -69,7 +104,7 @@ demo_feed = DemoMarketFeed(automation=automation)
 backtester = Backtester()
 scanner = MarketScanner()
 auth = AuthManager(settings)
-reconciler = ReconciliationService(broker=broker, store=store)
+reconciler = ReconciliationService(broker=broker, store=store, coordination=coordination)
 reconciliation_worker = ReconciliationWorker(
     service=reconciler,
     interval_seconds=settings.reconciliation_interval_seconds,
@@ -78,6 +113,8 @@ outbox_dispatcher = OutboxDispatcher(
     store=store,
     webhook_url=settings.notification_webhook_url,
 )
+research = ResearchService(settings, store)
+production = ProductionReadinessService(settings, store)
 settrade_feed: SettradeRealtimeFeed | None = None
 tfex_gateway: SettradeTfexGateway | None = None
 tfex_risk = TfexRiskEngine(settings)
@@ -86,10 +123,12 @@ read_access = require_roles(auth, Role.READ_ONLY)
 strategy_access = require_roles(auth, Role.STRATEGY_OPERATOR)
 order_access = require_roles(auth, Role.ORDER_APPROVER)
 risk_access = require_roles(auth, Role.RISK_ADMIN)
+auditor_access = require_roles(auth, Role.AUDITOR, Role.PLATFORM_ADMIN)
 ReadPrincipal = Annotated[Principal, Depends(read_access)]
 StrategyPrincipal = Annotated[Principal, Depends(strategy_access)]
 OrderPrincipal = Annotated[Principal, Depends(order_access)]
 RiskPrincipal = Annotated[Principal, Depends(risk_access)]
+AuditorPrincipal = Annotated[Principal, Depends(auditor_access)]
 LiveApprovalHeader = Annotated[str | None, Header(alias="X-Live-Approval-Id")]
 
 
@@ -102,20 +141,22 @@ async def lifespan(_: FastAPI):
     await reconciliation_worker.stop()
     await outbox_dispatcher.stop()
     if settrade_feed is not None:
-        settrade_feed.stop()
+        await settrade_feed.stop()
+    await coordination.close()
     approvals.close()
     store.close()
 
 
 app = FastAPI(
     title="zksato",
-    version="0.3.0",
+    version="0.4.0",
     description="Risk-first automated trading control plane with dashboard",
     lifespan=lifespan,
 )
 app.add_middleware(
     RateLimitMiddleware,
     requests_per_minute=settings.rate_limit_per_minute,
+    coordination=coordination,
 )
 app.add_middleware(SecurityHeadersMiddleware)
 if settings.cors_origins:
@@ -123,8 +164,15 @@ if settings.cors_origins:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Live-Approval-Id"],
-        allow_credentials=False,
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-API-Key",
+            "X-CSRF-Token",
+            "X-Live-Approval-Id",
+            "X-Request-ID",
+        ],
+        allow_credentials=True,
     )
 if settings.trusted_hosts:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
@@ -132,17 +180,24 @@ if settings.trusted_hosts:
 
 @app.middleware("http")
 async def observe_http(request: Request, call_next):
+    supplied = request.headers.get("X-Request-ID")
+    correlation_id = supplied[:128] if supplied else None
+    token = bind_correlation_id(correlation_id)
     started = monotonic()
-    response = await call_next(request)
-    route = request.scope.get("route")
-    route_name = getattr(route, "path", request.url.path)
-    HTTP_REQUESTS.labels(
-        method=request.method,
-        route=route_name,
-        status=str(response.status_code),
-    ).inc()
-    HTTP_LATENCY.labels(method=request.method, route=route_name).observe(monotonic() - started)
-    return response
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = correlation_id or "generated"
+        route = request.scope.get("route")
+        route_name = getattr(route, "path", request.url.path)
+        HTTP_REQUESTS.labels(
+            method=request.method,
+            route=route_name,
+            status=str(response.status_code),
+        ).inc()
+        HTTP_LATENCY.labels(method=request.method, route=route_name).observe(monotonic() - started)
+        return response
+    finally:
+        reset_correlation_id(token)
 
 
 def _tfex_gateway() -> SettradeTfexGateway:
@@ -169,20 +224,31 @@ async def dashboard_page() -> str:
 @app.get("/health")
 async def health() -> dict[str, object]:
     database_healthy = store.health()
+    coordination_healthy = await coordination.health()
+    COORDINATION_HEALTH.set(1 if coordination_healthy else 0)
     reconciliation_ready = (
         True
         if settings.trading_mode == "paper" or not settings.reconciliation_enabled
         else store.broker_reconciliation_ready()
     )
+    quote_ages = [store.quote_age_seconds(item.symbol) for item in store.list_quotes()]
+    usable_ages = [age for age in quote_ages if age is not None]
+    if usable_ages:
+        MARKET_FEED_AGE.set(min(usable_ages))
+    OUTBOX_BACKLOG.set(len(store.pending_outbox(10_000)))
+    healthy = database_healthy and coordination_healthy and reconciliation_ready
     return {
-        "status": "ok" if database_healthy and reconciliation_ready else "degraded",
+        "status": "ok" if healthy else "degraded",
         "mode": settings.trading_mode,
         "automation": automation.status.state,
         "settrade_configured": settings.settrade_configured,
         "settrade_tfex_configured": settings.settrade_tfex_configured,
         "persistence": "sql" if settings.database_url else "memory",
         "persistence_healthy": database_healthy,
+        "coordination": "redis" if settings.redis_url else "local",
+        "coordination_healthy": coordination_healthy,
         "reconciliation_ready": reconciliation_ready,
+        "audit_chain_valid": store.verify_audit_chain(),
     }
 
 
@@ -193,9 +259,52 @@ async def metrics(_principal: ReadPrincipal):
     return metrics_response()
 
 
+@app.post("/v1/auth/session")
+async def create_session(
+    response: Response,
+    authorization: Annotated[str | None, Header()] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+) -> dict[str, object]:
+    issued = auth.issue_session(authorization, x_api_key)
+    response.set_cookie(
+        settings.session_cookie_name,
+        issued.token,
+        max_age=settings.session_ttl_seconds,
+        httponly=True,
+        secure=settings.environment == "prod",
+        samesite="strict",
+        path="/",
+    )
+    return {
+        "subject": issued.principal.subject,
+        "role": issued.principal.role.value,
+        "csrf_token": issued.csrf_token,
+        "expires_at": issued.expires_at.isoformat(),
+    }
+
+
+@app.delete("/v1/auth/session")
+async def delete_session(
+    response: Response,
+    _principal: ReadPrincipal,
+    session_token: Annotated[
+        str | None,
+        Cookie(alias=settings.session_cookie_name),
+    ] = None,
+) -> dict[str, bool]:
+    if session_token:
+        auth.revoke_session(session_token)
+    response.delete_cookie(settings.session_cookie_name, path="/")
+    return {"revoked": bool(session_token)}
+
+
 @app.get("/v1/auth/me")
 async def auth_me(principal: ReadPrincipal) -> dict[str, str]:
-    return {"subject": principal.subject, "role": principal.role.value}
+    return {
+        "subject": principal.subject,
+        "role": principal.role.value,
+        "auth_method": principal.auth_method,
+    }
 
 
 @app.get("/v1/config")
@@ -209,6 +318,7 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
         "automation_enabled": settings.automation_enabled,
         "auth_required": settings.auth_required,
         "persistence_enabled": bool(settings.database_url),
+        "redis_enabled": bool(settings.redis_url),
         "settrade_configured": settings.settrade_configured,
         "settrade_tfex_configured": settings.settrade_tfex_configured,
         "reconciliation_ready": store.broker_reconciliation_ready(),
@@ -224,8 +334,12 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
             "max_open_orders": settings.max_open_orders,
             "max_notional_per_order": settings.max_notional_per_order,
             "max_gross_exposure_pct": settings.max_gross_exposure_pct,
+            "max_net_exposure_pct": settings.max_net_exposure_pct,
             "max_symbol_exposure_pct": settings.max_symbol_exposure_pct,
+            "max_sector_exposure_pct": settings.max_sector_exposure_pct,
             "market_data_stale_seconds": settings.market_data_stale_seconds,
+            "enforce_market_sessions": settings.enforce_market_sessions,
+            "strict_reference_data": settings.strict_reference_data,
             "require_stop_loss": settings.require_stop_loss,
             "max_tfex_contracts": settings.max_tfex_contracts,
             "max_tfex_margin_usage_pct": settings.max_tfex_margin_usage_pct,
@@ -247,6 +361,11 @@ async def dashboard_snapshot(_principal: ReadPrincipal) -> DashboardSnapshot:
         alerts=store.list_alerts(),
         audit=store.list_audit(100),
     )
+
+
+@app.get("/v1/reference/instruments")
+async def reference_instruments(_principal: ReadPrincipal) -> list[dict[str, object]]:
+    return [item.model_dump(mode="json") for item in service.instruments.list()]
 
 
 @app.post("/v1/market/quote", response_model=Quote)
@@ -313,20 +432,24 @@ async def start_settrade_feed(_principal: StrategyPrincipal) -> dict[str, object
         raise HTTPException(status_code=409, detail="Settrade feed requires sandbox/live mode")
     if settrade_feed is None:
         settrade_feed = SettradeRealtimeFeed(settings, automation)
-    try:
-        settrade_feed.start(settings.watchlist)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    store.add_audit("market.settrade.started", "Settrade realtime subscriptions started")
-    return {"running": True, "symbols": settings.watchlist}
+    settrade_feed.start(settings.watchlist)
+    store.add_audit("market.settrade.started", "Settrade realtime supervisor started")
+    return settrade_feed.status()
 
 
 @app.post("/v1/market/settrade/stop")
-async def stop_settrade_feed(_principal: StrategyPrincipal) -> dict[str, bool]:
+async def stop_settrade_feed(_principal: StrategyPrincipal) -> dict[str, object]:
     if settrade_feed is not None:
-        settrade_feed.stop()
-    store.add_audit("market.settrade.stopped", "Settrade realtime subscriptions stopped")
+        await settrade_feed.stop()
+    store.add_audit("market.settrade.stopped", "Settrade realtime supervisor stopped")
     return {"running": False}
+
+
+@app.get("/v1/market/settrade/status")
+async def settrade_feed_status(_principal: ReadPrincipal) -> dict[str, object]:
+    if settrade_feed is None:
+        return {"running": False, "connected": False, "symbols": []}
+    return settrade_feed.status()
 
 
 @app.post("/v1/bot/start", response_model=BotStatus)
@@ -432,6 +555,30 @@ async def cancel_order(order_id: str, _principal: OrderPrincipal) -> OrderRecord
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@app.get("/v1/order-events")
+async def order_events(_principal: AuditorPrincipal, limit: int = 200) -> list[dict[str, object]]:
+    return [
+        item.model_dump(mode="json")
+        for item in store.list_order_events(min(max(limit, 1), 2000))
+    ]
+
+
+@app.get("/v1/fills")
+async def fills(_principal: AuditorPrincipal, limit: int = 200) -> list[dict[str, object]]:
+    return [item.model_dump(mode="json") for item in store.list_fills(min(max(limit, 1), 2000))]
+
+
+@app.get("/v1/risk/evaluations")
+async def risk_evaluations(
+    _principal: AuditorPrincipal,
+    limit: int = 200,
+) -> list[dict[str, object]]:
+    return [
+        item.model_dump(mode="json")
+        for item in store.list_risk_evaluations(min(max(limit, 1), 2000))
+    ]
+
+
 @app.post("/v1/reconcile", response_model=ReconciliationReport)
 async def reconcile_orders(_principal: OrderPrincipal) -> ReconciliationReport:
     try:
@@ -468,8 +615,17 @@ async def delete_alert(alert_id: str, _principal: StrategyPrincipal) -> dict[str
 
 
 @app.get("/v1/audit")
-async def audit(_principal: ReadPrincipal, limit: int = 100) -> list[dict[str, object]]:
-    return [event.model_dump(mode="json") for event in store.list_audit(min(max(limit, 1), 1000))]
+async def audit(_principal: AuditorPrincipal, limit: int = 100) -> list[dict[str, object]]:
+    rows = [
+        event.model_dump(mode="json")
+        for event in store.list_audit(min(max(limit, 1), 1000))
+    ]
+    return redact_sensitive(rows)
+
+
+@app.get("/v1/audit/verify")
+async def audit_verify(_principal: AuditorPrincipal) -> dict[str, bool]:
+    return {"valid": store.verify_audit_chain()}
 
 
 @app.post("/v1/backtest", response_model=BacktestResult)
@@ -486,6 +642,53 @@ async def backtest(request: BacktestRequest, _principal: ReadPrincipal) -> Backt
     return result
 
 
+@app.post("/v1/research/bars")
+async def research_bars(bars: list[Bar], _principal: StrategyPrincipal) -> dict[str, int]:
+    return {"stored": research.ingest_bars(bars)}
+
+
+@app.post("/v1/research/replay/{symbol}", response_model=ReplayResult)
+async def research_replay(
+    symbol: str,
+    strategy: StrategyConfig,
+    _principal: ReadPrincipal,
+    timeframe: str = "1m",
+) -> ReplayResult:
+    return research.replay(symbol, strategy, timeframe=timeframe)
+
+
+@app.post("/v1/research/walk-forward", response_model=WalkForwardResult)
+async def research_walk_forward(
+    request: WalkForwardRequest,
+    _principal: ReadPrincipal,
+) -> WalkForwardResult:
+    return research.walk_forward(request)
+
+
+@app.post("/v1/research/promotion", response_model=PromotionDecision)
+async def research_promotion(
+    evidence: PromotionEvidence,
+    _principal: RiskPrincipal,
+) -> PromotionDecision:
+    return research.promotion_decision(evidence)
+
+
+@app.post("/v1/production/readiness", response_model=ProductionReadinessReport)
+async def production_readiness(
+    evidence: ExternalReadinessEvidence,
+    _principal: RiskPrincipal,
+) -> ProductionReadinessReport:
+    return production.report(evidence)
+
+
+@app.post("/v1/production/canary-plan", response_model=CanaryPlan)
+async def production_canary_plan(
+    evidence: ExternalReadinessEvidence,
+    _principal: RiskPrincipal,
+) -> CanaryPlan:
+    return production.canary_plan(evidence)
+
+
 @app.get("/v1/tfex/account")
 async def tfex_account(_principal: ReadPrincipal) -> dict[str, object]:
     return await _tfex_gateway().account()
@@ -499,6 +702,11 @@ async def tfex_portfolio(_principal: ReadPrincipal) -> list[dict[str, object]]:
 @app.get("/v1/tfex/orders")
 async def tfex_orders(_principal: ReadPrincipal) -> list[dict[str, object]]:
     return await _tfex_gateway().orders()
+
+
+@app.get("/v1/tfex/contracts", response_model=list[TfexContractMetadata])
+async def tfex_contracts(_principal: ReadPrincipal) -> list[TfexContractMetadata]:
+    return _tfex_gateway().contracts.list()
 
 
 @app.post("/v1/tfex/risk/check", response_model=TfexRiskDecision)
@@ -517,6 +725,8 @@ async def tfex_risk_preflight(
     gateway = _tfex_gateway()
     quote_age = store.quote_age_seconds(intent.symbol)
     context = await gateway.risk_context(
+        symbol=intent.symbol,
+        price=intent.price,
         quote_age_seconds=quote_age,
         market_data_available=store.get_quote(intent.symbol) is not None,
     )
@@ -532,6 +742,8 @@ async def tfex_place_uat_order(
         raise HTTPException(status_code=409, detail="TFEX mutation is UAT-only")
     gateway = _tfex_gateway()
     context = await gateway.risk_context(
+        symbol=submission.intent.symbol,
+        price=submission.intent.price,
         quote_age_seconds=store.quote_age_seconds(submission.intent.symbol),
         market_data_available=store.get_quote(submission.intent.symbol) is not None,
     )
