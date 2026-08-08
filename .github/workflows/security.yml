@@ -37,7 +37,7 @@ jobs:
           python -m pip install -e '.[dev]'
           python -m pip install 'pip-audit>=2.8,<3' 'bandit>=1.8,<2'
       - name: Audit Python dependencies
-        run: pip-audit --strict --progress-spinner off
+        run: pip-audit --strict --skip-editable --progress-spinner off
       - name: Bandit static analysis
         run: bandit -q -r src -ll
       - name: Scan tracked files for high-confidence secret formats
