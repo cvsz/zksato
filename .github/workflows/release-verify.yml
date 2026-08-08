@@ -1,0 +1,85 @@
+name: Release Verification
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to verify, for example v0.4.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: release-verify-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release checksums, wheel and immutable container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p verified-release
+          gh release download "$TAG" --dir verified-release
+          test -s verified-release/SHA256SUMS
+          test -s verified-release/CONTAINER_IMAGE.txt
+      - name: Verify release checksums
+        run: (cd verified-release && sha256sum -c SHA256SUMS)
+      - name: Verify wheel installs cleanly
+        run: |
+          python -m venv "$RUNNER_TEMP/release-verify"
+          "$RUNNER_TEMP/release-verify/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/release-verify/bin/python" -m pip install verified-release/*.whl
+          "$RUNNER_TEMP/release-verify/bin/python" -c 'import zksato'
+      - name: Authenticate to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+      - name: Pull immutable image and verify runtime
+        run: |
+          set -euo pipefail
+          image="$(cat verified-release/CONTAINER_IMAGE.txt)"
+          case "$image" in
+            ghcr.io/${GITHUB_REPOSITORY}:*@sha256:*) ;;
+            *) echo "Unexpected immutable image reference: $image"; exit 1 ;;
+          esac
+          docker pull "$image"
+          test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "zksato"
+          docker run -d --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges:true -p 9569:9569 --name zksato-release-verify "$image" >/dev/null
+          trap 'docker logs zksato-release-verify || true; docker rm -f zksato-release-verify >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9569/health > verified-release/health.json; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-verification-${{ github.run_id }}
+          path: verified-release/
+          if-no-files-found: warn
+          retention-days: 30

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -16,12 +17,37 @@ concurrency:
 jobs:
   required-docs:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install governance toolchain
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[quality]'
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Install verified actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          install -m 0755 "$RUNNER_TEMP/actionlint" "$RUNNER_TEMP/actionlint-bin"
       - name: Verify repository operating documents
         shell: bash
         run: |
@@ -77,3 +103,14 @@ jobs:
           if bad:
               print('\n'.join(bad))
               sys.exit(1)
+      - name: Validate YAML
+        run: yamllint .github .yamllint.yml docker-compose.yml
+      - name: Validate GitHub Actions syntax
+        run: |
+          "$RUNNER_TEMP/actionlint-bin" -color
+      - name: Audit GitHub Actions security posture
+        run: zizmor --min-severity high --min-confidence high .github/workflows
+      - name: Validate shell scripts
+        run: shellcheck scripts/*.sh
+      - name: Validate Dockerfile
+        run: hadolint Dockerfile

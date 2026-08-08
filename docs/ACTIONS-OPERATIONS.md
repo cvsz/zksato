@@ -1,43 +1,64 @@
 # GitHub Actions operations
 
-This document complements `docs/GITHUB.md` with the final automation controls added after the production-grade Actions baseline.
+This runbook covers the source-controlled assurance workflows and the external GitHub settings required to turn them into an end-to-end protected delivery system.
 
-## Production Readiness workflow
+## Required baseline checks
 
-`.github/workflows/production-readiness.yml` is manual-only and uses the protected GitHub environment `production`. It does not submit, cancel, or modify broker orders.
+Before merging a non-trivial PR, require all applicable source-controlled checks to be green:
 
-The workflow requires an HTTPS zksato endpoint, the literal confirmation `READINESS_ONLY`, externally supplied readiness evidence, and an environment-scoped API credential permitted to call the zksato readiness evaluation boundary. Configure required reviewers on the `production` environment and keep the credential outside repository variables, workflow inputs, and committed files.
+- CI: PostgreSQL/Redis integration, migrations, Ruff, pytest branch coverage, Python 3.11-3.14.
+- Quality: format, mypy, YAML/actionlint/zizmor, OpenAPI safety contract, package and runtime-license policy.
+- Security: runtime `pip-audit`, Bandit, Gitleaks, high-confidence secret scan.
+- Governance: docs/port invariants, immutable action pins, least privilege, ShellCheck, Hadolint.
+- Container and Container Security for runtime/image changes.
+- Resilience for risk/reconciliation/persistence/approval/auth changes.
+- PR Policy for title/evidence requirements.
 
-It calls only:
+CodeQL and Dependency Review may be skipped when the private-repository plan does not expose those APIs. Do not convert plan-dependent checks into required status checks until their availability is stable.
 
-- `POST /v1/production/readiness`
-- `POST /v1/production/canary-plan`
+## Evidence workflows
 
-The workflow uploads the evidence payload, readiness report, and non-executing canary plan as a 30-day Actions artifact, then fails closed unless the application reports `ready_for_manual_canary=true`, the plan reports `allowed=true`, and `autonomous_execution=false`.
+### Performance
+Runs only against a locally built hardened container. Default bounded evidence is 1,000 requests, concurrency 25, zero tolerated failures, and p95 <= 500 ms. Inputs remain capped in `scripts/load_test.py`.
 
-Passing this workflow is evidence for a separately authorized manual canary. It is not approval for autonomous trading.
+### Disaster Recovery Drill
+The monthly/manual job applies all migrations to ephemeral PostgreSQL, seeds a sentinel, creates a custom-format backup, verifies its checksum, proves a deliberately modified copy does not match the checksum, restores the real backup, verifies public tables and sentinel data, and emits measured backup/restore timings.
 
-## Release container artifacts
+This proves the repository procedure. A production restore drill and measured production RPO/RTO remain external operational evidence.
 
-The tag-driven `Release` workflow publishes both Python release files and a versioned container artifact to GitHub Container Registry:
+### Repository Health
+Performs read-only GitHub API probes for repository metadata, Actions permissions, active workflows, environments, main protection, rulesets, code scanning, secret scanning, and Dependabot alerts. Unsupported or forbidden APIs are recorded rather than guessed.
 
-- `ghcr.io/cvsz/zksato:<tag>`
-- `ghcr.io/cvsz/zksato:latest`
+### UAT Certification
+Requires the protected `uat` environment and `ZKSATO_UAT_API_KEY`. The probe is non-mutating and requires the deployed application to report sandbox mode and complete Settrade configuration.
 
-BuildKit provenance and container SBOM metadata are enabled. The immutable digest is written to `CONTAINER_IMAGE.txt` and included with the Python dependency SBOM and SHA-256 release checksums.
+### Production Readiness
+Requires the protected `production` environment and `ZKSATO_PRODUCTION_RISK_API_KEY`. The workflow only POSTs evidence to `/v1/production/readiness` and `/v1/production/canary-plan`; it never calls an order endpoint. An accepted plan must remain `autonomous_execution=false` and `maximum_orders=1`.
 
-The release workflow publishes artifacts only; it does not deploy production infrastructure or connect the image to a brokerage account.
+## Release container flow
 
-## Dependency maintenance
+A `v*` tag that exactly matches `pyproject.toml` creates Python distributions and a multi-architecture GHCR image. The release candidate is scanned before publication. Release assets include dependency SBOM, image SBOM, immutable image digest, and SHA-256 checksums. `Release Verification` independently re-downloads those assets and starts the immutable digest with the hardened runtime profile.
 
-Dependabot monitors Python packages, GitHub Actions, and Docker references on a weekly `Asia/Bangkok` schedule. All resulting pull requests must pass repository CI, governance, security, and any path-relevant container checks.
+Do not create the tag until normal CI/Quality/Security/Container gates are green on the intended release commit.
 
-## External GitHub settings
+## Required external GitHub setup
 
-Repository source cannot create or certify these settings. Configure them in GitHub repository settings:
+Source code cannot create or certify the following account/repository controls through the currently connected integration. Configure them in GitHub settings when supported:
 
-1. Protect `main` with required CI/Governance/Security checks and reviewed pull requests.
-2. Protect the `uat` and `production` environments with required reviewers.
-3. Enable secret scanning/push protection and Dependabot security alerts where available.
-4. Enable CodeQL, Dependency Review, and artifact attestations only when the repository/account plan supports the corresponding capability gates documented in `docs/GITHUB.md`.
-5. Define GHCR visibility and retention policy appropriate for this private repository.
+1. `uat` environment with required reviewers and `ZKSATO_UAT_API_KEY`.
+2. `production` environment with required reviewers and `ZKSATO_PRODUCTION_RISK_API_KEY`.
+3. Main-branch ruleset/protection with stable required checks, no force push/deletion, limited bypass, review/conversation requirements.
+4. Merge queue after ruleset/plan support is available; core checks already accept `merge_group`.
+5. Secret scanning/push protection and private vulnerability reporting when available.
+6. Code Security/CodeQL and Dependency Review when available, then set the matching repository variables.
+7. Artifact attestations when the private-repository plan supports them, then set `ENABLE_ATTESTATIONS=true`.
+8. Least-privilege repository/organization Actions token policy.
+
+## Failure handling
+
+- A CI/Quality/Security failure blocks merge until the root cause is fixed; do not bypass a safety check to make a PR green.
+- A Trivy fixed-CRITICAL finding blocks the release/runtime image path.
+- A failed DR drill invalidates backup/restore readiness until rerun successfully.
+- A failed UAT or production-readiness check never permits fallback to live execution.
+- An unavailable plan-gated GitHub feature remains an explicit gap, not a false pass.
+- Unknown broker mutation outcomes remain reconciliation problems and are never repaired by blind GitHub Actions retry.

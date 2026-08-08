@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from contextlib import asynccontextmanager
+from typing import cast
 from uuid import uuid4
 
 from redis.asyncio import Redis
@@ -67,7 +68,8 @@ class CoordinationManager:
         try:
             yield
         finally:
-            await self.redis.eval(_RELEASE_SCRIPT, 1, key, token)
+            release = cast(Awaitable[object], self.redis.eval(_RELEASE_SCRIPT, 1, key, token))
+            await release
 
     async def allow_request(self, key: str, *, limit: int, window_seconds: int = 60) -> bool:
         if self.redis is None:

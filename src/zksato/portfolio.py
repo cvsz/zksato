@@ -12,6 +12,15 @@ class Holding:
     average_price: float = 0.0
 
 
+def _as_float(value: object, default: float) -> float:
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
+
 class PaperPortfolio:
     def __init__(self, store: StateStore, initial_cash: float) -> None:
         self.store = store
@@ -28,13 +37,11 @@ class PaperPortfolio:
         if not state:
             self._persist()
             return
-        self.initial_cash = float(state.get("initial_cash", self.initial_cash))
-        self.cash = float(state.get("cash", self.initial_cash))
-        self.realized_pnl = float(state.get("realized_pnl", 0.0))
-        self._day_start_equity = float(
-            state.get("day_start_equity", self.initial_cash)
-        )
-        self._peak_equity = float(state.get("peak_equity", self.initial_cash))
+        self.initial_cash = _as_float(state.get("initial_cash"), self.initial_cash)
+        self.cash = _as_float(state.get("cash"), self.initial_cash)
+        self.realized_pnl = _as_float(state.get("realized_pnl"), 0.0)
+        self._day_start_equity = _as_float(state.get("day_start_equity"), self.initial_cash)
+        self._peak_equity = _as_float(state.get("peak_equity"), self.initial_cash)
         raw_holdings = state.get("holdings", {})
         if isinstance(raw_holdings, dict):
             for symbol, raw in raw_holdings.items():
@@ -56,9 +63,7 @@ class PaperPortfolio:
                 "realized_pnl": self.realized_pnl,
                 "day_start_equity": self._day_start_equity,
                 "peak_equity": self._peak_equity,
-                "holdings": {
-                    symbol: asdict(holding) for symbol, holding in self.holdings.items()
-                },
+                "holdings": {symbol: asdict(holding) for symbol, holding in self.holdings.items()},
             }
         )
 
@@ -131,14 +136,3 @@ class PaperPortfolio:
             daily_pnl=daily_pnl,
             positions=positions,
         )
-
-    def drawdown_pct(self) -> float:
-        equity = self.snapshot().equity
-        if self._peak_equity <= 0:
-            return 0.0
-        return max(0.0, (self._peak_equity - equity) / self._peak_equity * 100)
-
-    def daily_pnl_pct(self) -> float:
-        if self._day_start_equity <= 0:
-            return 0.0
-        return self.snapshot().daily_pnl / self._day_start_equity * 100

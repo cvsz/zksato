@@ -25,7 +25,7 @@ class SettradeBroker:
             raise RuntimeError("Settrade credentials are incomplete")
         self.settings = settings
         try:
-            from settrade_v2 import Investor  # type: ignore[import-not-found]
+            from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use Settrade mode") from exc
 

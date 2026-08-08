@@ -96,10 +96,7 @@ class AutomationEngine:
             {"strategy": signal.strategy, "confidence": signal.confidence},
         )
         if not config.auto_execute:
-            message = (
-                f"zksato signal: {signal.action.value.upper()} "
-                f"{symbol} {signal.price:.2f}"
-            )
+            message = f"zksato signal: {signal.action.value.upper()} {symbol} {signal.price:.2f}"
             await self._notify(message)
             return
         await self._execute_signal(signal.action, symbol, signal.price)

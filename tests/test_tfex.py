@@ -10,9 +10,7 @@ from zksato.tfex import (
 
 
 def test_tfex_risk_rejects_stale_and_contract_limit() -> None:
-    engine = TfexRiskEngine(
-        Settings(max_tfex_contracts=5, market_data_stale_seconds=5)
-    )
+    engine = TfexRiskEngine(Settings(max_tfex_contracts=5, market_data_stale_seconds=5))
     submission = TfexOrderSubmission(
         intent=TfexOrderIntent(
             symbol="S50Z26",

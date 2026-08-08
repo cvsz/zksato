@@ -16,6 +16,13 @@ class ExternalReadinessEvidence(BaseModel):
     managed_secrets_verified: bool = False
     backup_restore_drill_complete: bool = False
     monitoring_alerts_verified: bool = False
+    incident_response_verified: bool = False
+    deployment_rollback_verified: bool = False
+    capacity_slo_verified: bool = False
+    time_sync_verified: bool = False
+    market_data_failover_verified: bool = False
+    data_retention_verified: bool = False
+    release_artifact_verified: bool = False
     manual_canary_authorized: bool = False
     uat_orders_reconciled: int = Field(default=0, ge=0)
     evidence_reference: str | None = Field(default=None, max_length=512)
@@ -53,8 +60,28 @@ class ProductionReadinessService:
     def report(self, evidence: ExternalReadinessEvidence) -> ProductionReadinessReport:
         checks = [
             self._check(
+                self.settings.environment == "prod",
+                "production environment selected",
+                "runtime",
+            ),
+            self._check(
+                self.settings.trading_mode == "live",
+                "live trading mode selected for the manual canary",
+                "runtime",
+            ),
+            self._check(
+                self.settings.live_trading_enabled,
+                "manual live trading explicitly enabled",
+                "runtime",
+            ),
+            self._check(
                 bool(self.settings.database_url),
                 "durable PostgreSQL configured",
+                "runtime",
+            ),
+            self._check(
+                bool(self.settings.redis_url),
+                "Redis coordination configured",
                 "runtime",
             ),
             self._check(
@@ -63,8 +90,18 @@ class ProductionReadinessService:
                 "runtime",
             ),
             self._check(
+                bool(self.settings.api_key_map),
+                "at least one server-side operator credential configured",
+                "runtime",
+            ),
+            self._check(
                 bool(self.settings.session_secret),
                 "signed session secret configured",
+                "runtime",
+            ),
+            self._check(
+                bool(self.settings.trusted_hosts),
+                "trusted HTTP hosts explicitly configured",
                 "runtime",
             ),
             self._check(
@@ -83,8 +120,8 @@ class ProductionReadinessService:
                 "runtime",
             ),
             self._check(
-                self.settings.account_allowed,
-                "configured account is allow-listed",
+                bool(self.settings.allowed_accounts) and self.settings.account_allowed,
+                "configured account is explicitly allow-listed",
                 "runtime",
             ),
             self._check(
@@ -100,6 +137,11 @@ class ProductionReadinessService:
             self._check(
                 self.settings.settrade_configured,
                 "Settrade equity credentials configured",
+                "runtime",
+            ),
+            self._check(
+                not self.settings.kill_switch,
+                "kill switch is clear before the separately authorized canary",
                 "runtime",
             ),
             self._check(
@@ -149,6 +191,41 @@ class ProductionReadinessService:
                 "external",
             ),
             self._check(
+                evidence.incident_response_verified,
+                "incident response and escalation path verified",
+                "external",
+            ),
+            self._check(
+                evidence.deployment_rollback_verified,
+                "deployment rollback procedure verified",
+                "external",
+            ),
+            self._check(
+                evidence.capacity_slo_verified,
+                "capacity and SLO evidence verified",
+                "external",
+            ),
+            self._check(
+                evidence.time_sync_verified,
+                "host and application time synchronization verified",
+                "external",
+            ),
+            self._check(
+                evidence.market_data_failover_verified,
+                "market-data disconnect and fail-closed recovery verified",
+                "external",
+            ),
+            self._check(
+                evidence.data_retention_verified,
+                "audit and trading-data retention policy verified",
+                "external",
+            ),
+            self._check(
+                evidence.release_artifact_verified,
+                "release artifact and immutable image digest verified",
+                "external",
+            ),
+            self._check(
                 evidence.manual_canary_authorized,
                 "manual canary explicitly authorized",
                 "external",
@@ -169,9 +246,10 @@ class ProductionReadinessService:
                 "distinct risk-admin and order-approver",
                 "fresh trusted market data",
                 "successful broker reconciliation",
-                "kill switch verified",
+                "kill switch verified and immediately reachable",
                 "single minimal-exposure manual order",
                 "post-order fill/position reconciliation",
+                "rollback and incident escalation ready",
             ],
             reasons=reasons,
         )

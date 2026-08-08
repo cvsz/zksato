@@ -167,7 +167,7 @@ class SettradeTfexGateway:
         self.settings = settings
         self.contracts = TfexContractRegistry(settings.tfex_contract_metadata_json)
         try:
-            from settrade_v2 import Investor  # type: ignore[import-not-found]
+            from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use TFEX") from exc
         investor = Investor(
@@ -177,9 +177,7 @@ class SettradeTfexGateway:
             app_code=settings.settrade_app_code,
             is_auto_queue=False,
         )
-        self.derivatives = investor.Derivatives(
-            account_no=settings.settrade_derivatives_account_no
-        )
+        self.derivatives = investor.Derivatives(account_no=settings.settrade_derivatives_account_no)
 
     async def account(self) -> dict[str, Any]:
         return await asyncio.to_thread(self.derivatives.get_account_info)

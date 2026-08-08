@@ -1,0 +1,70 @@
+name: PR Policy
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Title and risk-sensitive change policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_BODY: ${{ github.event.pull_request.body }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate PR title
+        shell: python
+        run: |
+          import os
+          import re
+          import sys
+
+          pattern = re.compile(r"^(feat|fix|docs|ci|build|chore|refactor|perf|test|security|risk|strategy|revert)(\([a-z0-9._/-]+\))?!?: .+")
+          title = os.environ.get("PR_TITLE", "")
+          if not pattern.fullmatch(title):
+              print("PR title must use a Conventional Commit-style prefix")
+              sys.exit(1)
+      - name: Enforce risk-sensitive PR evidence sections
+        shell: python
+        run: |
+          import os
+          import subprocess
+          import sys
+
+          changed = subprocess.check_output(
+              ["git", "diff", "--name-only", os.environ["BASE_SHA"], os.environ["HEAD_SHA"]],
+              text=True,
+          ).splitlines()
+          sensitive = (
+              "src/zksato/risk.py",
+              "src/zksato/service.py",
+              "src/zksato/approvals.py",
+              "src/zksato/auth.py",
+              "src/zksato/tfex.py",
+              "src/zksato/broker/",
+              "migrations/",
+          )
+          if not any(path == prefix or path.startswith(prefix) for path in changed for prefix in sensitive):
+              raise SystemExit(0)
+          body = os.environ.get("PR_BODY", "") or ""
+          required = ["## Risk / execution impact", "## Validation", "## Rollout", "## Rollback", "## Security checklist"]
+          missing = [section for section in required if section not in body]
+          if missing:
+              print("Risk-sensitive PR is missing required evidence sections: " + ", ".join(missing))
+              sys.exit(1)

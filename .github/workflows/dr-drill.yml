@@ -16,7 +16,7 @@ jobs:
   postgres-backup-restore:
     name: PostgreSQL backup / checksum / restore
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16-alpine
@@ -50,27 +50,87 @@ jobs:
           psql -h 127.0.0.1 -U zksato -d zksato_dr -v ON_ERROR_STOP=1 <<'SQL'
           CREATE TABLE IF NOT EXISTS dr_sentinel (
             id integer PRIMARY KEY,
-            value text NOT NULL
+            value text NOT NULL,
+            written_at timestamptz NOT NULL DEFAULT now()
           );
           INSERT INTO dr_sentinel (id, value)
           VALUES (1, 'backup-restore-ok')
-          ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
+          ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value, written_at = now();
           SQL
       - name: Create backup and checksum
-        run: BACKUP_DIR="$RUNNER_TEMP/backups" scripts/backup_postgres.sh
+        run: |
+          set -euo pipefail
+          started="$(date +%s%N)"
+          BACKUP_DIR="$RUNNER_TEMP/backups" scripts/backup_postgres.sh | tee backup-path.txt
+          ended="$(date +%s%N)"
+          echo "backup_ns=$((ended-started))" >> "$GITHUB_ENV"
+          backup="$(tail -n 1 backup-path.txt)"
+          test -s "$backup"
+          test -s "${backup}.sha256"
+          sha256sum -c "${backup}.sha256"
+          echo "backup_path=$backup" >> "$GITHUB_ENV"
+      - name: Prove checksum detects corruption
+        run: |
+          set -euo pipefail
+          cp "$backup_path" "$RUNNER_TEMP/corrupted.dump"
+          printf 'corruption-test' >> "$RUNNER_TEMP/corrupted.dump"
+          expected="$(cut -d' ' -f1 "${backup_path}.sha256")"
+          actual="$(sha256sum "$RUNNER_TEMP/corrupted.dump" | cut -d' ' -f1)"
+          test "$expected" != "$actual"
       - name: Restore backup into the drill database
         env:
           CONFIRM_RESTORE: zksato
         run: |
           set -euo pipefail
-          backup="$(find "$RUNNER_TEMP/backups" -name '*.dump' -type f | head -n 1)"
-          test -n "$backup"
-          scripts/restore_postgres.sh "$backup"
-      - name: Verify restored state
+          started="$(date +%s%N)"
+          scripts/restore_postgres.sh "$backup_path"
+          ended="$(date +%s%N)"
+          echo "restore_ns=$((ended-started))" >> "$GITHUB_ENV"
+      - name: Verify restored state and emit evidence
+        shell: python
         run: |
-          set -euo pipefail
-          restored="$(psql -h 127.0.0.1 -U zksato -d zksato_dr -Atc "SELECT value FROM dr_sentinel WHERE id = 1")"
-          test "$restored" = 'backup-restore-ok'
-          table_count="$(psql -h 127.0.0.1 -U zksato -d zksato_dr -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
-          test "$table_count" -gt 1
-          printf 'DR drill passed; restored %s public tables.\n' "$table_count"
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          restored = subprocess.check_output(
+              ["psql", "-h", "127.0.0.1", "-U", "zksato", "-d", "zksato_dr", "-Atc",
+               "SELECT value FROM dr_sentinel WHERE id = 1"],
+              text=True,
+          ).strip()
+          if restored != "backup-restore-ok":
+              raise SystemExit("DR sentinel was not restored")
+          table_count = int(subprocess.check_output(
+              ["psql", "-h", "127.0.0.1", "-U", "zksato", "-d", "zksato_dr", "-Atc",
+               "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"],
+              text=True,
+          ).strip())
+          if table_count <= 1:
+              raise SystemExit("restored database is missing application tables")
+          backup = Path(os.environ["backup_path"])
+          digest = hashlib.sha256(backup.read_bytes()).hexdigest()
+          report = {
+              "passed": True,
+              "database": "ephemeral-postgresql-16",
+              "public_tables": table_count,
+              "backup_bytes": backup.stat().st_size,
+              "backup_sha256": digest,
+              "backup_seconds": round(int(os.environ["backup_ns"]) / 1_000_000_000, 3),
+              "restore_seconds": round(int(os.environ["restore_ns"]) / 1_000_000_000, 3),
+              "corruption_detection_verified": True,
+          }
+          Path("dr-evidence.json").write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, indent=2))
+      - name: Upload DR evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dr-evidence-${{ github.run_id }}
+          path: dr-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

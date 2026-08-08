@@ -1,0 +1,109 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-quality:
+    name: Format, types, workflows, contract, package and licenses
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install development toolchain
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev,quality]'
+      - name: Dependency consistency
+        run: python -m pip check
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: Static type check
+        run: mypy src/zksato scripts
+      - name: Install verified actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$archive" | sha256sum --check --strict
+          tar -xzf "$archive" -C "$RUNNER_TEMP" actionlint
+          install -m 0755 "$RUNNER_TEMP/actionlint" "$RUNNER_TEMP/actionlint-bin"
+      - name: Validate YAML and GitHub workflow syntax
+        run: |
+          yamllint .github .yamllint.yml docker-compose.yml
+          "$RUNNER_TEMP/actionlint-bin" -color
+      - name: Audit workflow security
+        run: zizmor --min-severity high --min-confidence high .github/workflows
+      - name: Validate OpenAPI contract
+        run: python scripts/openapi_contract.py --output openapi.json
+      - name: Build distributions
+        run: python -m build
+      - name: Validate package metadata
+        run: twine check dist/*
+      - name: Generate runtime license inventory in an isolated environment
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/runtime-license"
+          "$RUNNER_TEMP/runtime-license/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/runtime-license/bin/python" -m pip install . 'pip-licenses>=5.5.5,<6.0'
+          "$RUNNER_TEMP/runtime-license/bin/pip-licenses" \
+            --format=json \
+            --output-file=licenses.json
+      - name: Enforce runtime dependency license policy
+        shell: python
+        run: |
+          import json
+          import re
+          import sys
+
+          rows = json.load(open("licenses.json", encoding="utf-8"))
+          findings = []
+          blocked = re.compile(r"(?:^|[^a-z])(?:agpl|sspl|gpl(?:v?3|[- .]?3))(?:[^a-z]|$)", re.I)
+          for row in rows:
+              package = str(row.get("Name", ""))
+              if package.lower() == "pip-licenses":
+                  continue
+              license_name = str(row.get("License", ""))
+              normalized = license_name.lower()
+              if "lgpl" in normalized or "lesser general public license" in normalized:
+                  continue
+              if "affero" in normalized or blocked.search(license_name):
+                  findings.append(f"{package}: {license_name}")
+          if findings:
+              print("Blocked runtime dependency licenses:\n" + "\n".join(findings))
+              sys.exit(1)
+      - name: Upload quality evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quality-${{ github.run_id }}
+          path: |
+            openapi.json
+            licenses.json
+            dist/*
+          if-no-files-found: warn
+          retention-days: 7

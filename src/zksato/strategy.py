@@ -34,7 +34,7 @@ class StrategyEngine:
         prev_fast = ema(prices[:-1], config.fast_period)
         prev_slow = ema(prices[:-1], config.slow_period)
         price = prices[-1]
-        if None in {fast, slow, prev_fast, prev_slow}:
+        if fast is None or slow is None or prev_fast is None or prev_slow is None:
             action = SignalAction.HOLD
             reason = "insufficient EMA history"
             confidence = 0.0

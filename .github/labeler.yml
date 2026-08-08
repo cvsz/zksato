@@ -1,0 +1,53 @@
+api:
+  - changed-files:
+      - any-glob-to-any-file: "src/zksato/api.py"
+dashboard:
+  - changed-files:
+      - any-glob-to-any-file: "src/zksato/dashboard.py"
+risk:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/zksato/risk.py"
+          - "src/zksato/service.py"
+broker:
+  - changed-files:
+      - any-glob-to-any-file: "src/zksato/broker/**"
+market-data:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/zksato/market*.py"
+          - "src/zksato/scanner.py"
+strategy:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/zksato/strategy.py"
+          - "src/zksato/indicators.py"
+tfex:
+  - changed-files:
+      - any-glob-to-any-file: "src/zksato/tfex.py"
+persistence:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/zksato/persistence.py"
+          - "migrations/**"
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/zksato/auth.py"
+          - "src/zksato/approvals.py"
+          - "SECURITY.md"
+          - "docs/SECURITY*.md"
+operations:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "Dockerfile"
+          - "docker-compose.yml"
+          - "scripts/**"
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+tests:
+  - changed-files:
+      - any-glob-to-any-file: "tests/**"
