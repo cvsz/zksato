@@ -1,0 +1,61 @@
+name: Container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - docker-compose.yml
+      - pyproject.toml
+      - src/**
+      - .github/workflows/container.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - docker-compose.yml
+      - pyproject.toml
+      - src/**
+      - .github/workflows/container.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-smoke:
+    name: Build and smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build --pull --tag zksato:ci .
+      - name: Verify non-root image user
+        run: |
+          user="$(docker image inspect zksato:ci --format '{{.Config.User}}')"
+          test "$user" = "zksato" || { echo "Unexpected image user: $user"; exit 1; }
+      - name: Runtime health smoke test
+        run: |
+          set -euo pipefail
+          cid="$(docker run -d -p 9569:9569 --name zksato-ci zksato:ci)"
+          trap 'docker logs zksato-ci || true; docker rm -f zksato-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:9569/health >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            if ! docker inspect -f '{{.State.Running}}' "$cid" | grep -qx true; then
+              echo 'Container exited before becoming healthy.'
+              exit 1
+            fi
+            sleep 1
+          done
+          echo 'Container did not become healthy within 30 seconds.'
+          exit 1

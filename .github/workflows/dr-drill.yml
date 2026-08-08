@@ -1,0 +1,76 @@
+name: Disaster Recovery Drill
+
+on:
+  schedule:
+    - cron: "41 20 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dr-drill
+  cancel-in-progress: false
+
+jobs:
+  postgres-backup-restore:
+    name: PostgreSQL backup / checksum / restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: zksato_dr
+          POSTGRES_USER: zksato
+          POSTGRES_PASSWORD: zksato_dr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zksato -d zksato_dr"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: zksato_dr
+      ZKSATO_DATABASE_URL: postgresql://zksato:zksato_dr@127.0.0.1:5432/zksato_dr
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Apply all migrations
+        run: |
+          set -euo pipefail
+          for migration in migrations/[0-9][0-9][0-9][0-9]_*.sql; do
+            psql -h 127.0.0.1 -U zksato -d zksato_dr -v ON_ERROR_STOP=1 -f "$migration"
+          done
+      - name: Seed drill sentinel
+        run: |
+          psql -h 127.0.0.1 -U zksato -d zksato_dr -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE IF NOT EXISTS dr_sentinel (
+            id integer PRIMARY KEY,
+            value text NOT NULL
+          );
+          INSERT INTO dr_sentinel (id, value)
+          VALUES (1, 'backup-restore-ok')
+          ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
+          SQL
+      - name: Create backup and checksum
+        run: BACKUP_DIR="$RUNNER_TEMP/backups" scripts/backup_postgres.sh
+      - name: Restore backup into the drill database
+        env:
+          CONFIRM_RESTORE: zksato
+        run: |
+          set -euo pipefail
+          backup="$(find "$RUNNER_TEMP/backups" -name '*.dump' -type f | head -n 1)"
+          test -n "$backup"
+          scripts/restore_postgres.sh "$backup"
+      - name: Verify restored state
+        run: |
+          set -euo pipefail
+          restored="$(psql -h 127.0.0.1 -U zksato -d zksato_dr -Atc "SELECT value FROM dr_sentinel WHERE id = 1")"
+          test "$restored" = 'backup-restore-ok'
+          table_count="$(psql -h 127.0.0.1 -U zksato -d zksato_dr -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")"
+          test "$table_count" -gt 1
+          printf 'DR drill passed; restored %s public tables.\n' "$table_count"

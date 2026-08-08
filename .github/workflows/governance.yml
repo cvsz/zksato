@@ -2,21 +2,78 @@ name: Governance
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   required-docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Verify repository operating documents
         shell: bash
         run: |
           set -euo pipefail
-          for f in AGENTS.md README.md ROADMAP.md SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md GOVERNANCE.md docs/INDEX.md docs/FEATURE-MATRIX.md docs/EXECUTION-PLAN.md; do
+          for f in AGENTS.md README.md ROADMAP.md SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md GOVERNANCE.md docs/INDEX.md docs/FEATURE-MATRIX.md docs/EXECUTION-PLAN.md docs/GITHUB.md; do
             test -s "$f" || { echo "Missing required file: $f"; exit 1; }
           done
           if grep -R --exclude-dir=.git --exclude='*.pyc' -n '127\.0\.0\.1:9999\|--port 9999\|9999:9999' README.md docs Dockerfile docker-compose.yml; then
             echo 'Deprecated port 9999 found; use 9569.'
             exit 1
           fi
+      - name: Enforce immutable external Actions
+        shell: python
+        run: |
+          import pathlib
+          import re
+          import sys
+
+          bad = []
+          uses_pattern = re.compile(r"^\s*uses:\s*([^\s]+)@([^\s#]+)")
+          forbidden_trigger = re.compile(r"^\s*pull_request_target\s*:", re.MULTILINE)
+          for path in pathlib.Path('.github/workflows').glob('*.y*ml'):
+              text = path.read_text(encoding='utf-8')
+              if forbidden_trigger.search(text):
+                  bad.append(f'{path}: pull_request_target is forbidden by default')
+              for line_no, line in enumerate(text.splitlines(), 1):
+                  match = uses_pattern.match(line)
+                  if not match:
+                      continue
+                  action, ref = match.groups()
+                  if action.startswith('./'):
+                      continue
+                  if not re.fullmatch(r'[0-9a-f]{40}', ref):
+                      bad.append(f'{path}:{line_no}: {action}@{ref} is not pinned to a full commit SHA')
+          if bad:
+              print('\n'.join(bad))
+              sys.exit(1)
+      - name: Verify workflow least-privilege declarations
+        shell: python
+        run: |
+          import pathlib
+          import re
+          import sys
+
+          bad = []
+          write_all = re.compile(r"^\s*permissions\s*:\s*write-all\s*$", re.MULTILINE)
+          for path in pathlib.Path('.github/workflows').glob('*.y*ml'):
+              text = path.read_text(encoding='utf-8')
+              if '\npermissions:' not in text:
+                  bad.append(f'{path}: missing top-level permissions declaration')
+              if write_all.search(text):
+                  bad.append(f'{path}: write-all permission is forbidden')
+          if bad:
+              print('\n'.join(bad))
+              sys.exit(1)
