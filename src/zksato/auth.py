@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Annotated
 
 from fastapi import Header, HTTPException
 
@@ -62,7 +63,10 @@ class AuthManager:
                 try:
                     role = Role(role_name)
                 except ValueError as exc:
-                    raise HTTPException(status_code=500, detail="invalid server role mapping") from exc
+                    raise HTTPException(
+                        status_code=500,
+                        detail="invalid server role mapping",
+                    ) from exc
                 return Principal(subject="api-key", role=role)
         raise HTTPException(status_code=401, detail="invalid credentials")
 
@@ -86,8 +90,8 @@ def require_roles(manager: AuthManager, *roles: Role):
     required = set(roles)
 
     async def dependency(
-        authorization: str | None = Header(default=None),
-        x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+        authorization: Annotated[str | None, Header()] = None,
+        x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
     ) -> Principal:
         principal = manager.authenticate(authorization, x_api_key)
         return manager.require(principal, required)
