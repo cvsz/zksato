@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           cid="$(docker run -d --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges:true -p 9569:9569 --name zksato-ci zksato:ci)"
           trap 'docker logs zksato-ci || true; docker rm -f zksato-ci >/dev/null 2>&1 || true' EXIT
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent --show-error http://127.0.0.1:9569/health >/tmp/health.json; then
               cat /tmp/health.json
               exit 0
