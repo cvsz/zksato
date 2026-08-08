@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from time import monotonic
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from zksato.auth import AuthManager, Principal, Role, require_roles
@@ -64,7 +65,9 @@ settrade_feed: SettradeRealtimeFeed | None = None
 read_access = require_roles(auth, Role.READ_ONLY)
 strategy_access = require_roles(auth, Role.STRATEGY_OPERATOR)
 order_access = require_roles(auth, Role.ORDER_APPROVER)
-risk_access = require_roles(auth, Role.RISK_ADMIN)
+ReadPrincipal = Annotated[Principal, Depends(read_access)]
+StrategyPrincipal = Annotated[Principal, Depends(strategy_access)]
+OrderPrincipal = Annotated[Principal, Depends(order_access)]
 
 
 @asynccontextmanager
@@ -122,19 +125,19 @@ async def health() -> dict[str, object]:
 
 
 @app.get("/metrics", include_in_schema=False)
-async def metrics(_principal: Principal = Depends(read_access)):
+async def metrics(_principal: ReadPrincipal):
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="metrics disabled")
     return metrics_response()
 
 
 @app.get("/v1/auth/me")
-async def auth_me(principal: Principal = Depends(read_access)) -> dict[str, str]:
+async def auth_me(principal: ReadPrincipal) -> dict[str, str]:
     return {"subject": principal.subject, "role": principal.role.value}
 
 
 @app.get("/v1/config")
-async def config(_principal: Principal = Depends(read_access)) -> dict[str, object]:
+async def config(_principal: ReadPrincipal) -> dict[str, object]:
     return {
         "environment": settings.environment,
         "trading_mode": settings.trading_mode,
@@ -164,7 +167,7 @@ async def config(_principal: Principal = Depends(read_access)) -> dict[str, obje
 
 
 @app.get("/v1/dashboard", response_model=DashboardSnapshot)
-async def dashboard_snapshot(_principal: Principal = Depends(read_access)) -> DashboardSnapshot:
+async def dashboard_snapshot(_principal: ReadPrincipal) -> DashboardSnapshot:
     return DashboardSnapshot(
         mode=settings.trading_mode,
         automation_enabled=settings.automation_enabled,
@@ -180,32 +183,23 @@ async def dashboard_snapshot(_principal: Principal = Depends(read_access)) -> Da
 
 
 @app.post("/v1/market/quote", response_model=Quote)
-async def ingest_quote(
-    quote: Quote,
-    _principal: Principal = Depends(strategy_access),
-) -> Quote:
+async def ingest_quote(quote: Quote, _principal: StrategyPrincipal) -> Quote:
     await automation.on_quote(quote)
     return quote
 
 
 @app.get("/v1/market/quotes", response_model=list[Quote])
-async def list_quotes(_principal: Principal = Depends(read_access)) -> list[Quote]:
+async def list_quotes(_principal: ReadPrincipal) -> list[Quote]:
     return store.list_quotes()
 
 
 @app.get("/v1/market/history/{symbol}")
-async def price_history(
-    symbol: str,
-    _principal: Principal = Depends(read_access),
-) -> dict[str, object]:
+async def price_history(symbol: str, _principal: ReadPrincipal) -> dict[str, object]:
     return {"symbol": symbol.upper(), "prices": store.get_prices(symbol)}
 
 
 @app.get("/v1/market/health/{symbol}")
-async def market_health(
-    symbol: str,
-    _principal: Principal = Depends(read_access),
-) -> dict[str, object]:
+async def market_health(symbol: str, _principal: ReadPrincipal) -> dict[str, object]:
     age = store.quote_age_seconds(symbol)
     return {
         "symbol": symbol.upper(),
@@ -216,10 +210,10 @@ async def market_health(
 
 @app.get("/v1/scanner", response_model=list[ScannerResult])
 async def scan_market(
+    _principal: ReadPrincipal,
     min_volume: float = 0,
     min_abs_change_pct: float = 0,
     limit: int = 20,
-    _principal: Principal = Depends(read_access),
 ) -> list[ScannerResult]:
     return scanner.scan(
         store.list_quotes(),
@@ -230,7 +224,7 @@ async def scan_market(
 
 
 @app.post("/v1/market/demo/start")
-async def start_demo(_principal: Principal = Depends(strategy_access)) -> dict[str, object]:
+async def start_demo(_principal: StrategyPrincipal) -> dict[str, object]:
     if settings.trading_mode != "paper":
         raise HTTPException(status_code=409, detail="demo feed is only available in paper mode")
     demo_feed.start(settings.watchlist)
@@ -239,16 +233,14 @@ async def start_demo(_principal: Principal = Depends(strategy_access)) -> dict[s
 
 
 @app.post("/v1/market/demo/stop")
-async def stop_demo(_principal: Principal = Depends(strategy_access)) -> dict[str, bool]:
+async def stop_demo(_principal: StrategyPrincipal) -> dict[str, bool]:
     await demo_feed.stop()
     store.add_audit("market.demo.stopped", "synthetic paper feed stopped")
     return {"running": False}
 
 
 @app.post("/v1/market/settrade/start")
-async def start_settrade_feed(
-    _principal: Principal = Depends(strategy_access),
-) -> dict[str, object]:
+async def start_settrade_feed(_principal: StrategyPrincipal) -> dict[str, object]:
     global settrade_feed
     if settings.trading_mode == "paper":
         raise HTTPException(status_code=409, detail="Settrade feed requires sandbox/live mode")
@@ -263,9 +255,7 @@ async def start_settrade_feed(
 
 
 @app.post("/v1/market/settrade/stop")
-async def stop_settrade_feed(
-    _principal: Principal = Depends(strategy_access),
-) -> dict[str, bool]:
+async def stop_settrade_feed(_principal: StrategyPrincipal) -> dict[str, bool]:
     if settrade_feed is not None:
         settrade_feed.stop()
     store.add_audit("market.settrade.stopped", "Settrade realtime subscriptions stopped")
@@ -273,10 +263,7 @@ async def stop_settrade_feed(
 
 
 @app.post("/v1/bot/start", response_model=BotStatus)
-async def start_bot(
-    bot_config: BotConfig,
-    _principal: Principal = Depends(strategy_access),
-) -> BotStatus:
+async def start_bot(bot_config: BotConfig, _principal: StrategyPrincipal) -> BotStatus:
     if not settings.automation_enabled:
         raise HTTPException(status_code=409, detail="automation is disabled by server policy")
     if settings.trading_mode == "live" and bot_config.auto_execute:
@@ -288,32 +275,29 @@ async def start_bot(
 
 
 @app.post("/v1/bot/stop", response_model=BotStatus)
-async def stop_bot(_principal: Principal = Depends(strategy_access)) -> BotStatus:
+async def stop_bot(_principal: StrategyPrincipal) -> BotStatus:
     return automation.stop()
 
 
 @app.post("/v1/bot/tick", response_model=BotStatus)
-async def bot_tick(_principal: Principal = Depends(strategy_access)) -> BotStatus:
+async def bot_tick(_principal: StrategyPrincipal) -> BotStatus:
     return await automation.tick()
 
 
 @app.get("/v1/bot", response_model=BotStatus)
-async def bot_status(_principal: Principal = Depends(read_access)) -> BotStatus:
+async def bot_status(_principal: ReadPrincipal) -> BotStatus:
     return automation.status
 
 
 @app.post("/v1/risk/check", response_model=RiskDecision)
-async def risk_check(
-    submission: OrderSubmission,
-    _principal: Principal = Depends(read_access),
-) -> RiskDecision:
+async def risk_check(submission: OrderSubmission, _principal: ReadPrincipal) -> RiskDecision:
     return service.check_risk(submission)
 
 
 @app.post("/v1/orders", response_model=OrderRecord, status_code=201)
 async def place_order(
     submission: OrderSubmission,
-    _principal: Principal = Depends(order_access),
+    _principal: OrderPrincipal,
 ) -> OrderRecord:
     try:
         return await service.submit(submission, automated=False)
@@ -326,15 +310,12 @@ async def place_order(
 
 
 @app.get("/v1/orders", response_model=list[OrderRecord])
-async def list_orders(_principal: Principal = Depends(read_access)) -> list[OrderRecord]:
+async def list_orders(_principal: ReadPrincipal) -> list[OrderRecord]:
     return await service.list_orders()
 
 
 @app.delete("/v1/orders/{order_id}", response_model=OrderRecord)
-async def cancel_order(
-    order_id: str,
-    _principal: Principal = Depends(order_access),
-) -> OrderRecord:
+async def cancel_order(order_id: str, _principal: OrderPrincipal) -> OrderRecord:
     try:
         return await service.cancel_order(order_id)
     except (RuntimeError, ValueError) as exc:
@@ -342,9 +323,7 @@ async def cancel_order(
 
 
 @app.post("/v1/reconcile", response_model=ReconciliationReport)
-async def reconcile_orders(
-    _principal: Principal = Depends(order_access),
-) -> ReconciliationReport:
+async def reconcile_orders(_principal: OrderPrincipal) -> ReconciliationReport:
     try:
         return await reconciler.run()
     except (RuntimeError, OSError, ValueError) as exc:
@@ -352,53 +331,38 @@ async def reconcile_orders(
 
 
 @app.get("/v1/portfolio", response_model=PortfolioSnapshot)
-async def portfolio(_principal: Principal = Depends(read_access)) -> PortfolioSnapshot:
+async def portfolio(_principal: ReadPrincipal) -> PortfolioSnapshot:
     return await service.portfolio()
 
 
 @app.get("/v1/signals", response_model=list[Signal])
-async def signals(
-    limit: int = 100,
-    _principal: Principal = Depends(read_access),
-) -> list[Signal]:
+async def signals(_principal: ReadPrincipal, limit: int = 100) -> list[Signal]:
     return store.list_signals(min(max(limit, 1), 1000))
 
 
 @app.post("/v1/alerts", response_model=AlertRule, status_code=201)
-async def create_alert(
-    alert: AlertRule,
-    _principal: Principal = Depends(strategy_access),
-) -> AlertRule:
+async def create_alert(alert: AlertRule, _principal: StrategyPrincipal) -> AlertRule:
     store.add_audit("alert.created", f"alert created for {alert.symbol}")
     return store.add_alert(alert)
 
 
 @app.get("/v1/alerts", response_model=list[AlertRule])
-async def list_alerts(_principal: Principal = Depends(read_access)) -> list[AlertRule]:
+async def list_alerts(_principal: ReadPrincipal) -> list[AlertRule]:
     return store.list_alerts()
 
 
 @app.delete("/v1/alerts/{alert_id}")
-async def delete_alert(
-    alert_id: str,
-    _principal: Principal = Depends(strategy_access),
-) -> dict[str, bool]:
+async def delete_alert(alert_id: str, _principal: StrategyPrincipal) -> dict[str, bool]:
     return {"deleted": store.delete_alert(alert_id)}
 
 
 @app.get("/v1/audit")
-async def audit(
-    limit: int = 100,
-    _principal: Principal = Depends(read_access),
-) -> list[dict[str, object]]:
+async def audit(_principal: ReadPrincipal, limit: int = 100) -> list[dict[str, object]]:
     return [event.model_dump(mode="json") for event in store.list_audit(min(max(limit, 1), 1000))]
 
 
 @app.post("/v1/backtest", response_model=BacktestResult)
-async def backtest(
-    request: BacktestRequest,
-    _principal: Principal = Depends(read_access),
-) -> BacktestResult:
+async def backtest(request: BacktestRequest, _principal: ReadPrincipal) -> BacktestResult:
     try:
         result = backtester.run(request)
     except ValueError as exc:
