@@ -7,7 +7,18 @@ from threading import RLock
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, create_engine, insert, select, update
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+    insert,
+    select,
+    update,
+)
 from sqlalchemy.engine import Engine
 
 from zksato.domain import OrderIntent
