@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -75,18 +76,27 @@ jobs:
         run: python -m pip check
       - name: Lint
         run: ruff check .
-      - name: Test
-        run: pytest -m "not uat and not performance" --junitxml=junit.xml
+      - name: Test with branch coverage gate
+        run: >-
+          pytest -m "not uat and not performance"
+          --junitxml=junit.xml
+          --cov=zksato
+          --cov-branch
+          --cov-report=term-missing
+          --cov-report=xml:coverage.xml
+          --cov-fail-under=65
       - name: Validate Compose
         run: |
           cp .env.example .env
           docker compose config --quiet
-      - name: Upload test report
+      - name: Upload CI evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: junit-python-3.11
-          path: junit.xml
+          name: ci-python-3.11-${{ github.run_id }}
+          path: |
+            junit.xml
+            coverage.xml
           if-no-files-found: ignore
           retention-days: 7
 
