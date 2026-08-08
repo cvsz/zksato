@@ -8,7 +8,7 @@ The platform separates **market data → deterministic strategy → deterministi
 
 ## What is implemented
 
-- FastAPI control plane on port `9999`
+- FastAPI control plane on port `9569`
 - Responsive dark trading dashboard at `/`
 - Paper broker with immediate market/marketable-limit fill simulation
 - Cash, holdings, realized/unrealized P&L and mark-to-market portfolio
@@ -77,14 +77,14 @@ source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -e '.[dev]'
 cp .env.example .env
 pytest
-uvicorn zksato.api:app --reload --port 9999
+uvicorn zksato.api:app --reload --port 9569
 ```
 
 Open:
 
-- Dashboard: `http://127.0.0.1:9999/`
-- OpenAPI docs: `http://127.0.0.1:9999/docs`
-- Health: `http://127.0.0.1:9999/health`
+- Dashboard: `http://127.0.0.1:9569/`
+- OpenAPI docs: `http://127.0.0.1:9569/docs`
+- Health: `http://127.0.0.1:9569/health`
 
 ### Docker
 
@@ -93,7 +93,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Then open `http://127.0.0.1:9999/`.
+Then open `http://127.0.0.1:9569/`.
 
 ## Dashboard controls
 
