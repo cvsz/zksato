@@ -4,6 +4,7 @@ import asyncio
 from contextlib import suppress
 
 from zksato.broker.base import Broker
+from zksato.coordination import CoordinationBusyError, CoordinationManager
 from zksato.domain import (
     FillRecord,
     OrderEvent,
@@ -23,11 +24,26 @@ OPEN_STATUSES = {
 
 
 class ReconciliationService:
-    def __init__(self, broker: Broker, store: StateStore) -> None:
+    def __init__(
+        self,
+        broker: Broker,
+        store: StateStore,
+        coordination: CoordinationManager | None = None,
+    ) -> None:
         self.broker = broker
         self.store = store
+        self.coordination = coordination
 
     async def run(self) -> ReconciliationReport:
+        if self.coordination is None:
+            return await self._run_locked()
+        try:
+            async with self.coordination.lock("broker-reconciliation"):
+                return await self._run_locked()
+        except CoordinationBusyError:
+            return ReconciliationReport()
+
+    async def _run_locked(self) -> ReconciliationReport:
         remote_orders = await self.broker.list_orders()
         report = ReconciliationReport(examined_remote=len(remote_orders))
         remote_ids = {item.broker_order_id for item in remote_orders if item.broker_order_id}
@@ -112,7 +128,8 @@ class ReconciliationService:
     def _record_fill(self, order: OrderRecord, report: ReconciliationReport) -> None:
         if order.filled_quantity <= 0 or not order.average_fill_price:
             return
-        fill = self.store.add_fill(
+        before = len(self.store.list_fills(limit=10_000))
+        self.store.add_fill(
             FillRecord(
                 broker_fill_id=(
                     f"{order.broker_order_id}:{order.filled_quantity}"
@@ -127,7 +144,8 @@ class ReconciliationService:
                 price=order.average_fill_price,
             )
         )
-        if fill.order_id == order.id:
+        after = len(self.store.list_fills(limit=10_000))
+        if after > before:
             report.fills_recorded += 1
 
     def _match(self, remote: OrderRecord) -> OrderRecord | None:
