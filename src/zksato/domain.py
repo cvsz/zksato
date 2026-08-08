@@ -24,6 +24,7 @@ class OrderStatus(StrEnum):
     CANCELLED = "cancelled"
     PARTIALLY_FILLED = "partially_filled"
     FILLED = "filled"
+    NEEDS_RECONCILIATION = "needs_reconciliation"
 
 
 class SignalAction(StrEnum):
@@ -104,7 +105,13 @@ class RiskContext(BaseModel):
     line_available: float | None = Field(default=None, ge=0)
     reference_price: float | None = Field(default=None, gt=0)
     orders_today: int = Field(default=0, ge=0)
+    open_orders: int = Field(default=0, ge=0)
     portfolio_value: float | None = Field(default=None, gt=0)
+    gross_exposure_pct: float = Field(default=0.0, ge=0)
+    symbol_exposure_pct: float = Field(default=0.0, ge=0)
+    quote_age_seconds: float | None = Field(default=None, ge=0)
+    spread_pct: float | None = Field(default=None, ge=0)
+    market_session_known: bool = True
 
 
 class OrderSubmission(BaseModel):
@@ -256,6 +263,32 @@ class AuditEvent(BaseModel):
     message: str
     data: dict[str, object] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class OutboxMessage(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    topic: str
+    payload: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    sent_at: datetime | None = None
+
+
+class ReconciliationReport(BaseModel):
+    examined_remote: int = 0
+    inserted: int = 0
+    updated: int = 0
+    marked_unknown: int = 0
+    unresolved_order_ids: list[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ScannerResult(BaseModel):
+    symbol: str
+    last: float
+    change_pct: float
+    volume: float
+    score: float
+    reasons: list[str] = Field(default_factory=list)
 
 
 class DashboardSnapshot(BaseModel):

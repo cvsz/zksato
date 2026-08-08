@@ -18,32 +18,39 @@ class RiskEngine:
 
         if self.settings.kill_switch:
             reasons.append("global kill switch is active")
-
+        if not context.market_session_known:
+            reasons.append("market session state is unknown")
         if context.daily_pnl_pct <= -abs(self.settings.max_daily_loss_pct):
             reasons.append("maximum daily loss threshold reached")
-
         if context.drawdown_pct >= self.settings.max_drawdown_pct:
             reasons.append("maximum drawdown threshold reached")
-
         if intent.side == Side.BUY and context.current_positions >= self.settings.max_positions:
             reasons.append("maximum number of positions reached")
-
         if context.position_pct_after_trade > self.settings.max_position_pct:
             reasons.append("position size exceeds maximum portfolio percentage")
-
         if context.orders_today >= self.settings.max_orders_per_day:
             reasons.append("maximum daily order count reached")
-
+        if context.open_orders >= self.settings.max_open_orders:
+            reasons.append("maximum open order count reached")
+        if context.gross_exposure_pct > self.settings.max_gross_exposure_pct:
+            reasons.append("gross exposure exceeds configured maximum")
+        if context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct:
+            reasons.append("symbol exposure exceeds configured maximum")
+        if (
+            context.quote_age_seconds is not None
+            and context.quote_age_seconds > self.settings.market_data_stale_seconds
+        ):
+            reasons.append("market quote is stale")
+        if context.spread_pct is not None and context.spread_pct > self.settings.max_spread_pct:
+            reasons.append("bid/offer spread exceeds configured maximum")
         if estimated_notional > self.settings.max_notional_per_order:
             reasons.append("order notional exceeds configured maximum")
-
         if (
             self.settings.require_stop_loss
             and intent.side == Side.BUY
             and intent.stop_loss is None
         ):
             reasons.append("stop loss is required for buy orders")
-
         if (
             intent.side == Side.BUY
             and intent.price is not None
@@ -51,7 +58,6 @@ class RiskEngine:
             and intent.stop_loss >= intent.price
         ):
             reasons.append("buy stop loss must be below entry price")
-
         if (
             intent.side == Side.BUY
             and intent.take_profit is not None
@@ -59,19 +65,16 @@ class RiskEngine:
             and intent.take_profit <= intent.price
         ):
             reasons.append("buy take profit must be above entry price")
-
         if (
             context.line_available is not None
             and intent.side == Side.BUY
             and estimated_notional > context.line_available
         ):
             reasons.append("estimated notional exceeds available line")
-
         if context.reference_price and intent.price:
             deviation = abs(intent.price - context.reference_price) / context.reference_price * 100
             if deviation > self.settings.max_price_deviation_pct:
                 reasons.append("limit price deviates too far from reference price")
-
         if intent.side == Side.BUY and intent.stop_loss is not None and price > 0:
             per_share_risk = max(0.0, price - intent.stop_loss)
             risk_value = per_share_risk * intent.quantity

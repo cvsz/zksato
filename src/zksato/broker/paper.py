@@ -55,7 +55,7 @@ class PaperBroker:
             created_at=now,
             updated_at=now,
         )
-        self.store.add_order(order)
+        self.store.upsert_order(order)
         if intent.client_order_id:
             self._client_order_ids.add(intent.client_order_id)
         self.store.add_audit(
@@ -78,7 +78,7 @@ class PaperBroker:
             status=OrderStatus.ACCEPTED,
             source=intent.source,
         )
-        self.store.add_order(order)
+        self.store.upsert_order(order)
         if intent.client_order_id:
             self._client_order_ids.add(intent.client_order_id)
         return order
@@ -90,6 +90,7 @@ class PaperBroker:
                     raise ValueError("only open paper orders can be cancelled")
                 order.status = OrderStatus.CANCELLED
                 order.updated_at = datetime.now(UTC)
+                self.store.upsert_order(order)
                 self.store.add_audit("order.cancelled", f"cancelled paper order {order_id}")
                 return order
         raise ValueError("order not found")

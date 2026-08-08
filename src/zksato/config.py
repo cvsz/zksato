@@ -26,14 +26,27 @@ class Settings(BaseSettings):
     poll_interval_seconds: float = Field(default=2.0, ge=0.25, le=60)
     initial_cash: float = Field(default=500_000.0, gt=0)
 
+    database_url: str | None = None
+    reconciliation_enabled: bool = True
+    reconciliation_interval_seconds: float = Field(default=15.0, ge=1, le=3600)
+    metrics_enabled: bool = True
+
+    auth_required: bool = False
+    api_keys: str = ""
+
+    market_data_stale_seconds: float = Field(default=10.0, gt=0, le=300)
     max_positions: int = Field(default=5, ge=1, le=100)
     max_position_pct: float = Field(default=10.0, gt=0, le=100)
     max_risk_per_trade_pct: float = Field(default=0.5, gt=0, le=20)
     max_daily_loss_pct: float = Field(default=2.0, gt=0, le=100)
     max_drawdown_pct: float = Field(default=5.0, gt=0, le=100)
     max_orders_per_day: int = Field(default=50, ge=1, le=10_000)
+    max_open_orders: int = Field(default=20, ge=1, le=10_000)
     max_notional_per_order: float = Field(default=100_000.0, gt=0)
     max_price_deviation_pct: float = Field(default=10.0, gt=0, le=100)
+    max_gross_exposure_pct: float = Field(default=80.0, gt=0, le=500)
+    max_symbol_exposure_pct: float = Field(default=20.0, gt=0, le=100)
+    max_spread_pct: float = Field(default=3.0, gt=0, le=100)
     require_stop_loss: bool = True
     kill_switch: bool = False
 
@@ -49,6 +62,7 @@ class Settings(BaseSettings):
     settrade_app_code: str = "ALGO_EQ"
     settrade_account_no: str | None = None
     settrade_pin: str | None = None
+    settrade_derivatives_account_no: str | None = None
 
     notification_webhook_url: str | None = None
 
@@ -67,6 +81,18 @@ class Settings(BaseSettings):
                 self.settrade_pin,
             ]
         )
+
+    @property
+    def api_key_map(self) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for raw in self.api_keys.replace(",", ";").split(";"):
+            item = raw.strip()
+            if not item or ":" not in item:
+                continue
+            token, role = item.rsplit(":", 1)
+            if token.strip() and role.strip():
+                result[token.strip()] = role.strip().lower()
+        return result
 
 
 @lru_cache

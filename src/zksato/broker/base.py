@@ -5,6 +5,10 @@ from typing import Protocol
 from zksato.domain import OrderIntent, OrderRecord, PortfolioSnapshot
 
 
+class BrokerAmbiguousError(RuntimeError):
+    """The broker request may have been accepted but the response is unknown."""
+
+
 class Broker(Protocol):
     async def place_order(self, intent: OrderIntent) -> OrderRecord: ...
 

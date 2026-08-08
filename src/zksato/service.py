@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hmac
 
-from zksato.broker.base import Broker
+from zksato.broker.base import Broker, BrokerAmbiguousError
 from zksato.config import Settings
-from zksato.domain import OrderRecord, OrderSubmission, PortfolioSnapshot, RiskDecision
+from zksato.domain import OrderRecord, OrderStatus, OrderSubmission, PortfolioSnapshot, RiskDecision
+from zksato.observability import ORDER_SUBMISSIONS, RISK_REJECTIONS
 from zksato.risk import RiskEngine
 from zksato.store import StateStore
 
@@ -32,6 +33,7 @@ class TradingService:
     async def submit(self, submission: OrderSubmission, *, automated: bool = False) -> OrderRecord:
         decision = self.check_risk(submission)
         if not decision.approved:
+            RISK_REJECTIONS.inc()
             self.store.add_audit(
                 "risk.rejected",
                 f"rejected {submission.intent.side.value} {submission.intent.symbol}",
@@ -40,7 +42,52 @@ class TradingService:
             raise RiskRejectedError(decision)
 
         self._enforce_execution_policy(submission, automated=automated)
-        order = await self.broker.place_order(submission.intent)
+        client_order_id = submission.intent.client_order_id
+        claimed = False
+        if client_order_id:
+            claimed = self.store.claim_client_order_id(client_order_id)
+            if not claimed:
+                raise ValueError("duplicate client_order_id")
+
+        self.store.add_audit(
+            "risk.approved",
+            f"approved {submission.intent.side.value} {submission.intent.symbol}",
+            {
+                "estimated_notional": decision.estimated_notional,
+                "estimated_risk_pct": decision.estimated_risk_pct or 0.0,
+                "source": submission.intent.source,
+            },
+        )
+        try:
+            order = await self.broker.place_order(submission.intent)
+        except BrokerAmbiguousError as exc:
+            order = OrderRecord(
+                client_order_id=client_order_id,
+                symbol=submission.intent.symbol,
+                side=submission.intent.side,
+                quantity=submission.intent.quantity,
+                order_type=submission.intent.order_type,
+                price=submission.intent.price,
+                stop_loss=submission.intent.stop_loss,
+                take_profit=submission.intent.take_profit,
+                status=OrderStatus.NEEDS_RECONCILIATION,
+                source=submission.intent.source,
+                message=str(exc),
+            )
+            self.store.upsert_order(order)
+            self.store.add_audit(
+                "order.ambiguous",
+                f"broker outcome unknown for {submission.intent.symbol}",
+                {"order_id": str(order.id), "client_order_id": client_order_id or ""},
+            )
+            ORDER_SUBMISSIONS.labels(status="needs_reconciliation").inc()
+            return order
+        except (RuntimeError, ValueError, OSError):
+            if client_order_id and claimed:
+                self.store.release_client_order_id(client_order_id)
+            raise
+
+        self.store.upsert_order(order)
         self.store.add_audit(
             "order.submitted",
             f"submitted {submission.intent.side.value} {submission.intent.symbol}",
@@ -50,6 +97,7 @@ class TradingService:
                 "source": submission.intent.source,
             },
         )
+        ORDER_SUBMISSIONS.labels(status=order.status.value).inc()
         return order
 
     def _enforce_execution_policy(
@@ -76,7 +124,10 @@ class TradingService:
                 raise TradingModeError("valid live confirmation token is required")
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
-        return await self.broker.cancel_order(order_id)
+        order = await self.broker.cancel_order(order_id)
+        self.store.upsert_order(order)
+        self.store.add_audit("order.cancelled", f"cancelled order {order_id}")
+        return order
 
     async def list_orders(self) -> list[OrderRecord]:
         return await self.broker.list_orders()
