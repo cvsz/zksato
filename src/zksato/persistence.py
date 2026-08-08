@@ -78,6 +78,13 @@ outbox_table = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("sent_at", DateTime(timezone=True)),
 )
+runtime_state_table = Table(
+    "runtime_state",
+    metadata,
+    Column("key", String(128), primary_key=True),
+    Column("payload", JSON, nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
 
 
 class SqlStateStore(StateStore):
@@ -142,6 +149,13 @@ class SqlStateStore(StateStore):
                     sent_at=row["sent_at"],
                 )
                 self.outbox[str(message.id)] = message
+            paper_state = conn.execute(
+                select(runtime_state_table.c.payload).where(
+                    runtime_state_table.c.key == "paper_account"
+                )
+            ).scalar_one_or_none()
+            if isinstance(paper_state, dict):
+                self.paper_account = paper_state
 
     def _upsert_payload(
         self,
@@ -214,6 +228,19 @@ class SqlStateStore(StateStore):
                 )
             )
         super().release_client_order_id(client_order_id)
+
+    def save_paper_account(self, payload: dict[str, object]) -> None:
+        super().save_paper_account(payload)
+        self._upsert_payload(
+            runtime_state_table,
+            runtime_state_table.c.key,
+            "paper_account",
+            {
+                "key": "paper_account",
+                "payload": payload,
+                "updated_at": datetime.now(UTC),
+            },
+        )
 
     def add_signal(self, signal: Signal) -> Signal:
         super().add_signal(signal)

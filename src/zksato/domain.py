@@ -222,6 +222,7 @@ class BacktestRequest(BaseModel):
     initial_cash: float = Field(default=100_000.0, gt=0)
     order_size: int = Field(default=100, ge=1)
     commission_pct: float = Field(default=0.15, ge=0, le=5)
+    slippage_pct: float = Field(default=0.05, ge=0, le=5)
 
 
 class BacktestTrade(BaseModel):

@@ -19,6 +19,7 @@ class StateStore:
         self.audit: deque[AuditEvent] = deque(maxlen=history_size)
         self.alerts: dict[str, AlertRule] = {}
         self.outbox: dict[str, OutboxMessage] = {}
+        self.paper_account: dict[str, object] | None = None
         self._client_order_ids: set[str] = set()
         self._history_size = history_size
 
@@ -95,6 +96,14 @@ class StateStore:
     def release_client_order_id(self, client_order_id: str) -> None:
         with self._lock:
             self._client_order_ids.discard(client_order_id)
+
+    def save_paper_account(self, payload: dict[str, object]) -> None:
+        with self._lock:
+            self.paper_account = dict(payload)
+
+    def get_paper_account(self) -> dict[str, object] | None:
+        with self._lock:
+            return dict(self.paper_account) if self.paper_account is not None else None
 
     def add_signal(self, signal: Signal) -> Signal:
         with self._lock:

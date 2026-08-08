@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      ZKSATO_DATABASE_URL: ${ZKSATO_DATABASE_URL:-postgresql+psycopg://zksato:zksato_dev_only@postgres:5432/zksato}
+      ZKSATO_DATABASE_URL: "postgresql+psycopg://zksato:${POSTGRES_PASSWORD:-zksato_dev_only}@postgres:5432/zksato"
     depends_on:
       postgres:
         condition: service_healthy

@@ -26,7 +26,10 @@ class RiskEngine:
             reasons.append("maximum drawdown threshold reached")
         if intent.side == Side.BUY and context.current_positions >= self.settings.max_positions:
             reasons.append("maximum number of positions reached")
-        if context.position_pct_after_trade > self.settings.max_position_pct:
+        if (
+            intent.side == Side.BUY
+            and context.position_pct_after_trade > self.settings.max_position_pct
+        ):
             reasons.append("position size exceeds maximum portfolio percentage")
         if context.orders_today >= self.settings.max_orders_per_day:
             reasons.append("maximum daily order count reached")
