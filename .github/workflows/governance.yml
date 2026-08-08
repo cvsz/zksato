@@ -63,14 +63,16 @@ jobs:
         shell: python
         run: |
           import pathlib
+          import re
           import sys
 
           bad = []
+          write_all = re.compile(r"^\s*permissions\s*:\s*write-all\s*$", re.MULTILINE)
           for path in pathlib.Path('.github/workflows').glob('*.y*ml'):
               text = path.read_text(encoding='utf-8')
               if '\npermissions:' not in text:
                   bad.append(f'{path}: missing top-level permissions declaration')
-              if 'write-all' in text:
+              if write_all.search(text):
                   bad.append(f'{path}: write-all permission is forbidden')
           if bad:
               print('\n'.join(bad))
