@@ -23,7 +23,10 @@ class PaperBroker:
         if intent.order_type == OrderType.MARKET:
             if quote is None:
                 raise ValueError("market order requires a current quote")
-            fill_price = quote.offer or quote.last if intent.side.value == "buy" else quote.bid or quote.last
+            if intent.side.value == "buy":
+                fill_price = quote.offer or quote.last
+            else:
+                fill_price = quote.bid or quote.last
         else:
             if intent.price is None:
                 raise ValueError("limit order requires price")
