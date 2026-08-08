@@ -4,6 +4,22 @@ All notable changes are recorded using Keep a Changelog principles and semantic 
 
 ## [Unreleased]
 
+### Added
+- Hardened GitHub Actions suite with immutable full-SHA action pins, explicit token permissions, concurrency controls, timeouts, and Node 24-generation core actions.
+- Python 3.11-3.14 compatibility CI in addition to the PostgreSQL/Redis integration gate.
+- Security workflow with `pip-audit`, Bandit, high-confidence credential-pattern scanning, and capability-gated CodeQL.
+- Docker build/non-root/runtime health validation workflow.
+- Capability-gated GitHub Dependency Review workflow for supported repository plans.
+- Bounded scheduled/manual performance evidence workflow.
+- Monthly/manual PostgreSQL backup-checksum-restore disaster-recovery drill.
+- Protected, non-mutating Settrade UAT certification workflow and evidence artifact.
+- Tag-driven release workflow with dependency audit, clean wheel installation, CycloneDX SBOM, SHA-256 checksums, optional artifact attestation, and GitHub Release creation.
+- Expanded GitHub Actions operating documentation, required-check guidance, repository variables, protected environment requirements, and release policy.
+
+### Changed
+- Dependabot Python and GitHub Actions updates are grouped and scheduled in the `Asia/Bangkok` timezone.
+- Existing `CI` and `Governance` workflows now use pinned current-generation Actions and stronger fail-closed policy checks.
+
 ## [0.4.0]
 
 ### Added
