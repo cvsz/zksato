@@ -127,17 +127,17 @@ class ApprovalRepository:
     def list_recent(self, limit: int = 100) -> list[LiveApproval]:
         if self.engine is None:
             with self._lock:
-                rows = sorted(
+                memory_rows = sorted(
                     self._items.values(),
                     key=lambda item: item.created_at,
                     reverse=True,
                 )
-                return rows[:limit]
+                return memory_rows[:limit]
         with self.engine.connect() as conn:
-            rows = conn.execute(
+            database_rows = conn.execute(
                 select(approvals_table).order_by(approvals_table.c.created_at.desc()).limit(limit)
             ).mappings()
-            return [self._from_row(row) for row in rows]
+            return [self._from_row(row) for row in database_rows]
 
     def consume(
         self,
