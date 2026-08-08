@@ -3,9 +3,9 @@
 ## Start here
 - `../README.md` — product overview and quick start
 - `../AGENTS.md` — engineering/agent operating contract
-- `../ROADMAP.md` — implementation roadmap
-- `FEATURE-MATRIX.md` — implemented vs planned capability status
-- `EXECUTION-PLAN.md` — ordered delivery plan to production readiness
+- `../ROADMAP.md` — P0-P6 source completion and external gates
+- `FEATURE-MATRIX.md` — capability truth table
+- `EXECUTION-PLAN.md` — P0-P6 completion/evidence plan
 
 ## Product and architecture
 - `PRODUCT-REQUIREMENTS.md`
@@ -32,7 +32,12 @@
 - `AUTHORIZATION.md`
 - `DATA-GOVERNANCE.md`
 
-## UI and operations
+## Production readiness and operations
+- `PRODUCTION-READINESS.md` — runtime/external evidence gates
+- `UAT-CERTIFICATION.md` — Settrade UAT evidence checklist/probe
+- `SLO.md` — service objectives and failure actions
+- `DR-RUNBOOK.md` — executable backup/restore recovery flow
+- `SECRETS-RUNBOOK.md` — secret handling and rotation
 - `DASHBOARD.md`
 - `OBSERVABILITY.md`
 - `DEPLOYMENT.md`
