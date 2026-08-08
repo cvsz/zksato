@@ -93,7 +93,11 @@ class AutomationEngine:
             {"strategy": signal.strategy, "confidence": signal.confidence},
         )
         if not config.auto_execute:
-            await self._notify(f"zksato signal: {signal.action.value.upper()} {symbol} {signal.price:.2f}")
+            message = (
+                f"zksato signal: {signal.action.value.upper()} "
+                f"{symbol} {signal.price:.2f}"
+            )
+            await self._notify(message)
             return
         await self._execute_signal(signal.action, symbol, signal.price)
 
@@ -102,7 +106,10 @@ class AutomationEngine:
         if config is None:
             return
         portfolio = await self.service.portfolio()
-        existing = next((position for position in portfolio.positions if position.symbol == symbol), None)
+        existing = next(
+            (position for position in portfolio.positions if position.symbol == symbol),
+            None,
+        )
         if action == SignalAction.SELL:
             if not existing or existing.quantity <= 0:
                 return
@@ -199,7 +206,11 @@ class AutomationEngine:
             try:
                 await self.service.submit(submission, automated=True)
             except (RiskRejectedError, TradingModeError, ValueError) as exc:
-                self.store.add_audit("protective_exit.failed", str(exc), {"symbol": order.symbol})
+                self.store.add_audit(
+                    "protective_exit.failed",
+                    str(exc),
+                    {"symbol": order.symbol},
+                )
                 continue
             self.store.add_audit(
                 "protective_exit.executed",
