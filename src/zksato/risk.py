@@ -19,10 +19,18 @@ class RiskEngine:
 
         if self.settings.kill_switch:
             reasons.append("global kill switch is active")
+        if not context.account_allowed:
+            reasons.append("account is not in the configured trading allow-list")
         if not context.market_session_known:
             reasons.append("market session state is unknown")
+        elif opening_risk and not context.market_session_open:
+            reasons.append("market session is closed for new exposure")
         if not context.market_data_available:
             reasons.append("trusted market data is unavailable")
+        if not context.price_band_ok:
+            reasons.append("order price is outside the trusted price band")
+        if not context.tick_size_ok:
+            reasons.append("order price is not aligned to the trusted tick size")
         if (
             intent.side == Side.SELL
             and not context.reduces_exposure
@@ -54,8 +62,12 @@ class RiskEngine:
             reasons.append("maximum open order count reached")
         if opening_risk and context.gross_exposure_pct > self.settings.max_gross_exposure_pct:
             reasons.append("gross exposure exceeds configured maximum")
+        if opening_risk and abs(context.net_exposure_pct) > self.settings.max_net_exposure_pct:
+            reasons.append("net exposure exceeds configured maximum")
         if opening_risk and context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct:
             reasons.append("symbol exposure exceeds configured maximum")
+        if opening_risk and context.sector_exposure_pct > self.settings.max_sector_exposure_pct:
+            reasons.append("sector exposure exceeds configured maximum")
         if (
             context.quote_age_seconds is not None
             and context.quote_age_seconds > self.settings.market_data_stale_seconds
