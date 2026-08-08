@@ -2,21 +2,72 @@ name: Governance
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   required-docs:
-    runs-on: ubuntu-latest
+    name: Repository governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Verify repository operating documents
         shell: bash
         run: |
           set -euo pipefail
-          for f in AGENTS.md README.md ROADMAP.md SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md GOVERNANCE.md docs/INDEX.md docs/FEATURE-MATRIX.md docs/EXECUTION-PLAN.md; do
-            test -s "$f" || { echo "Missing required file: $f"; exit 1; }
+          required=(
+            AGENTS.md README.md ROADMAP.md SECURITY.md CONTRIBUTING.md
+            CODE_OF_CONDUCT.md GOVERNANCE.md SUPPORT.md MAINTAINERS.md
+            docs/INDEX.md docs/FEATURE-MATRIX.md docs/EXECUTION-PLAN.md
+            docs/PRODUCTION-READINESS.md docs/UAT-CERTIFICATION.md
+          )
+          for file in "${required[@]}"; do
+            test -s "$file" || { echo "Missing required file: $file"; exit 1; }
           done
-          if grep -R --exclude-dir=.git --exclude='*.pyc' -n '127\.0\.0\.1:9999\|--port 9999\|9999:9999' README.md docs Dockerfile docker-compose.yml; then
+      - name: Enforce canonical port
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R --exclude-dir=.git --exclude='*.pyc' -n \
+            '127\.0\.0\.1:9999\|--port 9999\|9999:9999' \
+            README.md docs Dockerfile docker-compose.yml .github; then
             echo 'Deprecated port 9999 found; use 9569.'
             exit 1
           fi
+      - name: Enforce workflow safety policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -nE 'pull_request_target:|permissions:[[:space:]]*write-all' .github/workflows; then
+            echo 'Unsafe GitHub Actions trigger or write-all permission found.'
+            exit 1
+          fi
+          if grep -R -nE 'actions/checkout@v[1-5]([[:space:]]|$)|actions/setup-python@v[1-5]([[:space:]]|$)' .github/workflows; then
+            echo 'Legacy Node runtime action reference found.'
+            exit 1
+          fi
+          while IFS= read -r workflow; do
+            grep -q '^permissions:' "$workflow" || {
+              echo "Workflow lacks explicit top-level permissions: $workflow"
+              exit 1
+            }
+          done < <(find .github/workflows -maxdepth 1 -type f -name '*.yml' -print | sort)
+      - name: Validate shell scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
