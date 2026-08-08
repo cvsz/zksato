@@ -38,6 +38,7 @@
 - `SLO.md` — service objectives and failure actions
 - `DR-RUNBOOK.md` — executable backup/restore recovery flow
 - `SECRETS-RUNBOOK.md` — secret handling and rotation
+- `ACTIONS-OPERATIONS.md` — protected Actions readiness, release-container, and dependency-maintenance controls
 - `DASHBOARD.md`
 - `OBSERVABILITY.md`
 - `DEPLOYMENT.md`
