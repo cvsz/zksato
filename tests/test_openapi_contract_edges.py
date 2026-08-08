@@ -3,10 +3,7 @@ from zksato.openapi_contract import CRITICAL_OPERATIONS, validate_schema
 
 def complete_paths() -> dict[str, dict[str, dict[str, str]]]:
     return {
-        path: {
-            method: {"operationId": f"op_{index}_{method}"}
-            for method in methods
-        }
+        path: {method: {"operationId": f"op_{index}_{method}"} for method in methods}
         for index, (path, methods) in enumerate(CRITICAL_OPERATIONS.items())
     }
 
