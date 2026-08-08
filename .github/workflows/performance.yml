@@ -1,0 +1,75 @@
+name: Performance
+
+on:
+  schedule:
+    - cron: "23 20 * * 6"
+  workflow_dispatch:
+    inputs:
+      requests:
+        description: "Bounded request count (1-10000)"
+        required: false
+        default: "1000"
+        type: string
+      concurrency:
+        description: "Bounded concurrency (1-200)"
+        required: false
+        default: "25"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance
+  cancel-in-progress: true
+
+jobs:
+  health-load-probe:
+    name: Local container load probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: Build image
+        run: docker build --pull --tag zksato:perf .
+      - name: Start application
+        run: docker run -d -p 9569:9569 --name zksato-perf zksato:perf
+      - name: Wait for health
+        run: |
+          set -euo pipefail
+          trap 'docker logs zksato-perf || true' ERR
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9569/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Run bounded load probe
+        env:
+          REQUESTS: ${{ inputs.requests || '1000' }}
+          CONCURRENCY: ${{ inputs.concurrency || '25' }}
+        run: |
+          python scripts/load_test.py \
+            --url http://127.0.0.1:9569/health \
+            --requests "$REQUESTS" \
+            --concurrency "$CONCURRENCY" \
+            | tee performance.txt
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: performance-${{ github.run_id }}
+          path: performance.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Stop application
+        if: always()
+        run: docker rm -f zksato-perf >/dev/null 2>&1 || true
