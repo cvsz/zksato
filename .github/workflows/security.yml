@@ -58,7 +58,8 @@ jobs:
           tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
           install -m 0755 "$RUNNER_TEMP/gitleaks" "$RUNNER_TEMP/gitleaks-bin"
       - name: Gitleaks tracked-tree scan
-        run: "$RUNNER_TEMP/gitleaks-bin" dir . --redact --no-banner --config .gitleaks.toml
+        run: >-
+          "$RUNNER_TEMP/gitleaks-bin" dir . --redact --no-banner --config .gitleaks.toml
       - name: Scan tracked files for high-confidence secret formats
         shell: python
         run: |
