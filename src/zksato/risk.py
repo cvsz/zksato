@@ -39,9 +39,13 @@ class RiskEngine:
         ):
             reasons.append("stop loss is required for buy orders")
 
-        if intent.side == Side.BUY and intent.price is not None and intent.stop_loss is not None:
-            if intent.stop_loss >= intent.price:
-                reasons.append("buy stop loss must be below entry price")
+        if (
+            intent.side == Side.BUY
+            and intent.price is not None
+            and intent.stop_loss is not None
+            and intent.stop_loss >= intent.price
+        ):
+            reasons.append("buy stop loss must be below entry price")
 
         if context.line_available is not None and intent.price is not None:
             estimated_notional = intent.price * intent.quantity
