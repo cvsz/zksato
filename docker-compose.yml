@@ -5,6 +5,11 @@ services:
       - "9569:9569"
     env_file:
       - .env
+    environment:
+      ZKSATO_DATABASE_URL: ${ZKSATO_DATABASE_URL:-postgresql+psycopg://zksato:zksato_dev_only@postgres:5432/zksato}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -12,7 +17,7 @@ services:
     environment:
       POSTGRES_DB: zksato
       POSTGRES_USER: zksato
-      POSTGRES_PASSWORD: zksato_dev_only
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zksato_dev_only}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

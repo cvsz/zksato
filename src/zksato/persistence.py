@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, create_engine, delete
 from sqlalchemy import insert, select, text, update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from zksato.config import Settings
 from zksato.domain import AlertRule, AuditEvent, OrderRecord, OutboxMessage, Quote, Signal
@@ -97,18 +97,24 @@ class SqlStateStore(StateStore):
                 select(orders_table.c.payload).order_by(orders_table.c.created_at)
             ).scalars():
                 self.orders.append(OrderRecord.model_validate(payload))
-            for payload in conn.execute(
-                select(signals_table.c.payload)
-                .order_by(signals_table.c.created_at.desc())
-                .limit(self._history_size)
-            ).scalars():
-                self.signals.appendleft(Signal.model_validate(payload))
-            for payload in conn.execute(
-                select(audit_table.c.payload)
-                .order_by(audit_table.c.created_at.desc())
-                .limit(self._history_size)
-            ).scalars():
-                self.audit.appendleft(AuditEvent.model_validate(payload))
+            signal_payloads = list(
+                conn.execute(
+                    select(signals_table.c.payload)
+                    .order_by(signals_table.c.created_at.desc())
+                    .limit(self._history_size)
+                ).scalars()
+            )
+            for payload in reversed(signal_payloads):
+                self.signals.append(Signal.model_validate(payload))
+            audit_payloads = list(
+                conn.execute(
+                    select(audit_table.c.payload)
+                    .order_by(audit_table.c.created_at.desc())
+                    .limit(self._history_size)
+                ).scalars()
+            )
+            for payload in reversed(audit_payloads):
+                self.audit.append(AuditEvent.model_validate(payload))
             for payload in conn.execute(select(alerts_table.c.payload)).scalars():
                 alert = AlertRule.model_validate(payload)
                 self.alerts[str(alert.id)] = alert
@@ -271,7 +277,7 @@ class SqlStateStore(StateStore):
             with self.engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             return True
-        except OSError:
+        except SQLAlchemyError:
             return False
 
     def close(self) -> None:

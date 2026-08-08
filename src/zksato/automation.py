@@ -3,14 +3,13 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import httpx
-
 from zksato.config import Settings
 from zksato.domain import (
     BotConfig,
     BotState,
     BotStatus,
     OrderIntent,
+    OrderStatus,
     OrderSubmission,
     OrderType,
     Quote,
@@ -54,7 +53,13 @@ class AutomationEngine:
         return self.status
 
     async def on_quote(self, quote: Quote) -> None:
-        self.store.update_quote(quote)
+        stored = self.store.update_quote(quote)
+        if stored.timestamp != quote.timestamp:
+            self.store.add_audit(
+                "market.out_of_order",
+                f"ignored out-of-order quote for {quote.symbol}",
+            )
+            return
         await self._check_alerts(quote)
         await self._check_protective_exits(quote)
         if self.status.state != BotState.RUNNING or not self.status.config:
@@ -125,7 +130,7 @@ class AutomationEngine:
             stop_loss = price * (1 - config.stop_loss_pct / 100)
             take_profit = price * (1 + config.take_profit_pct / 100)
 
-        context = self._risk_context(portfolio, price, quantity)
+        context = self._risk_context(portfolio, symbol, price, quantity)
         submission = OrderSubmission(
             intent=OrderIntent(
                 symbol=symbol,
@@ -152,19 +157,46 @@ class AutomationEngine:
             f"{quantity} {symbol} status={order.status.value}"
         )
 
-    def _risk_context(self, portfolio: object, price: float, quantity: int) -> RiskContext:
-        snapshot = portfolio
-        positions = getattr(snapshot, "positions", [])
-        equity = float(getattr(snapshot, "equity", 0) or 0)
-        cash = float(getattr(snapshot, "cash", 0) or 0)
+    def _risk_context(
+        self,
+        portfolio: object,
+        symbol: str,
+        price: float,
+        quantity: int,
+    ) -> RiskContext:
+        positions = getattr(portfolio, "positions", [])
+        equity = float(getattr(portfolio, "equity", 0) or 0)
+        cash = float(getattr(portfolio, "cash", 0) or 0)
         notional = price * quantity
-        position_pct = (notional / equity * 100) if equity else 100.0
-        daily_pnl = float(getattr(snapshot, "daily_pnl", 0) or 0)
+        existing_value = sum(
+            float(getattr(position, "market_value", 0) or 0)
+            for position in positions
+            if getattr(position, "symbol", "") == symbol
+        )
+        gross_value = sum(float(getattr(item, "market_value", 0) or 0) for item in positions)
+        position_pct = ((existing_value + notional) / equity * 100) if equity else 100.0
+        gross_pct = ((gross_value + notional) / equity * 100) if equity else 100.0
+        symbol_pct = ((existing_value + notional) / equity * 100) if equity else 100.0
+        daily_pnl = float(getattr(portfolio, "daily_pnl", 0) or 0)
         daily_pnl_pct = (daily_pnl / equity * 100) if equity else 0.0
         drawdown = 0.0
         account = getattr(self.service.broker, "account", None)
         if account is not None and hasattr(account, "drawdown_pct"):
             drawdown = float(account.drawdown_pct())
+        orders = self.store.list_orders()
+        open_statuses = {
+            OrderStatus.PENDING,
+            OrderStatus.ACCEPTED,
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.NEEDS_RECONCILIATION,
+        }
+        today = datetime.now(UTC).date()
+        orders_today = sum(item.created_at.date() == today for item in orders)
+        open_orders = sum(item.status in open_statuses for item in orders)
+        quote = self.store.get_quote(symbol)
+        spread_pct: float | None = None
+        if quote and quote.bid and quote.offer and quote.last:
+            spread_pct = (quote.offer - quote.bid) / quote.last * 100
         return RiskContext(
             current_positions=len(positions),
             daily_pnl_pct=daily_pnl_pct,
@@ -172,8 +204,13 @@ class AutomationEngine:
             position_pct_after_trade=min(position_pct, 100),
             line_available=cash,
             reference_price=price,
-            orders_today=len(self.store.orders),
+            orders_today=orders_today,
+            open_orders=open_orders,
             portfolio_value=equity if equity > 0 else None,
+            gross_exposure_pct=max(gross_pct, 0),
+            symbol_exposure_pct=max(symbol_pct, 0),
+            quote_age_seconds=self.store.quote_age_seconds(symbol),
+            spread_pct=spread_pct,
         )
 
     async def _check_protective_exits(self, quote: Quote) -> None:
@@ -201,7 +238,10 @@ class AutomationEngine:
                     source=f"protective:{exit_reason}",
                     client_order_id=f"exit-{order.id}-{exit_reason}",
                 ),
-                risk=RiskContext(reference_price=quote.last),
+                risk=RiskContext(
+                    reference_price=quote.last,
+                    quote_age_seconds=self.store.quote_age_seconds(order.symbol),
+                ),
             )
             try:
                 await self.service.submit(submission, automated=True)
@@ -225,6 +265,7 @@ class AutomationEngine:
             triggered = triggered or (alert.operator == "lte" and quote.last <= alert.price)
             if triggered:
                 alert.enabled = False
+                self.store.add_alert(alert)
                 message = f"price alert {quote.symbol} {alert.operator} {alert.price:.2f}"
                 self.store.add_audit("alert.triggered", message, {"last": quote.last})
                 await self._notify(message)
@@ -236,11 +277,9 @@ class AutomationEngine:
         return datetime.now(UTC) - previous < timedelta(seconds=seconds)
 
     async def _notify(self, message: str) -> None:
-        url = self.settings.notification_webhook_url
-        if not url:
+        if not self.settings.notification_webhook_url:
             return
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                await client.post(url, json={"text": message, "source": "zksato"})
-        except httpx.HTTPError as exc:
-            self.store.add_audit("notification.failed", str(exc))
+        self.store.enqueue_outbox(
+            "notification.webhook",
+            {"text": message, "source": "zksato"},
+        )

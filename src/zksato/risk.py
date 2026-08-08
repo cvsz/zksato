@@ -32,9 +32,15 @@ class RiskEngine:
             reasons.append("maximum daily order count reached")
         if context.open_orders >= self.settings.max_open_orders:
             reasons.append("maximum open order count reached")
-        if context.gross_exposure_pct > self.settings.max_gross_exposure_pct:
+        if (
+            intent.side == Side.BUY
+            and context.gross_exposure_pct > self.settings.max_gross_exposure_pct
+        ):
             reasons.append("gross exposure exceeds configured maximum")
-        if context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct:
+        if (
+            intent.side == Side.BUY
+            and context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct
+        ):
             reasons.append("symbol exposure exceeds configured maximum")
         if (
             context.quote_age_seconds is not None
