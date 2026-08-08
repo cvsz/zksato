@@ -1,12 +1,14 @@
-# Service levels and operational objectives
+# Service-level objectives
 
-Initial targets must be measured and refined before production commitments.
+Production SLOs are operational gates, not promises made by source code alone.
 
-## Suggested internal objectives
-- Health/control API availability: 99.9% during intended service window.
-- Market feed freshness: within configured instrument/feed threshold while automation enabled.
-- Reconciliation: no unresolved live unknown order beyond a defined short operational threshold without alert.
-- Audit completeness: 100% of money-moving attempts correlated to risk/authorization/order outcome.
-- RPO for durable order/audit DB: near-zero with transactional storage; backups provide disaster recovery layer.
+| Signal | Objective | Failure action |
+|---|---:|---|
+| trusted quote freshness | <= `ZKSATO_SLO_FEED_FRESHNESS_SECONDS` | block new exposure; investigate feed |
+| unresolved reconciliation | <= `ZKSATO_SLO_RECONCILIATION_BACKLOG_MAX` | block broker execution |
+| API p95 latency | <= `ZKSATO_SLO_API_P95_MS` | investigate saturation/dependencies |
+| PostgreSQL health | 100% while execution enabled | disable execution |
+| Redis coordination health | healthy for multi-replica deployment | fail to single active operator or disable mutations |
+| audit-chain verification | valid | freeze privileged mutation and export evidence |
 
-SLO breaches should trigger documented incident/runbook actions, not automatic risk-limit relaxation.
+Prometheus rules are in `deploy/monitoring/alerts.yml`. Alert thresholds must be reviewed against production traffic before rollout.

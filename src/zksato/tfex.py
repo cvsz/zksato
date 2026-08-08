@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -18,6 +20,47 @@ class TfexPosition(StrEnum):
     OPEN = "OPEN"
     CLOSE = "CLOSE"
     AUTO = "AUTO"
+
+
+class TfexContractMetadata(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    series: str = Field(default="", max_length=32)
+    underlying: str | None = Field(default=None, max_length=32)
+    multiplier: float = Field(default=1.0, gt=0)
+    tick_size: float = Field(default=0.1, gt=0)
+    expiry: datetime | None = None
+    settlement_type: str = Field(default="cash", min_length=1, max_length=32)
+    source: str = Field(default="operator", min_length=1, max_length=64)
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_symbol(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class TfexContractRegistry:
+    def __init__(self, metadata_json: str = "") -> None:
+        self._items: dict[str, TfexContractMetadata] = {}
+        if metadata_json.strip():
+            self.load_json(metadata_json)
+
+    def load_json(self, payload: str) -> None:
+        raw = json.loads(payload)
+        rows = raw if isinstance(raw, list) else raw.get("contracts", [])
+        if not isinstance(rows, list):
+            raise ValueError("TFEX contract metadata must be a list")
+        for row in rows:
+            self.upsert(TfexContractMetadata.model_validate(row))
+
+    def upsert(self, metadata: TfexContractMetadata) -> TfexContractMetadata:
+        self._items[metadata.symbol] = metadata
+        return metadata
+
+    def get(self, symbol: str) -> TfexContractMetadata | None:
+        return self._items.get(symbol.upper())
+
+    def list(self) -> list[TfexContractMetadata]:
+        return sorted(self._items.values(), key=lambda item: item.symbol)
 
 
 class TfexOrderIntent(BaseModel):
@@ -51,6 +94,9 @@ class TfexRiskContext(BaseModel):
     margin_usage_pct_after_trade: float = Field(default=0, ge=0)
     market_session_known: bool = True
     market_data_available: bool = True
+    contract_metadata_available: bool = True
+    tick_size_ok: bool = True
+    days_to_expiry: float | None = None
 
 
 class TfexRiskDecision(BaseModel):
@@ -69,23 +115,47 @@ class TfexRiskEngine:
 
     def evaluate(self, submission: TfexOrderSubmission) -> TfexRiskDecision:
         context = submission.risk
+        intent = submission.intent
         reasons: list[str] = []
+        opening = intent.position != TfexPosition.CLOSE
         if self.settings.kill_switch:
             reasons.append("global kill switch is active")
         if not context.market_session_known:
             reasons.append("market session state is unknown")
         if not context.market_data_available:
             reasons.append("trusted market data is unavailable")
-        if context.current_contracts + submission.intent.volume > self.settings.max_tfex_contracts:
+        if self.settings.strict_tfex_reference_data and not context.contract_metadata_available:
+            reasons.append("trusted TFEX contract metadata is unavailable")
+        if not context.tick_size_ok:
+            reasons.append("TFEX limit price is not aligned to contract tick size")
+        projected_contracts = context.current_contracts + (intent.volume if opening else 0)
+        if projected_contracts > self.settings.max_tfex_contracts:
             reasons.append("maximum TFEX contract exposure exceeded")
         if context.margin_usage_pct_after_trade > self.settings.max_tfex_margin_usage_pct:
             reasons.append("TFEX margin usage exceeds configured maximum")
+        if (
+            opening
+            and context.days_to_expiry is not None
+            and context.days_to_expiry <= self.settings.tfex_expiry_restriction_days
+        ):
+            reasons.append("TFEX contract is inside the configured expiry restriction window")
         if (
             context.quote_age_seconds is not None
             and context.quote_age_seconds > self.settings.market_data_stale_seconds
         ):
             reasons.append("market quote is stale")
         return TfexRiskDecision(approved=not reasons, reasons=reasons)
+
+
+def settlement_pnl(
+    previous_settlement: float,
+    current_settlement: float,
+    net_contracts: int,
+    multiplier: float,
+) -> float:
+    if previous_settlement <= 0 or current_settlement <= 0 or multiplier <= 0:
+        raise ValueError("settlement prices and multiplier must be positive")
+    return (current_settlement - previous_settlement) * net_contracts * multiplier
 
 
 class SettradeTfexGateway:
@@ -95,6 +165,7 @@ class SettradeTfexGateway:
         if not settings.settrade_tfex_configured:
             raise RuntimeError("Settrade derivatives credentials are incomplete")
         self.settings = settings
+        self.contracts = TfexContractRegistry(settings.tfex_contract_metadata_json)
         try:
             from settrade_v2 import Investor  # type: ignore[import-not-found]
         except ImportError as exc:
@@ -124,9 +195,14 @@ class SettradeTfexGateway:
         rows = await asyncio.to_thread(self.derivatives.get_orders)
         return list(rows or [])
 
+    def contract_metadata(self, symbol: str) -> TfexContractMetadata | None:
+        return self.contracts.get(symbol)
+
     async def risk_context(
         self,
         *,
+        symbol: str = "",
+        price: float = 0.0,
         quote_age_seconds: float | None,
         market_data_available: bool,
     ) -> TfexRiskContext:
@@ -164,12 +240,28 @@ class SettradeTfexGateway:
             equity = self._number(account, "equity", "totalEquity", "balance")
             margin_usage = (margin / equity * 100) if margin and equity and equity > 0 else 0.0
 
+        metadata = self.contracts.get(symbol) if symbol else None
+        tick_size_ok = True
+        days_to_expiry: float | None = None
+        if metadata is not None:
+            if price > 0:
+                units = price / metadata.tick_size
+                tick_size_ok = abs(units - round(units)) <= 1e-7
+            if metadata.expiry is not None:
+                expiry = metadata.expiry
+                if expiry.tzinfo is None:
+                    expiry = expiry.replace(tzinfo=UTC)
+                days_to_expiry = (expiry - datetime.now(UTC)).total_seconds() / 86_400
+
         return TfexRiskContext(
             quote_age_seconds=quote_age_seconds,
             current_contracts=max(current_contracts, 0),
             margin_usage_pct_after_trade=max(float(margin_usage or 0), 0.0),
             market_session_known=True,
             market_data_available=market_data_available,
+            contract_metadata_available=metadata is not None,
+            tick_size_ok=tick_size_ok,
+            days_to_expiry=days_to_expiry,
         )
 
     async def place_uat_order(self, intent: TfexOrderIntent) -> dict[str, Any]:

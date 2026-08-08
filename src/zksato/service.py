@@ -7,6 +7,9 @@ from zksato.approvals import ApprovalRepository
 from zksato.broker.base import Broker, BrokerAmbiguousError
 from zksato.config import Settings
 from zksato.domain import (
+    AccountSnapshot,
+    FillRecord,
+    OrderEvent,
     OrderIntent,
     OrderRecord,
     OrderStatus,
@@ -14,8 +17,10 @@ from zksato.domain import (
     PortfolioSnapshot,
     RiskContext,
     RiskDecision,
+    RiskEvaluation,
     Side,
 )
+from zksato.market_rules import InstrumentRegistry, MarketSessionPolicy
 from zksato.observability import ORDER_SUBMISSIONS, RISK_REJECTIONS
 from zksato.risk import RiskEngine
 from zksato.store import StateStore
@@ -51,12 +56,17 @@ class TradingService:
         self.store = store
         self.approvals = approvals
         self.risk_engine = RiskEngine(settings)
+        self.instruments = InstrumentRegistry(settings.instrument_metadata_json)
+        self.market_sessions = MarketSessionPolicy(
+            settings.market_timezone,
+            settings.equity_sessions,
+        )
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
         return self.risk_engine.evaluate(submission.intent, submission.risk)
 
     async def risk_context_for(self, intent: OrderIntent) -> RiskContext:
-        portfolio = await self.portfolio()
+        portfolio = await self.portfolio(record_snapshot=False)
         quote = self.store.get_quote(intent.symbol)
         reference_price = quote.last if quote is not None else None
         estimate_price = intent.price or reference_price or 0.0
@@ -68,17 +78,22 @@ class TradingService:
         )
         existing_value = float(existing.market_value) if existing else 0.0
         holding_qty = int(existing.quantity) if existing else 0
-        gross_value = sum(float(position.market_value) for position in portfolio.positions)
+        gross_value = sum(abs(float(position.market_value)) for position in portfolio.positions)
+        net_value = sum(float(position.market_value) for position in portfolio.positions)
         if intent.side == Side.BUY:
             symbol_after = existing_value + notional
             gross_after = gross_value + notional
+            net_after = net_value + notional
         else:
             reduction = min(existing_value, notional)
             symbol_after = max(0.0, existing_value - reduction)
             gross_after = max(0.0, gross_value - reduction)
+            net_after = net_value - reduction
         position_pct = (symbol_after / equity * 100) if equity else 100.0
         gross_pct = (gross_after / equity * 100) if equity else 100.0
+        net_pct = (net_after / equity * 100) if equity else 100.0
         symbol_pct = (symbol_after / equity * 100) if equity else 100.0
+        sector_pct = self._sector_exposure_after_trade(intent, portfolio, notional, equity)
         daily_pnl_pct = (portfolio.daily_pnl / equity * 100) if equity else 0.0
         drawdown = 0.0
         account = getattr(self.broker, "account", None)
@@ -91,6 +106,19 @@ class TradingService:
         spread_pct: float | None = None
         if quote and quote.bid and quote.offer and quote.last:
             spread_pct = (quote.offer - quote.bid) / quote.last * 100
+
+        if self.settings.enforce_market_sessions:
+            market_session_known, market_session_open = self.market_sessions.state()
+        else:
+            market_session_known, market_session_open = True, True
+        metadata_known, price_band_ok, tick_size_ok = self.instruments.validate_price(
+            intent.symbol,
+            intent.price,
+        )
+        market_data_available = quote is not None
+        if self.settings.strict_reference_data and not metadata_known:
+            market_data_available = False
+
         return RiskContext(
             current_positions=len(portfolio.positions),
             daily_pnl_pct=daily_pnl_pct,
@@ -103,16 +131,50 @@ class TradingService:
             open_orders=open_orders,
             portfolio_value=equity if equity > 0 else None,
             gross_exposure_pct=max(gross_pct, 0.0),
+            net_exposure_pct=net_pct,
             symbol_exposure_pct=max(symbol_pct, 0.0),
+            sector_exposure_pct=max(sector_pct, 0.0),
             quote_age_seconds=self.store.quote_age_seconds(intent.symbol),
             spread_pct=spread_pct,
-            market_session_known=True,
-            market_data_available=quote is not None,
+            market_session_known=market_session_known,
+            market_session_open=market_session_open,
+            market_data_available=market_data_available,
+            price_band_ok=price_band_ok,
+            tick_size_ok=tick_size_ok,
+            account_allowed=self.settings.account_allowed,
             opens_new_position=intent.side == Side.BUY and holding_qty <= 0,
             reduces_exposure=(
                 intent.side == Side.SELL and holding_qty > 0 and intent.quantity <= holding_qty
             ),
         )
+
+    def _sector_exposure_after_trade(
+        self,
+        intent: OrderIntent,
+        portfolio: PortfolioSnapshot,
+        notional: float,
+        equity: float,
+    ) -> float:
+        if equity <= 0:
+            return 100.0
+        target_sector = self.instruments.sector_for(intent.symbol)
+        if not target_sector:
+            return 0.0
+        sector_value = sum(
+            float(position.market_value)
+            for position in portfolio.positions
+            if self.instruments.sector_for(position.symbol) == target_sector
+        )
+        existing = next(
+            (position for position in portfolio.positions if position.symbol == intent.symbol),
+            None,
+        )
+        existing_value = float(existing.market_value) if existing else 0.0
+        if intent.side == Side.BUY:
+            sector_after = sector_value + notional
+        else:
+            sector_after = max(0.0, sector_value - min(existing_value, notional))
+        return sector_after / equity * 100
 
     async def submit(
         self,
@@ -123,6 +185,7 @@ class TradingService:
         approval_id: str | None = None,
     ) -> OrderRecord:
         decision = self.check_risk(submission)
+        self._record_risk_evaluation(submission, decision, actor=actor)
         if not decision.approved:
             RISK_REJECTIONS.inc()
             self.store.add_audit(
@@ -172,6 +235,14 @@ class TradingService:
                 message=str(exc),
             )
             self.store.upsert_order(order)
+            self.store.add_order_event(
+                OrderEvent(
+                    order_id=order.id,
+                    event_type="broker_outcome_ambiguous",
+                    status=order.status,
+                    data={"client_order_id": client_order_id or ""},
+                )
+            )
             self.store.set_broker_reconciliation_ready(False)
             self.store.add_audit(
                 "order.ambiguous",
@@ -186,6 +257,33 @@ class TradingService:
             raise
 
         self.store.upsert_order(order)
+        self.store.add_order_event(
+            OrderEvent(
+                order_id=order.id,
+                event_type="broker_order_recorded",
+                status=order.status,
+                data={
+                    "broker_order_id": order.broker_order_id or "",
+                    "filled_quantity": order.filled_quantity,
+                },
+            )
+        )
+        if order.filled_quantity > 0 and order.average_fill_price:
+            self.store.add_fill(
+                FillRecord(
+                    broker_fill_id=(
+                        f"{order.broker_order_id}:{order.filled_quantity}"
+                        if order.broker_order_id
+                        else f"paper:{order.id}:{order.filled_quantity}"
+                    ),
+                    order_id=order.id,
+                    broker_order_id=order.broker_order_id,
+                    symbol=order.symbol,
+                    side=order.side,
+                    quantity=order.filled_quantity,
+                    price=order.average_fill_price,
+                )
+            )
         self.store.add_audit(
             "order.submitted",
             f"submitted {submission.intent.side.value} {submission.intent.symbol}",
@@ -199,6 +297,27 @@ class TradingService:
         ORDER_SUBMISSIONS.labels(status=order.status.value).inc()
         return order
 
+    def _record_risk_evaluation(
+        self,
+        submission: OrderSubmission,
+        decision: RiskDecision,
+        *,
+        actor: str,
+    ) -> None:
+        self.store.add_risk_evaluation(
+            RiskEvaluation(
+                client_order_id=submission.intent.client_order_id,
+                symbol=submission.intent.symbol,
+                approved=decision.approved,
+                reasons=decision.reasons,
+                inputs=submission.risk.model_dump(mode="json"),
+                estimated_notional=decision.estimated_notional,
+                estimated_risk_pct=decision.estimated_risk_pct,
+                policy_version="v1",
+                actor=actor,
+            )
+        )
+
     def _enforce_execution_policy(
         self,
         submission: OrderSubmission,
@@ -211,6 +330,9 @@ class TradingService:
             return
         if not self.settings.settrade_configured:
             raise TradingModeError("Settrade credentials are not configured")
+        if self.settings.trading_mode == "live" and automated:
+            message = "autonomous live execution is disabled; live orders require approval"
+            raise TradingModeError(message)
         if (
             self.settings.reconciliation_enabled
             and not self.store.broker_reconciliation_ready()
@@ -218,9 +340,6 @@ class TradingService:
             raise TradingModeError("broker reconciliation has not completed successfully")
         if self.settings.trading_mode == "sandbox":
             return
-        if automated:
-            message = "autonomous live execution is disabled; live orders require approval"
-            raise TradingModeError(message)
         if not self.settings.live_trading_enabled:
             raise TradingModeError("live trading is disabled by server policy")
         if not self.settings.live_requires_confirmation:
@@ -259,6 +378,14 @@ class TradingService:
             target.message = str(exc)
             target.updated_at = datetime.now(UTC)
             self.store.upsert_order(target)
+            self.store.add_order_event(
+                OrderEvent(
+                    order_id=target.id,
+                    event_type="cancel_outcome_ambiguous",
+                    status=target.status,
+                    data={"broker_order_id": target.broker_order_id or ""},
+                )
+            )
             self.store.set_broker_reconciliation_ready(False)
             self.store.add_audit(
                 "order.cancel_ambiguous",
@@ -281,6 +408,14 @@ class TradingService:
             }
         )
         self.store.upsert_order(merged)
+        self.store.add_order_event(
+            OrderEvent(
+                order_id=merged.id,
+                event_type="cancel_recorded",
+                status=merged.status,
+                data={"broker_order_id": merged.broker_order_id or ""},
+            )
+        )
         self.store.add_audit(
             "order.cancelled",
             f"cancelled order {target.id}",
@@ -291,5 +426,19 @@ class TradingService:
     async def list_orders(self) -> list[OrderRecord]:
         return self.store.list_orders()
 
-    async def portfolio(self) -> PortfolioSnapshot:
-        return await self.broker.portfolio()
+    async def portfolio(self, *, record_snapshot: bool = True) -> PortfolioSnapshot:
+        snapshot = await self.broker.portfolio()
+        if record_snapshot:
+            self.store.add_account_snapshot(
+                AccountSnapshot(
+                    cash=snapshot.cash,
+                    market_value=snapshot.market_value,
+                    equity=snapshot.equity,
+                    realized_pnl=snapshot.realized_pnl,
+                    unrealized_pnl=snapshot.unrealized_pnl,
+                    daily_pnl=snapshot.daily_pnl,
+                    source=self.settings.trading_mode,
+                    timestamp=snapshot.timestamp,
+                )
+            )
+        return snapshot

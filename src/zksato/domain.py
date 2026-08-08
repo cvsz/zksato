@@ -74,6 +74,25 @@ class Candle(BaseModel):
     volume: float = Field(default=0, ge=0)
 
 
+class Bar(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    symbol: str = Field(min_length=1, max_length=32)
+    timeframe: str = Field(default="1m", min_length=1, max_length=16)
+    timestamp: datetime
+    open: float = Field(gt=0)
+    high: float = Field(gt=0)
+    low: float = Field(gt=0)
+    close: float = Field(gt=0)
+    volume: float = Field(default=0, ge=0)
+    value: float = Field(default=0, ge=0)
+    source: str = Field(default="unknown", min_length=1, max_length=64)
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_bar_symbol(cls, value: str) -> str:
+        return value.strip().upper()
+
+
 class OrderIntent(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     side: Side
@@ -109,11 +128,17 @@ class RiskContext(BaseModel):
     open_orders: int = Field(default=0, ge=0)
     portfolio_value: float | None = Field(default=None, gt=0)
     gross_exposure_pct: float = Field(default=0.0, ge=0)
+    net_exposure_pct: float = 0.0
     symbol_exposure_pct: float = Field(default=0.0, ge=0)
+    sector_exposure_pct: float = Field(default=0.0, ge=0)
     quote_age_seconds: float | None = Field(default=None, ge=0)
     spread_pct: float | None = Field(default=None, ge=0)
     market_session_known: bool = True
+    market_session_open: bool = True
     market_data_available: bool = True
+    price_band_ok: bool = True
+    tick_size_ok: bool = True
+    account_allowed: bool = True
     opens_new_position: bool = True
     reduces_exposure: bool = False
 
@@ -147,8 +172,51 @@ class OrderRecord(BaseModel):
     status: OrderStatus
     source: str = "manual"
     message: str | None = None
+    correlation_id: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class OrderEvent(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    order_id: UUID
+    event_type: str = Field(min_length=1, max_length=64)
+    status: OrderStatus | None = None
+    data: dict[str, object] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class FillRecord(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    broker_fill_id: str | None = Field(default=None, max_length=128)
+    order_id: UUID | None = None
+    broker_order_id: str | None = Field(default=None, max_length=128)
+    symbol: str = Field(min_length=1, max_length=32)
+    side: Side
+    quantity: int = Field(gt=0)
+    price: float = Field(gt=0)
+    fee: float = Field(default=0.0, ge=0)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_fill_symbol(cls, value: str) -> str:
+        return value.strip().upper()
+
+
+class RiskEvaluation(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    client_order_id: str | None = Field(default=None, max_length=128)
+    symbol: str = Field(min_length=1, max_length=32)
+    approved: bool
+    reasons: list[str] = Field(default_factory=list)
+    inputs: dict[str, object] = Field(default_factory=dict)
+    estimated_notional: float = 0.0
+    estimated_risk_pct: float | None = None
+    policy_version: str = Field(default="v1", min_length=1, max_length=64)
+    actor: str = Field(default="system", min_length=1, max_length=128)
+    correlation_id: str | None = Field(default=None, max_length=128)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class Position(BaseModel):
@@ -173,6 +241,18 @@ class PortfolioSnapshot(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class AccountSnapshot(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    cash: float
+    market_value: float
+    equity: float
+    realized_pnl: float = 0.0
+    unrealized_pnl: float = 0.0
+    daily_pnl: float = 0.0
+    source: str = Field(default="local", min_length=1, max_length=64)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class StrategyConfig(BaseModel):
     name: str = "ema_cross"
     fast_period: int = Field(default=5, ge=2, le=200)
@@ -182,6 +262,27 @@ class StrategyConfig(BaseModel):
     rsi_sell: float = Field(default=70, ge=50, le=99)
     breakout_period: int = Field(default=20, ge=2, le=500)
     min_history: int = Field(default=25, ge=3, le=1000)
+
+
+class StrategyVersion(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str = Field(min_length=1, max_length=64)
+    version: str = Field(min_length=1, max_length=64)
+    config: dict[str, object] = Field(default_factory=dict)
+    code_hash: str = Field(min_length=8, max_length=128)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class StrategyRun(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    strategy_version_id: UUID | None = None
+    strategy: str = Field(min_length=1, max_length=64)
+    symbol: str = Field(min_length=1, max_length=32)
+    mode: str = Field(default="research", min_length=1, max_length=32)
+    inputs: dict[str, object] = Field(default_factory=dict)
+    output: dict[str, object] = Field(default_factory=dict)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
 
 
 class Signal(BaseModel):
@@ -267,6 +368,9 @@ class AuditEvent(BaseModel):
     event_type: str
     message: str
     data: dict[str, object] = Field(default_factory=dict)
+    previous_hash: str | None = None
+    event_hash: str | None = None
+    correlation_id: str | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -283,6 +387,8 @@ class ReconciliationReport(BaseModel):
     inserted: int = 0
     updated: int = 0
     marked_unknown: int = 0
+    fills_recorded: int = 0
+    positions_checked: int = 0
     unresolved_order_ids: list[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

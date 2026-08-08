@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
+import secrets
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import Header, HTTPException
+from fastapi import Cookie, Header, HTTPException, Request
 
 from zksato.config import Settings
 
@@ -43,22 +48,49 @@ ROLE_GRANTS: dict[Role, set[Role]] = {
 class Principal:
     subject: str
     role: Role
+    auth_method: str = "api_key"
+    session_id: str | None = None
+    csrf_token: str | None = None
+
+
+@dataclass(frozen=True)
+class IssuedSession:
+    token: str
+    csrf_token: str
+    expires_at: datetime
+    principal: Principal
 
 
 class AuthManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self._revoked_sessions: set[str] = set()
 
     def authenticate(
         self,
         authorization: str | None,
         api_key: str | None,
+        *,
+        session_token: str | None = None,
+        csrf_token: str | None = None,
+        method: str = "GET",
     ) -> Principal:
         if not self.settings.auth_required:
-            return Principal(subject="local-dev", role=Role.PLATFORM_ADMIN)
+            return Principal(subject="local-dev", role=Role.PLATFORM_ADMIN, auth_method="local")
         token = api_key or self._bearer_token(authorization)
-        if not token:
-            raise HTTPException(status_code=401, detail="authentication required")
+        if token:
+            return self._authenticate_api_key(token)
+        if session_token:
+            principal = self._authenticate_session(session_token)
+            if self.settings.csrf_required and method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+                if not csrf_token or not principal.csrf_token:
+                    raise HTTPException(status_code=403, detail="CSRF token required")
+                if not hmac.compare_digest(csrf_token, principal.csrf_token):
+                    raise HTTPException(status_code=403, detail="invalid CSRF token")
+            return principal
+        raise HTTPException(status_code=401, detail="authentication required")
+
+    def _authenticate_api_key(self, token: str) -> Principal:
         for configured, role_name in self.settings.api_key_map.items():
             if hmac.compare_digest(configured, token):
                 try:
@@ -71,6 +103,95 @@ class AuthManager:
                 digest = hashlib.sha256(token.encode()).hexdigest()[:16]
                 return Principal(subject=f"api-key:{digest}", role=role)
         raise HTTPException(status_code=401, detail="invalid credentials")
+
+    def issue_session(self, authorization: str | None, api_key: str | None) -> IssuedSession:
+        if not self.settings.session_secret:
+            raise HTTPException(status_code=409, detail="server session secret is not configured")
+        principal = self.authenticate(authorization, api_key)
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(seconds=self.settings.session_ttl_seconds)
+        session_id = str(uuid4())
+        csrf = secrets.token_urlsafe(32)
+        payload = {
+            "sub": principal.subject,
+            "role": principal.role.value,
+            "sid": session_id,
+            "csrf": csrf,
+            "iat": int(now.timestamp()),
+            "exp": int(expires_at.timestamp()),
+        }
+        encoded = self._b64url(json.dumps(payload, separators=(",", ":")).encode())
+        signature = self._sign(encoded)
+        token = f"{encoded}.{signature}"
+        return IssuedSession(
+            token=token,
+            csrf_token=csrf,
+            expires_at=expires_at,
+            principal=Principal(
+                subject=principal.subject,
+                role=principal.role,
+                auth_method="session",
+                session_id=session_id,
+                csrf_token=csrf,
+            ),
+        )
+
+    def revoke_session(self, token: str) -> None:
+        payload = self._decode_session(token)
+        session_id = str(payload.get("sid", ""))
+        if session_id:
+            self._revoked_sessions.add(session_id)
+
+    def _authenticate_session(self, token: str) -> Principal:
+        payload = self._decode_session(token)
+        session_id = str(payload.get("sid", ""))
+        if not session_id or session_id in self._revoked_sessions:
+            raise HTTPException(status_code=401, detail="session revoked")
+        try:
+            role = Role(str(payload["role"]))
+            subject = str(payload["sub"])
+            expiry = int(payload["exp"])
+            csrf = str(payload["csrf"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(status_code=401, detail="invalid session") from exc
+        if expiry <= int(datetime.now(UTC).timestamp()):
+            raise HTTPException(status_code=401, detail="session expired")
+        return Principal(
+            subject=subject,
+            role=role,
+            auth_method="session",
+            session_id=session_id,
+            csrf_token=csrf,
+        )
+
+    def _decode_session(self, token: str) -> dict[str, object]:
+        if not self.settings.session_secret:
+            raise HTTPException(status_code=401, detail="sessions are disabled")
+        encoded, separator, signature = token.partition(".")
+        if not separator or not signature:
+            raise HTTPException(status_code=401, detail="invalid session")
+        expected = self._sign(encoded)
+        if not hmac.compare_digest(signature, expected):
+            raise HTTPException(status_code=401, detail="invalid session signature")
+        try:
+            decoded = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+            payload = json.loads(decoded)
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=401, detail="invalid session") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=401, detail="invalid session")
+        return payload
+
+    def _sign(self, encoded: str) -> str:
+        secret = self.settings.session_secret
+        if not secret:
+            raise HTTPException(status_code=409, detail="server session secret is not configured")
+        digest = hmac.new(secret.encode(), encoded.encode(), hashlib.sha256).digest()
+        return self._b64url(digest)
+
+    @staticmethod
+    def _b64url(value: bytes) -> str:
+        return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
     @staticmethod
     def _bearer_token(authorization: str | None) -> str | None:
@@ -90,12 +211,22 @@ class AuthManager:
 
 def require_roles(manager: AuthManager, *roles: Role):
     required = set(roles)
+    cookie_alias = manager.settings.session_cookie_name
 
     async def dependency(
+        request: Request,
         authorization: Annotated[str | None, Header()] = None,
         x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+        x_csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+        session_token: Annotated[str | None, Cookie(alias=cookie_alias)] = None,
     ) -> Principal:
-        principal = manager.authenticate(authorization, x_api_key)
+        principal = manager.authenticate(
+            authorization,
+            x_api_key,
+            session_token=session_token,
+            csrf_token=x_csrf_token,
+            method=request.method,
+        )
         return manager.require(principal, required)
 
     return dependency
