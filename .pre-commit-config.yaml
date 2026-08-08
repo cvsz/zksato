@@ -1,0 +1,31 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: ruff-format-check
+        name: ruff format check
+        entry: ruff format --check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: mypy
+        name: mypy
+        entry: mypy src/zksato scripts
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: yaml-lint
+        name: yamllint
+        entry: yamllint .github .yamllint.yml docker-compose.yml
+        language: system
+        pass_filenames: false
+      - id: compileall
+        name: compileall
+        entry: python -m compileall -q src tests scripts
+        language: system
+        pass_filenames: false

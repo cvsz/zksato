@@ -1,0 +1,10 @@
+title = "zksato gitleaks policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Example environment file contains documented placeholders only"
+paths = [
+  '''^\.env\.example$'''
+]
