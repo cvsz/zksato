@@ -6,6 +6,7 @@
 - `../ROADMAP.md` — P0-P6 source completion and external gates
 - `FEATURE-MATRIX.md` — capability truth table
 - `EXECUTION-PLAN.md` — P0-P6 completion/evidence plan
+- `ASSURANCE.md` — engineering assurance, CI/security gates, and external-evidence boundaries
 
 ## Product and architecture
 - `PRODUCT-REQUIREMENTS.md`
@@ -51,6 +52,7 @@
 - `DEVELOPMENT.md`
 - `TESTING.md`
 - `GITHUB.md`
+- `ASSURANCE.md`
 - `THREAT-MODEL.md`
 - `../SECURITY.md`
 
