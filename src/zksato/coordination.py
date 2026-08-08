@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 from uuid import uuid4
-
-from redis.asyncio import Redis
 
 
 _RELEASE_SCRIPT = """
@@ -26,9 +25,11 @@ class CoordinationManager:
     def __init__(self, redis_url: str | None, *, lock_ttl_seconds: int = 30) -> None:
         self.redis_url = redis_url
         self.lock_ttl_seconds = lock_ttl_seconds
-        self.redis: Redis | None = (
-            Redis.from_url(redis_url, decode_responses=True) if redis_url else None
-        )
+        self.redis: Any | None = None
+        if redis_url:
+            from redis.asyncio import Redis
+
+            self.redis = Redis.from_url(redis_url, decode_responses=True)
         self._local_locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
