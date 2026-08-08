@@ -148,7 +148,10 @@ class AuthManager:
         try:
             role = Role(str(payload["role"]))
             subject = str(payload["sub"])
-            expiry = int(payload["exp"])
+            raw_expiry = payload["exp"]
+            if not isinstance(raw_expiry, (int, str)):
+                raise TypeError("invalid expiry type")
+            expiry = int(raw_expiry)
             csrf = str(payload["csrf"])
         except (KeyError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=401, detail="invalid session") from exc

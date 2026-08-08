@@ -13,6 +13,7 @@ from zksato.approvals import ApprovalRepository, ApprovalRequest, LiveApproval
 from zksato.auth import AuthManager, Principal, Role, require_roles
 from zksato.automation import AutomationEngine
 from zksato.backtest import Backtester
+from zksato.broker.base import Broker
 from zksato.broker.paper import PaperBroker
 from zksato.broker.settrade import SettradeBroker
 from zksato.config import get_settings
@@ -89,6 +90,7 @@ coordination = CoordinationManager(
     settings.redis_url,
     lock_ttl_seconds=settings.coordination_lock_ttl_seconds,
 )
+broker: Broker
 if settings.trading_mode == "paper":
     broker = PaperBroker(store=store, initial_cash=settings.initial_cash)
 else:

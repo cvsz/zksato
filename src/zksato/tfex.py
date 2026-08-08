@@ -167,7 +167,7 @@ class SettradeTfexGateway:
         self.settings = settings
         self.contracts = TfexContractRegistry(settings.tfex_contract_metadata_json)
         try:
-            from settrade_v2 import Investor  # type: ignore[import-not-found]
+            from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use TFEX") from exc
         investor = Investor(
