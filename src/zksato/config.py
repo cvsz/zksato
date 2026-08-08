@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     trading_mode: Literal["paper", "sandbox", "live"] = "paper"
     live_trading_enabled: bool = False
     live_requires_confirmation: bool = True
+    live_confirmation_token: str | None = None
     automation_enabled: bool = True
     dashboard_enabled: bool = True
     poll_interval_seconds: float = Field(default=2.0, ge=0.25, le=60)
