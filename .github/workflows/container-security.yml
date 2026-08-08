@@ -69,7 +69,7 @@ jobs:
           test "$user" = "zksato"
           cid="$(docker run -d --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges:true -p 9569:9569 --name zksato-hardened zksato:security)"
           trap 'docker logs zksato-hardened || true; docker rm -f zksato-hardened >/dev/null 2>&1 || true' EXIT
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:9569/health > hardened-health.json; then
               cat hardened-health.json
               exit 0
