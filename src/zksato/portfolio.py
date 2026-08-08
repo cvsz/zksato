@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from zksato.domain import PortfolioSnapshot, Position, Side
 from zksato.store import StateStore
@@ -21,6 +21,46 @@ class PaperPortfolio:
         self.holdings: dict[str, Holding] = {}
         self._day_start_equity = initial_cash
         self._peak_equity = initial_cash
+        self._restore()
+
+    def _restore(self) -> None:
+        state = self.store.get_paper_account()
+        if not state:
+            self._persist()
+            return
+        self.initial_cash = float(state.get("initial_cash", self.initial_cash))
+        self.cash = float(state.get("cash", self.initial_cash))
+        self.realized_pnl = float(state.get("realized_pnl", 0.0))
+        self._day_start_equity = float(
+            state.get("day_start_equity", self.initial_cash)
+        )
+        self._peak_equity = float(state.get("peak_equity", self.initial_cash))
+        raw_holdings = state.get("holdings", {})
+        if isinstance(raw_holdings, dict):
+            for symbol, raw in raw_holdings.items():
+                if not isinstance(symbol, str) or not isinstance(raw, dict):
+                    continue
+                quantity = int(raw.get("quantity", 0) or 0)
+                average_price = float(raw.get("average_price", 0) or 0)
+                self.holdings[symbol] = Holding(
+                    quantity=max(quantity, 0),
+                    average_price=max(average_price, 0),
+                )
+
+    def _persist(self) -> None:
+        self.store.save_paper_account(
+            {
+                "version": 1,
+                "initial_cash": self.initial_cash,
+                "cash": self.cash,
+                "realized_pnl": self.realized_pnl,
+                "day_start_equity": self._day_start_equity,
+                "peak_equity": self._peak_equity,
+                "holdings": {
+                    symbol: asdict(holding) for symbol, holding in self.holdings.items()
+                },
+            }
+        )
 
     def can_sell(self, symbol: str, quantity: int) -> bool:
         return self.holdings.get(symbol, Holding()).quantity >= quantity
@@ -36,6 +76,7 @@ class PaperPortfolio:
             holding.quantity = new_quantity
             holding.average_price = weighted_cost / new_quantity
             self.cash -= cost
+            self._persist()
             return
 
         if quantity > holding.quantity:
@@ -47,6 +88,7 @@ class PaperPortfolio:
         self.realized_pnl += pnl
         if holding.quantity == 0:
             holding.average_price = 0.0
+        self._persist()
 
     def snapshot(self) -> PortfolioSnapshot:
         positions: list[Position] = []
@@ -76,7 +118,9 @@ class PaperPortfolio:
                 )
             )
         equity = self.cash + market_value
-        self._peak_equity = max(self._peak_equity, equity)
+        if equity > self._peak_equity:
+            self._peak_equity = equity
+            self._persist()
         daily_pnl = equity - self._day_start_equity
         return PortfolioSnapshot(
             cash=self.cash,

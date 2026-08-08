@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import httpx
-
 from zksato.config import Settings
 from zksato.domain import (
     BotConfig,
@@ -14,7 +12,6 @@ from zksato.domain import (
     OrderSubmission,
     OrderType,
     Quote,
-    RiskContext,
     Side,
     SignalAction,
 )
@@ -54,7 +51,13 @@ class AutomationEngine:
         return self.status
 
     async def on_quote(self, quote: Quote) -> None:
-        self.store.update_quote(quote)
+        stored = self.store.update_quote(quote)
+        if stored.timestamp != quote.timestamp:
+            self.store.add_audit(
+                "market.out_of_order",
+                f"ignored out-of-order quote for {quote.symbol}",
+            )
+            return
         await self._check_alerts(quote)
         await self._check_protective_exits(quote)
         if self.status.state != BotState.RUNNING or not self.status.config:
@@ -125,21 +128,19 @@ class AutomationEngine:
             stop_loss = price * (1 - config.stop_loss_pct / 100)
             take_profit = price * (1 + config.take_profit_pct / 100)
 
-        context = self._risk_context(portfolio, price, quantity)
-        submission = OrderSubmission(
-            intent=OrderIntent(
-                symbol=symbol,
-                side=side,
-                quantity=quantity,
-                order_type=OrderType.MARKET,
-                price=None,
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                client_order_id=f"bot-{uuid4()}",
-                source=f"bot:{config.strategy.name}",
-            ),
-            risk=context,
+        intent = OrderIntent(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            order_type=OrderType.MARKET,
+            price=None,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            client_order_id=f"bot-{uuid4()}",
+            source=f"bot:{config.strategy.name}",
         )
+        context = await self.service.risk_context_for(intent)
+        submission = OrderSubmission(intent=intent, risk=context)
         try:
             order = await self.service.submit(submission, automated=True)
         except (RiskRejectedError, TradingModeError, ValueError) as exc:
@@ -150,30 +151,6 @@ class AutomationEngine:
         await self._notify(
             f"zksato {self.settings.trading_mode}: {side.value.upper()} "
             f"{quantity} {symbol} status={order.status.value}"
-        )
-
-    def _risk_context(self, portfolio: object, price: float, quantity: int) -> RiskContext:
-        snapshot = portfolio
-        positions = getattr(snapshot, "positions", [])
-        equity = float(getattr(snapshot, "equity", 0) or 0)
-        cash = float(getattr(snapshot, "cash", 0) or 0)
-        notional = price * quantity
-        position_pct = (notional / equity * 100) if equity else 100.0
-        daily_pnl = float(getattr(snapshot, "daily_pnl", 0) or 0)
-        daily_pnl_pct = (daily_pnl / equity * 100) if equity else 0.0
-        drawdown = 0.0
-        account = getattr(self.service.broker, "account", None)
-        if account is not None and hasattr(account, "drawdown_pct"):
-            drawdown = float(account.drawdown_pct())
-        return RiskContext(
-            current_positions=len(positions),
-            daily_pnl_pct=daily_pnl_pct,
-            drawdown_pct=drawdown,
-            position_pct_after_trade=min(position_pct, 100),
-            line_available=cash,
-            reference_price=price,
-            orders_today=len(self.store.orders),
-            portfolio_value=equity if equity > 0 else None,
         )
 
     async def _check_protective_exits(self, quote: Quote) -> None:
@@ -192,17 +169,16 @@ class AutomationEngine:
                 exit_reason = "take_profit"
             if not exit_reason:
                 continue
-            submission = OrderSubmission(
-                intent=OrderIntent(
-                    symbol=order.symbol,
-                    side=Side.SELL,
-                    quantity=order.filled_quantity,
-                    order_type=OrderType.MARKET,
-                    source=f"protective:{exit_reason}",
-                    client_order_id=f"exit-{order.id}-{exit_reason}",
-                ),
-                risk=RiskContext(reference_price=quote.last),
+            intent = OrderIntent(
+                symbol=order.symbol,
+                side=Side.SELL,
+                quantity=order.filled_quantity,
+                order_type=OrderType.MARKET,
+                source=f"protective:{exit_reason}",
+                client_order_id=f"exit-{order.id}-{exit_reason}",
             )
+            context = await self.service.risk_context_for(intent)
+            submission = OrderSubmission(intent=intent, risk=context)
             try:
                 await self.service.submit(submission, automated=True)
             except (RiskRejectedError, TradingModeError, ValueError) as exc:
@@ -225,6 +201,7 @@ class AutomationEngine:
             triggered = triggered or (alert.operator == "lte" and quote.last <= alert.price)
             if triggered:
                 alert.enabled = False
+                self.store.add_alert(alert)
                 message = f"price alert {quote.symbol} {alert.operator} {alert.price:.2f}"
                 self.store.add_audit("alert.triggered", message, {"last": quote.last})
                 await self._notify(message)
@@ -236,11 +213,9 @@ class AutomationEngine:
         return datetime.now(UTC) - previous < timedelta(seconds=seconds)
 
     async def _notify(self, message: str) -> None:
-        url = self.settings.notification_webhook_url
-        if not url:
+        if not self.settings.notification_webhook_url:
             return
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                await client.post(url, json={"text": message, "source": "zksato"})
-        except httpx.HTTPError as exc:
-            self.store.add_audit("notification.failed", str(exc))
+        self.store.enqueue_outbox(
+            "notification.webhook",
+            {"text": message, "source": "zksato"},
+        )

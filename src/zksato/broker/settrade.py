@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from zksato.broker.base import BrokerAmbiguousError
 from zksato.config import Settings
 from zksato.domain import (
     OrderIntent,
@@ -17,11 +18,7 @@ from zksato.domain import (
 
 
 class SettradeBroker:
-    """Thin Settrade Open API v2 equity adapter.
-
-    The SDK is imported lazily so paper mode does not require native Settrade packages.
-    Production execution is still controlled by TradingService policy and confirmation.
-    """
+    """Settrade Open API v2 equity adapter with ambiguous-outcome normalization."""
 
     def __init__(self, settings: Settings) -> None:
         if not settings.settrade_configured:
@@ -44,31 +41,37 @@ class SettradeBroker:
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         price_type = "Limit" if intent.order_type == OrderType.LIMIT else "MP-MKT"
         price = float(intent.price or 0)
-        payload = await asyncio.to_thread(
-            self._equity.place_order,
-            pin=self.settings.settrade_pin,
-            side="Buy" if intent.side == Side.BUY else "Sell",
-            symbol=intent.symbol,
-            trustee_id_type="Local",
-            volume=intent.quantity,
-            qty_open=0,
-            price=price,
-            price_type=price_type,
-            validity_type="Day",
-            bypass_warning=False,
-            valid_till_date="",
-        )
+        try:
+            payload = await asyncio.to_thread(
+                self._equity.place_order,
+                pin=self.settings.settrade_pin,
+                side="Buy" if intent.side == Side.BUY else "Sell",
+                symbol=intent.symbol,
+                trustee_id_type="Local",
+                volume=intent.quantity,
+                qty_open=0,
+                price=price,
+                price_type=price_type,
+                validity_type="Day",
+                bypass_warning=False,
+                valid_till_date="",
+            )
+        except (TimeoutError, ConnectionError) as exc:
+            raise BrokerAmbiguousError("Settrade order response timed out") from exc
         return self._map_order(payload, intent=intent)
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
         cancel = getattr(self._equity, "cancel_order", None)
         if cancel is None:
             raise RuntimeError("installed Settrade SDK does not expose cancel_order")
-        payload = await asyncio.to_thread(
-            cancel,
-            order_no=order_id,
-            pin=self.settings.settrade_pin,
-        )
+        try:
+            payload = await asyncio.to_thread(
+                cancel,
+                order_no=order_id,
+                pin=self.settings.settrade_pin,
+            )
+        except (TimeoutError, ConnectionError) as exc:
+            raise BrokerAmbiguousError("Settrade cancel response timed out") from exc
         intent = OrderIntent(
             symbol=str(payload.get("symbol", "UNKNOWN")),
             side=Side.BUY if str(payload.get("side", "Buy")).lower() == "buy" else Side.SELL,
@@ -83,10 +86,7 @@ class SettradeBroker:
 
     async def list_orders(self) -> list[OrderRecord]:
         rows = await asyncio.to_thread(self._equity.get_orders)
-        result: list[OrderRecord] = []
-        for row in rows or []:
-            result.append(self._map_order(row))
-        return result
+        return [self._map_order(row) for row in rows or []]
 
     async def portfolio(self) -> PortfolioSnapshot:
         account = await asyncio.to_thread(self._equity.get_account_info)
@@ -171,9 +171,9 @@ class SettradeBroker:
 
     @staticmethod
     def _status(raw: str, quantity: int, matched: int) -> OrderStatus:
-        if "cancel" in raw:
+        if "cancel" in raw or raw in {"c", "e"}:
             return OrderStatus.CANCELLED
-        if "reject" in raw:
+        if "reject" in raw or raw == "r":
             return OrderStatus.REJECTED
         if matched and matched >= quantity:
             return OrderStatus.FILLED

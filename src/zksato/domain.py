@@ -24,6 +24,7 @@ class OrderStatus(StrEnum):
     CANCELLED = "cancelled"
     PARTIALLY_FILLED = "partially_filled"
     FILLED = "filled"
+    NEEDS_RECONCILIATION = "needs_reconciliation"
 
 
 class SignalAction(StrEnum):
@@ -102,9 +103,19 @@ class RiskContext(BaseModel):
     drawdown_pct: float = Field(default=0.0, ge=0)
     position_pct_after_trade: float = Field(default=0.0, ge=0, le=100)
     line_available: float | None = Field(default=None, ge=0)
+    available_quantity: int | None = Field(default=None, ge=0)
     reference_price: float | None = Field(default=None, gt=0)
     orders_today: int = Field(default=0, ge=0)
+    open_orders: int = Field(default=0, ge=0)
     portfolio_value: float | None = Field(default=None, gt=0)
+    gross_exposure_pct: float = Field(default=0.0, ge=0)
+    symbol_exposure_pct: float = Field(default=0.0, ge=0)
+    quote_age_seconds: float | None = Field(default=None, ge=0)
+    spread_pct: float | None = Field(default=None, ge=0)
+    market_session_known: bool = True
+    market_data_available: bool = True
+    opens_new_position: bool = True
+    reduces_exposure: bool = False
 
 
 class OrderSubmission(BaseModel):
@@ -215,6 +226,7 @@ class BacktestRequest(BaseModel):
     initial_cash: float = Field(default=100_000.0, gt=0)
     order_size: int = Field(default=100, ge=1)
     commission_pct: float = Field(default=0.15, ge=0, le=5)
+    slippage_pct: float = Field(default=0.05, ge=0, le=5)
 
 
 class BacktestTrade(BaseModel):
@@ -256,6 +268,32 @@ class AuditEvent(BaseModel):
     message: str
     data: dict[str, object] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class OutboxMessage(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    topic: str
+    payload: dict[str, object] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    sent_at: datetime | None = None
+
+
+class ReconciliationReport(BaseModel):
+    examined_remote: int = 0
+    inserted: int = 0
+    updated: int = 0
+    marked_unknown: int = 0
+    unresolved_order_ids: list[str] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ScannerResult(BaseModel):
+    symbol: str
+    last: float
+    change_pct: float
+    volume: float
+    score: float
+    reasons: list[str] = Field(default_factory=list)
 
 
 class DashboardSnapshot(BaseModel):

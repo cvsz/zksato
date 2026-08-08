@@ -2,80 +2,81 @@
 
 Risk-first automated trading platform and operations dashboard for SET / TFEX workflows.
 
-The platform separates **market data → deterministic strategy → deterministic risk → execution → portfolio/audit**. Paper trading is the default. Settrade Open API v2 is available behind an explicit adapter and server-side credentials.
+The platform separates **market data → deterministic strategy → deterministic risk → execution → broker reconciliation → portfolio/audit**. Paper trading is the default. Settrade Open API v2 is isolated behind server-side adapters and credentials.
 
-> **Execution boundary:** autonomous live trading is intentionally blocked. Automation can run in paper mode and Settrade UAT/sandbox. In live mode the bot can generate signals, while each real order requires explicit server-authorized confirmation.
+> **Non-negotiable execution boundary:** autonomous live-money execution is forbidden. Paper and UAT automation are supported. Live equity orders require deterministic risk approval plus a one-time, intent-bound operator approval. TFEX mutation remains UAT-only until broker certification is completed.
 
-## What is implemented
+## v0.3 capabilities
 
-- FastAPI control plane on port `9569`
-- Responsive dark trading dashboard at `/`
-- Paper broker with immediate market/marketable-limit fill simulation
-- Cash, holdings, realized/unrealized P&L and mark-to-market portfolio
-- Market quote ingestion API and synthetic demo feed
-- Shared price-history store
-- Strategies: EMA crossover, RSI mean reversion, breakout
-- Bot start/stop/tick lifecycle
-- Automated paper/UAT execution
-- Protective stop-loss and take-profit exits in paper mode
-- Deterministic pre-trade risk engine
-- Global kill-switch policy
-- Position-count, allocation, per-trade risk, daily-loss, drawdown, order-count, notional and price-deviation controls
-- Duplicate client-order protection
-- Price alerts
-- Generic webhook notifications
-- Backtesting engine using the same strategy implementation as automation
-- Order, signal and audit history APIs
-- Settrade Open API v2 equity adapter with lazy optional SDK loading
-- Explicit paper / sandbox / live modes
-- Live confirmation-token boundary
-- Docker image, Docker Compose stack, health check, non-root container
-- Ruff + pytest GitHub Actions CI
+- FastAPI control plane and responsive dashboard on port `9569`
+- Paper broker with durable cash, holdings and P&L when SQL persistence is configured
+- PostgreSQL/SQLAlchemy durable orders, quotes, signals, alerts, audit, idempotency and notification outbox
+- Restart-safe `client_order_id` uniqueness
+- Ambiguous broker outcome state and broker reconciliation worker
+- Paper, Settrade UAT/sandbox and guarded live equity modes
+- One-time live approval records bound to the exact order intent, with optional four-eyes enforcement
+- API-key RBAC: read-only, strategy operator, order approver, risk admin, auditor and platform admin
+- Rate limiting, configurable CORS/trusted hosts and browser security headers
+- Settrade v2 equity adapter and realtime price/bid-offer subscription bridge
+- Stale-feed, spread, open-order, notional, position, gross/symbol exposure, daily-loss and drawdown guards
+- Deterministic market scanner
+- EMA crossover, RSI reversion and breakout strategies
+- SMA/EMA/RSI/ATR/ADX/Bollinger/VWAP indicator library
+- Backtester with commission and slippage modeling
+- Protective paper stop-loss/take-profit exits
+- Durable webhook notification outbox
+- Prometheus-compatible `/metrics`
+- Dedicated TFEX domain, account/portfolio/order reads, deterministic TFEX risk checks and UAT-only mutation boundary
+- PostgreSQL migration baseline under `migrations/`
+- Docker Compose, PostgreSQL, Redis service baseline, non-root container, CI and governance checks
+- Comprehensive `AGENTS.md`, `agents/`, `skills/`, project docs, ADRs and GitHub templates
 
 ## Architecture
 
 ```text
-                  Quote / Settrade data
-                          |
-                          v
-                    State / History
-                          |
-                  +-------+--------+
-                  |                |
-                  v                v
-             Alert Engine     Strategy Engine
-                                   |
-                                   v
-                                 Signal
-                                   |
-                                   v
-                             Risk Engine
-                          reject /     \ approve
-                               /       \
-                              v         v
-                           Audit    Execution Service
-                                      |
-                         +------------+------------+
-                         |                         |
-                         v                         v
-                    Paper Broker             Settrade v2
-                         |                  UAT / confirmed live
-                         v
-                 Portfolio / P&L
-                         |
-                         v
-                    Dashboard/API
+Market data / Settrade realtime
+             |
+             v
+       Durable state
+             |
+       Strategy / Scanner
+             |
+             v
+           Signal
+             |
+             v
+        Risk Engine ------> reject + audit
+             |
+             v
+      Trading Service
+             |
+      +------+-------+
+      |              |
+      v              v
+ Paper Broker    Settrade Equity
+      |              |
+      +-------> Reconciliation
+                    |
+               Portfolio / audit
+                    |
+               Dashboard / API
+
+Live order: Risk Admin approval -> one-time intent fingerprint -> Order Approver -> broker
+TFEX: separate domain -> TFEX risk -> UAT gateway only
 ```
 
-AI or LLM components may later assist with research, explanation and ranking, but are not permitted to bypass deterministic risk or the live confirmation boundary.
+AI/LLM components may assist research and explanation but never own execution authority.
 
 ## Quick start
+
+### Python
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -e '.[dev]'
 cp .env.example .env
+ruff check .
 pytest
 uvicorn zksato.api:app --reload --port 9569
 ```
@@ -83,73 +84,61 @@ uvicorn zksato.api:app --reload --port 9569
 Open:
 
 - Dashboard: `http://127.0.0.1:9569/`
-- OpenAPI docs: `http://127.0.0.1:9569/docs`
+- OpenAPI: `http://127.0.0.1:9569/docs`
 - Health: `http://127.0.0.1:9569/health`
 
-### Docker
+### Docker Compose
 
 ```bash
 cp .env.example .env
+# Set POSTGRES_PASSWORD before any non-local deployment.
 docker compose up --build -d
+docker compose ps
+curl -fsS http://127.0.0.1:9569/health
 ```
 
-Then open `http://127.0.0.1:9569/`.
+Compose automatically wires the API to PostgreSQL. Redis is present as the coordination target but is not a correctness dependency yet.
 
-## Dashboard controls
+## Authentication
 
-The dashboard includes market watch, portfolio/P&L, order history, bot controls, strategy selection, manual orders, alerts, signals, audit trail and an equity monitor.
+Trusted local development defaults to `ZKSATO_AUTH_REQUIRED=false`. Before exposing the service, enable RBAC and use separate high-entropy keys:
 
-For a zero-credential local demonstration, press **Start demo feed**. Synthetic prices are clearly isolated to paper mode and never represent actual SET prices.
+```dotenv
+ZKSATO_AUTH_REQUIRED=true
+ZKSATO_API_KEYS=risk-random-key:risk_admin;order-random-key:order_approver;reader-key:read_only
+```
 
-## API surface
+Clients may send `X-API-Key` or `Authorization: Bearer ...`. Never put these values in frontend source, logs or version control.
 
-### Platform
+## Live equity approval flow
 
-- `GET /health`
-- `GET /v1/config`
-- `GET /v1/dashboard`
+Live mode remains disabled by default. When operational prerequisites are met:
 
-### Market data
+```dotenv
+ZKSATO_TRADING_MODE=live
+ZKSATO_LIVE_TRADING_ENABLED=true
+ZKSATO_LIVE_REQUIRES_CONFIRMATION=true
+ZKSATO_REQUIRE_DISTINCT_APPROVER=true
+ZKSATO_LEGACY_LIVE_TOKEN_ENABLED=false
+```
 
-- `POST /v1/market/quote`
-- `GET /v1/market/quotes`
-- `GET /v1/market/history/{symbol}`
-- `POST /v1/market/demo/start`
-- `POST /v1/market/demo/stop`
+1. A `risk_admin` submits the exact proposed `OrderIntent` to `POST /v1/live-approvals`.
+2. The server stores a short-lived fingerprint of that exact intent.
+3. A distinct `order_approver` sends `POST /v1/orders` with `X-Live-Approval-Id`.
+4. The server re-runs deterministic risk checks, consumes the approval once and only then reaches the broker adapter.
+5. Ambiguous broker outcomes become `needs_reconciliation`; the system never blindly retries them.
 
-### Automation
+Autonomous live trading is still rejected even when live mode is enabled.
 
-- `POST /v1/bot/start`
-- `POST /v1/bot/stop`
-- `POST /v1/bot/tick`
-- `GET /v1/bot`
+## Settrade UAT
 
-### Risk and execution
-
-- `POST /v1/risk/check`
-- `POST /v1/orders`
-- `GET /v1/orders`
-- `DELETE /v1/orders/{order_id}`
-- `GET /v1/portfolio`
-
-### Research / operations
-
-- `POST /v1/backtest`
-- `GET /v1/signals`
-- `POST /v1/alerts`
-- `GET /v1/alerts`
-- `DELETE /v1/alerts/{alert_id}`
-- `GET /v1/audit`
-
-## Settrade Open API v2
-
-Install the optional adapter dependency:
+Install the official SDK dependency:
 
 ```bash
 pip install -e '.[settrade]'
 ```
 
-Set server-side values in `.env`:
+Configure server-side credentials and the Settrade SDK for its simulated/UAT environment before any broker mutation. Example application variables:
 
 ```dotenv
 ZKSATO_TRADING_MODE=sandbox
@@ -158,84 +147,90 @@ ZKSATO_SETTRADE_APP_SECRET=...
 ZKSATO_SETTRADE_BROKER_ID=...
 ZKSATO_SETTRADE_APP_CODE=ALGO_EQ
 ZKSATO_SETTRADE_ACCOUNT_NO=...
+ZKSATO_SETTRADE_DERIVATIVES_ACCOUNT_NO=...
 ZKSATO_SETTRADE_PIN=...
 ```
 
-The official SDK also uses `settradesdkv2_config.txt`; use `environment=uat` for its simulated environment and `environment=prod` only when intentionally operating production.
+Use `/v1/market/settrade/start` to start configured realtime subscriptions. Equity sandbox automation may run through the normal risk/service boundary. TFEX reads and `/v1/tfex/orders/uat` are isolated behind the dedicated TFEX domain.
 
-### Live mode
+## API groups
 
-Live mode requires all of the following server-side controls:
+- Platform/auth: `/health`, `/metrics`, `/v1/config`, `/v1/auth/me`, `/v1/dashboard`
+- Market: `/v1/market/*`, `/v1/scanner`
+- Automation: `/v1/bot/*`
+- Risk/execution: `/v1/risk/check`, `/v1/orders`, `/v1/reconcile`, `/v1/portfolio`
+- Approval: `/v1/live-approvals`
+- Research: `/v1/backtest`, `/v1/signals`
+- Operations: `/v1/alerts`, `/v1/audit`
+- TFEX: `/v1/tfex/account`, `/v1/tfex/portfolio`, `/v1/tfex/orders`, `/v1/tfex/risk/check`, `/v1/tfex/orders/uat`
 
-```dotenv
-ZKSATO_TRADING_MODE=live
-ZKSATO_LIVE_TRADING_ENABLED=true
-ZKSATO_LIVE_REQUIRES_CONFIRMATION=true
-ZKSATO_LIVE_CONFIRMATION_TOKEN=<long-random-secret>
-```
+The authoritative schema is always available from `/docs` and `/openapi.json` for the deployed revision.
 
-The automation engine still refuses autonomous live execution. Live orders are accepted only through the explicit order endpoint with the matching confirmation token and after deterministic risk checks.
-
-## Risk policy
-
-Important defaults are intentionally conservative and configurable from environment variables:
+## Risk defaults
 
 ```dotenv
 ZKSATO_KILL_SWITCH=false
+ZKSATO_MARKET_DATA_STALE_SECONDS=10
 ZKSATO_MAX_POSITIONS=5
 ZKSATO_MAX_POSITION_PCT=10
 ZKSATO_MAX_RISK_PER_TRADE_PCT=0.5
 ZKSATO_MAX_DAILY_LOSS_PCT=2
 ZKSATO_MAX_DRAWDOWN_PCT=5
 ZKSATO_MAX_ORDERS_PER_DAY=50
+ZKSATO_MAX_OPEN_ORDERS=20
 ZKSATO_MAX_NOTIONAL_PER_ORDER=100000
+ZKSATO_MAX_GROSS_EXPOSURE_PCT=80
+ZKSATO_MAX_SYMBOL_EXPOSURE_PCT=20
+ZKSATO_MAX_SPREAD_PCT=3
+ZKSATO_MAX_TFEX_CONTRACTS=20
+ZKSATO_MAX_TFEX_MARGIN_USAGE_PCT=50
 ZKSATO_REQUIRE_STOP_LOSS=true
 ```
 
-All controls execute server-side. Frontend state cannot disable them.
+Risk limits are server-side and cannot be disabled by browser state.
 
 ## Repository map
 
 ```text
 src/zksato/
-  api.py               HTTP API + application wiring
-  automation.py        bot, protective exits, alerts, notifications
-  backtest.py          strategy backtesting
-  config.py            environment and safety policy
-  dashboard.py         embedded operations dashboard
-  domain.py            typed domain models
-  indicators.py        technical indicators
-  market.py            synthetic paper feed
-  portfolio.py         paper accounting
-  risk.py              deterministic risk engine
-  service.py           execution-policy boundary
-  store.py             process-local state adapter
-  strategy.py          EMA / RSI / breakout strategies
+  api.py              HTTP API/application wiring
+  approvals.py        one-time live intent approvals
+  auth.py             authentication/RBAC
+  automation.py       strategy automation/protective exits
+  backtest.py         cost-aware strategy backtesting
+  config.py           environment and safety policy
+  dashboard.py        embedded operations dashboard
+  domain.py           typed domain contracts
+  indicators.py       technical indicators
+  market.py           synthetic paper feed
+  market_settrade.py  Settrade realtime bridge
+  notifications.py    durable outbox dispatcher
+  observability.py    Prometheus metrics
+  persistence.py      SQL durable state
+  portfolio.py        paper accounting/recovery
+  reconcile.py        broker-state convergence
+  risk.py             equity risk engine
+  scanner.py          deterministic market scanner
+  security.py         HTTP hardening
+  service.py          trusted execution boundary
+  store.py            state-store contract/in-memory adapter
+  strategy.py         deterministic strategies
+  tfex.py             isolated TFEX domain/UAT gateway
   broker/
-    base.py             broker protocol
-    paper.py            safe default execution adapter
-    settrade.py         Settrade Open API v2 adapter
-
+    base.py
+    paper.py
+    settrade.py
+migrations/
 tests/
 docs/
-ROADMAP.md
+agents/
+skills/
 ```
 
-## Engineering operating system
+## Engineering workflow
 
-The repository now includes a complete contributor/agent and project-governance layer:
+Read `AGENTS.md` and `docs/INDEX.md` before substantive changes. Capability status is tracked in `docs/FEATURE-MATRIX.md`; remaining deployment and broker-certification gates are tracked in `ROADMAP.md` and `docs/EXECUTION-PLAN.md`.
 
-- `AGENTS.md` — repository-wide engineering contract and non-negotiable trading invariants.
-- `agents/` — specialist playbooks for architecture, market data, strategy, risk, execution, Settrade, TFEX, portfolio, persistence, dashboard, security, testing, DevOps, observability, incidents, docs, releases, and AI research.
-- `skills/` — reusable task procedures covering repository orientation, Settrade, market data, strategy, risk, execution, portfolio accounting, backtesting, dashboard, PostgreSQL, Redis, security, testing, observability, deployment, incidents, releases, documentation, AI assistance, TFEX, and GitHub maintenance.
-- `docs/INDEX.md` — canonical documentation map.
-- `docs/FEATURE-MATRIX.md` — truthful implemented/partial/planned status.
-- `docs/EXECUTION-PLAN.md` — ordered completion plan from durable state through controlled production rollout.
-- `docs/adr/` — architecture decisions that protect risk, persistence, reconciliation, TFEX, and AI boundaries.
-- `.github/` — CODEOWNERS, PR template, issue templates, Dependabot, release categorization, Copilot instructions, and governance checks.
+## What still requires external evidence
 
-For any substantial change, start with `AGENTS.md` and `docs/INDEX.md`, then use the relevant specialist agent and skill.
-
-## Production hardening still recommended
-
-The current release is a complete single-node paper/UAT platform. Before running mission-critical production workloads, replace process-local state with PostgreSQL/Redis persistence, add authenticated RBAC, durable event/outbox processing, broker-order reconciliation workers, metrics/tracing, encrypted secret management, disaster recovery and an independent UAT certification checklist. Those items are tracked in `ROADMAP.md`, `docs/FEATURE-MATRIX.md`, and `docs/EXECUTION-PLAN.md` because they require implementation and deployment evidence rather than documentation alone.
+The codebase can implement guards and adapters, but it cannot self-certify broker or infrastructure behavior. Before production use you still need actual Settrade UAT evidence for the installed SDK/account, broker permissions, managed TLS/secrets, database backup/restore drills, production monitoring/alerts, and a manual-confirmation canary. TFEX live mutation remains intentionally unavailable until its UAT lifecycle and margin semantics are certified.
