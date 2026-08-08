@@ -3,8 +3,20 @@ from __future__ import annotations
 from collections import deque
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, create_engine, delete
-from sqlalchemy import insert, select, text, update
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    MetaData,
+    String,
+    Table,
+    create_engine,
+    delete,
+    insert,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
