@@ -1,0 +1,12 @@
+changelog:
+  categories:
+    - title: Features
+      labels: [enhancement, feature]
+    - title: Fixes
+      labels: [bug, fix]
+    - title: Security and risk
+      labels: [security, risk]
+    - title: Documentation and operations
+      labels: [documentation, operations]
+    - title: Other
+      labels: ["*"]

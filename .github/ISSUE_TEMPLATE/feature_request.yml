@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a new capability
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact areas
+      options:
+        - label: Market data
+        - label: Strategy/backtest
+        - label: Risk/execution
+        - label: Portfolio/accounting
+        - label: Dashboard/API
+        - label: Persistence
+        - label: Security
+        - label: Operations
+        - label: TFEX

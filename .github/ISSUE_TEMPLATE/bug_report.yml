@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible defect
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Trading mode
+      options: [paper, sandbox, live, not-applicable]
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs / audit evidence
+      description: Never include credentials, PINs, tokens, or confirmation secrets.

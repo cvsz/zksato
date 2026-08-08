@@ -1,0 +1,29 @@
+name: Strategy change
+description: Add or change a deterministic strategy
+title: "strategy: "
+labels: ["strategy"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis and market rationale
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Deterministic entry/exit rules
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data requirements and lookback
+  - type: textarea
+    id: validation
+    attributes:
+      label: Backtest / walk-forward / paper validation plan
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk interaction and known failure modes
