@@ -1,225 +1,203 @@
 # zksato Architecture
 
-## Principles
+## Purpose
 
-1. **Risk before execution.** Every order intent passes deterministic server-side policy before it can reach a broker adapter.
-2. **No browser-held broker secrets.** Credentials belong only in the backend runtime/secret store.
-3. **No silent mode fallback.** Sandbox/live mode must never quietly route to the paper adapter.
-4. **Idempotent execution.** Every mutating order request should carry a stable client order ID and be reconciled against broker state.
-5. **AI is advisory.** LLM/agent components may rank, summarize, explain or propose signals; they do not bypass the risk engine or execution policy.
-6. **Paper -> Sandbox -> Live.** Promotion between environments is explicit and auditable.
+zksato is a risk-first automated trading control plane for SET / TFEX workflows. The current implementation is a complete single-node paper/UAT application with an operator dashboard, deterministic strategies, deterministic risk checks, a paper broker, backtesting, alerts, audit history and a guarded Settrade Open API v2 equity adapter.
 
-## Logical architecture
+The central design rule is that **analysis never owns execution authority**. Every order intent passes through the same server-side risk and execution policy boundary.
+
+## Trust boundaries
 
 ```text
-                       +----------------------+
-                       |  Dashboard / Client  |
-                       +----------+-----------+
-                                  |
-                                  v
-                       +----------------------+
-                       | FastAPI Control Plane|
-                       +----------+-----------+
-                                  |
-               +------------------+------------------+
-               |                                     |
-               v                                     v
-      +------------------+                   +------------------+
-      | Market / Scanner |                   | Portfolio / P&L  |
-      +--------+---------+                   +------------------+
-               |
-               v
-      +------------------+
-      | Strategy Engine  |
-      +--------+---------+
-               |
-               v
-      +------------------+
-      |  Order Intent    |
-      +--------+---------+
-               |
-               v
-      +------------------+
-      | Deterministic    |
-      | Risk Engine      |
-      +---+----------+---+
-          |          |
-       reject      approve
-          |          |
-          v          v
-       Audit   +------------------+
-               | Execution Service|
-               +---------+--------+
-                         |
-            +------------+-------------+
-            |            |             |
-            v            v             v
-         Paper       Settrade UAT   Settrade Prod
-         Broker       / Sandbox       (opt-in)
+Browser / API client
+        |
+        | HTTPS/API
+        v
++----------------------------+
+| FastAPI control plane      |
+| - validates input          |
+| - exposes dashboard        |
+| - never returns secrets    |
++-------------+--------------+
+              |
+              v
++----------------------------+
+| TradingService             |
+| deterministic execution    |
+| policy + live confirmation |
++-------------+--------------+
+              |
+        +-----+-----+
+        |           |
+        v           v
+   RiskEngine     Broker
+   deterministic   |
+                  +-----------------------+
+                  |                       |
+                  v                       v
+             PaperBroker            SettradeBroker
+             local only             external API
 ```
 
-## Current Phase 0 modules
+No frontend flag can enable live execution. Live execution requires server configuration, complete broker credentials, deterministic risk approval and a confirmation token on the explicit manual order request. The automation engine is hard-blocked from autonomous live execution.
 
-### `domain.py`
-Defines validated order intent, risk context, risk decisions and order records. Validation is performed before the application service receives an intent.
+## Runtime data flow
 
-### `risk.py`
-Contains deterministic rules for:
+```text
+Quote source
+    |
+    v
+StateStore -------> Dashboard snapshot
+    |
+    +----> Price history ----> StrategyEngine
+    |                              |
+    |                              v
+    |                            Signal
+    |                              |
+    |                              v
+    |                         AutomationEngine
+    |                              |
+    |                              v
+    |                         OrderSubmission
+    |                              |
+    |                              v
+    |                          RiskEngine
+    |                        reject | approve
+    |                           |    |
+    |                           v    v
+    |                         Audit TradingService
+    |                                  |
+    |                                  v
+    |                                Broker
+    |                                  |
+    +<----------- orders / portfolio <-+
+```
 
-- daily loss circuit breaker
-- portfolio drawdown circuit breaker
-- maximum number of positions
-- maximum position allocation
-- required stop loss for buy orders
-- stop-loss sanity check
-- available-line/notional validation when line data is supplied
-
-### `broker/base.py`
-Defines the broker port used by application services. Provider-specific SDK calls must remain behind this boundary.
-
-### `broker/paper.py`
-Safe in-memory broker. It records accepted orders and rejects duplicate `client_order_id` values. It never contacts Settrade.
-
-### `service.py`
-Orchestrates risk and execution. It refuses to use the paper broker when the requested mode is `sandbox` or `live`, preventing accidental mode confusion.
+## Components
 
 ### `api.py`
-Provides a minimal API on port 9999 by convention. It exposes only non-secret policy values from configuration.
 
-## Target components
+Application wiring and FastAPI endpoints. It selects `PaperBroker` in paper mode and `SettradeBroker` in sandbox/live mode, then exposes market, bot, risk, order, portfolio, alerts, audit and backtest APIs.
 
-### Market data service
+### `dashboard.py`
 
-Responsibilities:
+Self-contained responsive operations dashboard. It provides:
 
-- Settrade quote/realtime subscriptions
-- symbol normalization
-- timestamp and sequence validation
-- stale-feed detection
-- bounded in-memory cache
-- persistence of bars/ticks where licensed and appropriate
+- market watch
+- account metrics
+- portfolio and P/L
+- order history
+- signal history
+- audit trail
+- strategy and bot controls
+- manual order entry
+- price alerts
+- paper demo-feed control
+- browser-session equity chart
 
-### Scanner service
+### `automation.py`
 
-Initial scanners:
+Coordinates deterministic strategies with risk-checked execution. It owns bot lifecycle, signal cooldown, paper protective exits, alerts and webhook notifications. It cannot bypass `TradingService`.
 
-- price/volume breakout
-- relative volume
-- momentum ranking
-- EMA/SMA trend filters
-- RSI/ATR/ADX filters
-- SET50/SET100 configurable universes
-- TFEX contract watchlists
+### `strategy.py` / `indicators.py`
 
-### Strategy service
+Shared deterministic strategy implementation used by both automation and backtesting. Current strategies are EMA crossover, RSI mean reversion and breakout.
 
-Strategies generate **signals**, not broker orders. A signal contains instrument, direction, entry thesis, invalidation/stop, optional target and expiry. Position sizing is done by deterministic policy.
+### `risk.py`
 
-### Risk service
+Server-side pre-trade controls:
 
-Target controls beyond Phase 0:
+- global kill switch
+- maximum daily loss
+- maximum drawdown
+- maximum positions
+- maximum position percentage
+- maximum daily order count
+- maximum notional per order
+- mandatory buy stop loss
+- stop-loss/take-profit sanity
+- available-line validation
+- reference-price deviation guard
+- per-trade stop-risk budget
 
-- risk-per-trade sizing
-- gross/net exposure limits
-- per-symbol and sector limits
-- concentration rules
-- market-session gate
-- stale-price protection
-- slippage/price-band guard
-- duplicate order fingerprinting
-- kill switch
-- consecutive-error circuit breaker
-- account and broker allow-list
-- manual approval mode
+This module has no LLM or strategy dependencies.
 
-### Execution service
+### `service.py`
 
-Target behavior:
+The trusted execution boundary. It always runs risk checks and then enforces environment policy. Paper mode is local, sandbox is allowed only with Settrade credentials, and live mode requires explicit enablement and confirmation. Automated live calls are rejected unconditionally.
 
-1. validate current account state
-2. obtain fresh quote/order-book state
-3. generate an idempotency key
-4. submit through the configured adapter
-5. persist broker order ID
-6. reconcile status until terminal state
-7. handle cancel/change safely
-8. emit audit events for every transition
+### `broker/paper.py`
 
-### Persistence
+Local deterministic fill simulator with market/marketable-limit fills, open-limit orders, cancellation and duplicate client-order protection.
 
-Planned stack:
+### `portfolio.py`
 
-- PostgreSQL for orders, signals, positions, audit and configuration metadata
-- Redis for short-lived locks, rate limiting and cache
-- optional TimescaleDB extension for time-series analytics
+Paper cash and position accounting with weighted average price, realized P/L, unrealized P/L, mark-to-market equity and drawdown tracking.
 
-The in-memory Phase 0 broker is intentionally not durable.
+### `broker/settrade.py`
 
-## Settrade adapter boundary
+Optional Settrade Open API v2 equity adapter. The SDK is imported lazily so paper mode has no Settrade runtime dependency. Broker-specific behavior must be certified in UAT before production promotion.
 
-The official Settrade Open API Python SDK is integrated only inside a provider adapter. The adapter must support separate UAT/Sandbox and production configuration and map provider responses into zksato domain models.
+### `backtest.py`
 
-No Settrade `app_secret`, PIN or equivalent credential may be returned by API endpoints, written to logs, embedded in the dashboard bundle or committed to Git.
+Long-only event-loop backtester using the same strategy engine as automation. It returns equity curve, return, drawdown, trade count and win rate.
 
-## AI boundary
+### `store.py`
 
-Allowed AI tasks:
+Thread-safe in-process state adapter for paper/UAT single-node operation. Its narrow interface is designed to be replaced by durable PostgreSQL/Redis adapters without changing strategy or risk modules.
 
-- summarize market context/news supplied by approved data sources
-- explain deterministic scanner output
-- rank already-generated candidates
-- propose strategy hypotheses for backtesting
-- generate daily reports and anomaly summaries
+## Execution modes
 
-Disallowed architecture:
+### Paper
 
-```text
-LLM -> unrestricted place_order()
-```
+Default. No broker credentials are required. The synthetic demo feed is available. Automated execution and protective exits are supported.
 
-Required architecture:
+### Sandbox
 
-```text
-LLM/Strategy proposal
-        |
-        v
-validated signal
-        |
-        v
-deterministic sizing + risk
-        |
-        v
-execution policy
-        |
-        v
-broker adapter
-```
+Uses `SettradeBroker` and server-side credentials. Designed for Settrade UAT/simulation. Automated execution is permitted only after UAT configuration is intentionally supplied.
 
-## Deployment target
+### Live
 
-Phase 1 deployment uses Docker Compose:
+Uses `SettradeBroker`, but the automation engine cannot submit live orders. Explicit live order requests require:
 
-```text
-api       FastAPI
-postgres  durable state
-redis     coordination/cache
-worker    scanner/strategy/order reconciliation
-```
+1. `ZKSATO_TRADING_MODE=live`
+2. complete Settrade credentials
+3. `ZKSATO_LIVE_TRADING_ENABLED=true`
+4. deterministic risk approval
+5. a matching `ZKSATO_LIVE_CONFIRMATION_TOKEN`
 
-Production should add TLS termination, secret management, metrics, centralized logs, backups and network restrictions.
+## State and durability
 
-## Promotion checklist for live execution
+The current v0.2 runtime intentionally keeps order/session state in memory. Docker Compose already provides PostgreSQL and Redis as the target production infrastructure, but durable schema, migrations, outbox processing and restart-safe reconciliation remain the highest-priority production-hardening phase.
 
-Live trading stays disabled until all of the following are true:
+Before mission-critical use, broker state must become the reconciliation source of truth and idempotency keys must survive process restarts.
 
-- Sandbox adapter integration tests pass
-- order place/cancel/change/reconcile tests pass
-- broker/account identifiers are allow-listed
-- credentials are supplied by a secret store
-- duplicate-order protection is durable
-- market-data stale checks are enabled
-- daily-loss and drawdown circuit breakers are tested
-- kill switch is operational
-- monitoring and alerts are operational
-- operator explicitly enables live mode server-side
-- broker/Settrade requirements and permissions have been confirmed
+## Failure model
+
+Important fail-closed behavior:
+
+- missing Settrade configuration prevents non-paper startup/execution
+- live mode defaults disabled
+- invalid or absent live confirmation prevents order execution
+- automation cannot perform live execution
+- risk rejection prevents broker invocation
+- market orders in paper mode require a current quote
+- duplicate paper `client_order_id` values are rejected
+- demo market feed is limited to paper mode
+
+## Future production layers
+
+The roadmap prioritizes:
+
+- PostgreSQL durable domain state
+- Redis locks/cache
+- order/deal reconciliation worker
+- Settrade native realtime subscriptions and stale-feed breaker
+- TFEX execution semantics and margin risk
+- RBAC and authenticated operator sessions
+- Vault/KMS-backed secrets
+- Prometheus/OpenTelemetry/Grafana/Loki
+- backup/restore and disaster recovery
+- deployment-specific broker UAT certification
+
+AI-assisted research may be added later, but it remains outside the broker mutation boundary.
