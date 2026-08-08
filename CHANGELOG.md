@@ -50,39 +50,16 @@ All notable changes are recorded using Keep a Changelog principles and semantic 
 ### Added
 - PostgreSQL/SQLAlchemy durable operational state and migration baseline.
 - Restart-safe client order idempotency and persistent paper account recovery.
-- persistent paper cash/holdings/P&L recovery.
-- versioned PostgreSQL migration baseline.
-- ambiguous broker outcome state (`needs_reconciliation`).
-- broker reconciliation service + background worker.
-- durable notification outbox dispatcher.
-
-### Risk / market / research
-- stale quote, spread, open-order, gross exposure and symbol exposure guards.
-- out-of-order quote rejection.
-- native Settrade v2 realtime price/bid-offer subscription bridge.
-- deterministic market scanner.
+- Broker ambiguity classification and reconciliation worker.
+- Durable webhook outbox.
+- Settrade realtime price/bid-offer bridge and deterministic scanner.
 - ATR, ADX, Bollinger Bands and VWAP indicators.
-- commission/slippage-aware backtesting.
-
-### Security / operator control
-- API-key authentication and RBAC roles.
-- rate limiting, configurable CORS/trusted hosts and security headers.
-- one-time live approvals cryptographically bound to the exact order intent.
-- optional four-eyes separation between risk approver and order executor.
-- reusable live confirmation tokens disabled by default.
-
-### TFEX
-- dedicated LONG/SHORT + OPEN/CLOSE/AUTO domain models.
-- independent TFEX risk controls for stale data, contract count and margin use.
-- Settrade derivatives account/portfolio/order reads.
-- sandbox/UAT-only TFEX order gateway.
-- no live TFEX mutation until installed-SDK/broker UAT certification.
-
-### Operations / quality
+- Commission/slippage-aware backtesting.
+- API-key RBAC, HTTP rate limiting, CORS/trusted-host configuration and security headers.
+- One-time intent-bound live approval flow with optional four-eyes separation.
 - Prometheus-compatible metrics.
-- Docker Compose PostgreSQL wiring.
-- CI PostgreSQL service, migration execution, integration test, Ruff, pytest and Compose validation.
-- synchronized README, roadmap, feature matrix, API/database docs and changelog.
+- Dedicated TFEX domain, risk model, read APIs and UAT-only mutation boundary.
+- PostgreSQL migration/integration validation in CI.
 
 ### Changed
 - Live reusable confirmation tokens are disabled by default in favor of one-time approvals.
