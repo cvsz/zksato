@@ -21,7 +21,21 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from zksato.config import Settings
-from zksato.domain import AlertRule, AuditEvent, OrderRecord, OutboxMessage, Quote, Signal
+from zksato.domain import (
+    AccountSnapshot,
+    AlertRule,
+    AuditEvent,
+    Bar,
+    FillRecord,
+    OrderEvent,
+    OrderRecord,
+    OutboxMessage,
+    Quote,
+    RiskEvaluation,
+    Signal,
+    StrategyRun,
+    StrategyVersion,
+)
 from zksato.store import StateStore
 
 metadata = MetaData()
@@ -35,6 +49,63 @@ orders_table = Table(
     Column("payload", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+order_events_table = Table(
+    "order_events",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("order_id", String(36), nullable=False, index=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+fills_table = Table(
+    "fills",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("broker_fill_id", String(128), unique=True, index=True),
+    Column("order_id", String(36), index=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+risk_evaluations_table = Table(
+    "risk_evaluations",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("client_order_id", String(128), index=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+account_snapshots_table = Table(
+    "account_snapshots",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+strategy_versions_table = Table(
+    "strategy_versions",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("name", String(64), nullable=False, index=True),
+    Column("version", String(64), nullable=False),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+strategy_runs_table = Table(
+    "strategy_runs",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+bars_table = Table(
+    "market_bars",
+    metadata,
+    Column("bar_key", String(160), primary_key=True),
+    Column("symbol", String(32), nullable=False, index=True),
+    Column("timeframe", String(16), nullable=False, index=True),
+    Column("payload", JSON, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
 )
 quotes_table = Table(
     "quotes",
@@ -116,6 +187,42 @@ class SqlStateStore(StateStore):
                 select(orders_table.c.payload).order_by(orders_table.c.created_at)
             ).scalars():
                 self.orders.append(OrderRecord.model_validate(payload))
+            for payload in conn.execute(
+                select(order_events_table.c.payload)
+                .order_by(order_events_table.c.created_at.desc())
+                .limit(self._history_size * 4)
+            ).scalars():
+                self.order_events.appendleft(OrderEvent.model_validate(payload))
+            for payload in conn.execute(
+                select(fills_table.c.payload)
+                .order_by(fills_table.c.created_at.desc())
+                .limit(self._history_size * 4)
+            ).scalars():
+                self.fills.appendleft(FillRecord.model_validate(payload))
+            for payload in conn.execute(
+                select(risk_evaluations_table.c.payload)
+                .order_by(risk_evaluations_table.c.created_at.desc())
+                .limit(self._history_size * 4)
+            ).scalars():
+                self.risk_evaluations.appendleft(RiskEvaluation.model_validate(payload))
+            for payload in conn.execute(
+                select(account_snapshots_table.c.payload)
+                .order_by(account_snapshots_table.c.created_at.desc())
+                .limit(self._history_size)
+            ).scalars():
+                self.account_snapshots.appendleft(AccountSnapshot.model_validate(payload))
+            for payload in conn.execute(select(strategy_versions_table.c.payload)).scalars():
+                version = StrategyVersion.model_validate(payload)
+                self.strategy_versions[f"{version.name}:{version.version}"] = version
+            for payload in conn.execute(
+                select(strategy_runs_table.c.payload)
+                .order_by(strategy_runs_table.c.created_at.desc())
+                .limit(self._history_size * 2)
+            ).scalars():
+                self.strategy_runs.appendleft(StrategyRun.model_validate(payload))
+            for payload in conn.execute(select(bars_table.c.payload)).scalars():
+                bar = Bar.model_validate(payload)
+                self.bars[self._bar_key(bar)] = bar
             signal_payloads = list(
                 conn.execute(
                     select(signals_table.c.payload)
@@ -156,6 +263,13 @@ class SqlStateStore(StateStore):
             ).scalar_one_or_none()
             if isinstance(paper_state, dict):
                 self.paper_account = paper_state
+            reconciliation_state = conn.execute(
+                select(runtime_state_table.c.payload).where(
+                    runtime_state_table.c.key == "broker_reconciliation_ready"
+                )
+            ).scalar_one_or_none()
+            if isinstance(reconciliation_state, dict):
+                self._broker_reconciliation_ready = bool(reconciliation_state.get("ready", False))
 
     def _upsert_payload(
         self,
@@ -204,6 +318,115 @@ class SqlStateStore(StateStore):
         )
         return order
 
+    def add_order_event(self, event: OrderEvent) -> OrderEvent:
+        super().add_order_event(event)
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(order_events_table).values(
+                    id=str(event.id),
+                    order_id=str(event.order_id),
+                    payload=event.model_dump(mode="json"),
+                    created_at=event.timestamp,
+                )
+            )
+        return event
+
+    def add_fill(self, fill: FillRecord) -> FillRecord:
+        existing = super().add_fill(fill)
+        if existing.id != fill.id:
+            return existing
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(
+                    insert(fills_table).values(
+                        id=str(fill.id),
+                        broker_fill_id=fill.broker_fill_id,
+                        order_id=str(fill.order_id) if fill.order_id else None,
+                        payload=fill.model_dump(mode="json"),
+                        created_at=fill.timestamp,
+                    )
+                )
+        except IntegrityError:
+            if fill.broker_fill_id:
+                with self._lock:
+                    return next(
+                        item for item in self.fills if item.broker_fill_id == fill.broker_fill_id
+                    )
+            raise
+        return fill
+
+    def add_risk_evaluation(self, evaluation: RiskEvaluation) -> RiskEvaluation:
+        super().add_risk_evaluation(evaluation)
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(risk_evaluations_table).values(
+                    id=str(evaluation.id),
+                    client_order_id=evaluation.client_order_id,
+                    payload=evaluation.model_dump(mode="json"),
+                    created_at=evaluation.timestamp,
+                )
+            )
+        return evaluation
+
+    def add_account_snapshot(self, snapshot: AccountSnapshot) -> AccountSnapshot:
+        super().add_account_snapshot(snapshot)
+        with self.engine.begin() as conn:
+            conn.execute(
+                insert(account_snapshots_table).values(
+                    id=str(snapshot.id),
+                    payload=snapshot.model_dump(mode="json"),
+                    created_at=snapshot.timestamp,
+                )
+            )
+        return snapshot
+
+    def add_strategy_version(self, version: StrategyVersion) -> StrategyVersion:
+        super().add_strategy_version(version)
+        self._upsert_payload(
+            strategy_versions_table,
+            strategy_versions_table.c.id,
+            str(version.id),
+            {
+                "id": str(version.id),
+                "name": version.name,
+                "version": version.version,
+                "payload": version.model_dump(mode="json"),
+                "created_at": version.created_at,
+            },
+        )
+        return version
+
+    def add_strategy_run(self, run: StrategyRun) -> StrategyRun:
+        super().add_strategy_run(run)
+        self._upsert_payload(
+            strategy_runs_table,
+            strategy_runs_table.c.id,
+            str(run.id),
+            {
+                "id": str(run.id),
+                "payload": run.model_dump(mode="json"),
+                "created_at": run.started_at,
+            },
+        )
+        return run
+
+    def upsert_bar(self, bar: Bar) -> Bar:
+        super().upsert_bar(bar)
+        key = self._bar_key(bar)
+        self._upsert_payload(
+            bars_table,
+            bars_table.c.bar_key,
+            key,
+            {
+                "bar_key": key,
+                "symbol": bar.symbol,
+                "timeframe": bar.timeframe,
+                "payload": bar.model_dump(mode="json"),
+                "created_at": bar.timestamp,
+            },
+        )
+        return bar
+
     def claim_client_order_id(self, client_order_id: str) -> bool:
         now = datetime.now(UTC)
         try:
@@ -228,6 +451,19 @@ class SqlStateStore(StateStore):
                 )
             )
         super().release_client_order_id(client_order_id)
+
+    def set_broker_reconciliation_ready(self, ready: bool) -> None:
+        super().set_broker_reconciliation_ready(ready)
+        self._upsert_payload(
+            runtime_state_table,
+            runtime_state_table.c.key,
+            "broker_reconciliation_ready",
+            {
+                "key": "broker_reconciliation_ready",
+                "payload": {"ready": ready},
+                "updated_at": datetime.now(UTC),
+            },
+        )
 
     def save_paper_account(self, payload: dict[str, object]) -> None:
         super().save_paper_account(payload)
