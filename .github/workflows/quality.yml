@@ -58,17 +58,21 @@ jobs:
         shell: python
         run: |
           import json
+          import re
           import sys
 
-          blocked = ("AGPL", "Affero", "SSPL", "GPL-3", "GPLv3")
           rows = json.load(open("licenses.json", encoding="utf-8"))
           findings = []
+          blocked = re.compile(r"(?:^|[^a-z])(?:agpl|sspl|gpl(?:v?3|[- .]?3))(?:[^a-z]|$)", re.I)
           for row in rows:
               package = str(row.get("Name", ""))
               if package.lower() == "pip-licenses":
                   continue
               license_name = str(row.get("License", ""))
-              if any(token.lower() in license_name.lower() for token in blocked):
+              normalized = license_name.lower()
+              if "lgpl" in normalized or "lesser general public license" in normalized:
+                  continue
+              if "affero" in normalized or blocked.search(license_name):
                   findings.append(f"{package}: {license_name}")
           if findings:
               print("Blocked runtime dependency licenses:\n" + "\n".join(findings))
