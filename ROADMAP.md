@@ -1,160 +1,133 @@
 # zksato Roadmap
 
-## Phase 0 — Safe foundation
+## Current release — v0.2 automation dashboard
 
-Status: **implemented in initial scaffold**
+Status: **implemented**
 
-- [x] Python package and FastAPI control plane
-- [x] paper-only execution adapter
+- [x] FastAPI control plane and responsive dashboard
 - [x] deterministic risk engine
-- [x] duplicate `client_order_id` protection in paper mode
-- [x] server-side trading-mode guard
-- [x] unit tests for core risk/execution boundaries
-- [x] environment template with live trading disabled
-- [x] architecture documentation
-- [x] CI and container baseline
+- [x] paper broker with fill simulation
+- [x] paper cash/portfolio/P&L accounting
+- [x] quote ingestion and synthetic demo feed
+- [x] EMA crossover, RSI reversion and breakout strategies
+- [x] strategy-driven bot lifecycle
+- [x] protective paper stop-loss / take-profit exits
+- [x] price alerts and webhook notifications
+- [x] backtesting engine
+- [x] signals and audit trail
+- [x] Settrade Open API v2 equity adapter
+- [x] paper / sandbox / live execution modes
+- [x] explicit live confirmation boundary
+- [x] autonomous live execution blocked at service and API layers
+- [x] Docker runtime and GitHub Actions CI
 
-## Phase 1 — Settrade Sandbox integration
+## Phase A — Durable state and broker reconciliation
 
-Goal: execute and reconcile orders in Settrade UAT/Sandbox without live-money access.
+Priority: **highest before production**
 
-- [ ] Add `SettradeBroker` adapter using official `settrade-v2`
-- [ ] Add credential model loaded only from environment/secret store
-- [ ] Separate `sandbox` and `live` provider configuration
-- [ ] Account information adapter
-- [ ] Equity portfolio adapter
-- [ ] TFEX/derivatives portfolio adapter
-- [ ] Place order
-- [ ] Cancel order
-- [ ] Change/replace order where supported
-- [ ] Query order status and deals
-- [ ] Durable client-order-id / broker-order-id mapping
-- [ ] Error normalization and retry taxonomy
-- [ ] Provider rate-limit/backoff policy
-- [ ] Integration tests against Sandbox
+- [ ] PostgreSQL schema and migrations
+- [ ] durable orders, fills, positions, signals and risk decisions
+- [ ] Redis distributed locks and cache
+- [ ] idempotency keys that survive restarts
+- [ ] Settrade order/deal reconciliation worker
+- [ ] change/replace order adapter with SDK-version integration tests
+- [ ] retry taxonomy with bounded exponential backoff
+- [ ] startup recovery from broker state
+- [ ] outbox pattern for notifications and audit export
 
-**Exit criteria:** no code path can reach production credentials; Sandbox place/cancel/reconcile is repeatable and auditable.
+**Exit criteria:** restarting any process cannot duplicate an accepted order, and local state converges to broker state after failures.
 
-## Phase 2 — Market data and scanner
+## Phase B — Native Settrade market data
 
-- [ ] Quote snapshot service
-- [ ] Realtime subscription manager
-- [ ] reconnect/backoff logic
-- [ ] stale-feed detector
-- [ ] SET / SET50 / SET100 universes
-- [ ] TFEX contract universe
-- [ ] OHLCV normalization
-- [ ] volume/relative-volume scanner
-- [ ] breakout scanner
-- [ ] momentum ranking
-- [ ] EMA/SMA filters
-- [ ] RSI / ATR / ADX indicators
-- [ ] scanner API and websocket feed
-
-**Exit criteria:** scanner output is deterministic, timestamped and reproducible from recorded market inputs.
-
-## Phase 3 — Durable state and reconciliation
-
-- [ ] PostgreSQL schema/migrations
-- [ ] orders
-- [ ] order events
-- [ ] deals/fills
-- [ ] positions
-- [ ] account snapshots
-- [ ] signals
-- [ ] strategy runs
-- [ ] risk decisions
-- [ ] audit events
-- [ ] Redis locks/cache
-- [ ] order reconciliation worker
-- [ ] idempotency across process restarts
-- [ ] recovery after API/network failure
-
-**Exit criteria:** restarting the service cannot duplicate an accepted order and broker state can be reconstructed.
-
-## Phase 4 — Strategy and backtesting
-
-- [ ] strategy plugin interface
-- [ ] signal lifecycle and expiry
-- [ ] position sizing by risk per trade
-- [ ] commission/slippage model
+- [ ] Settrade v2 realtime price subscriptions
+- [ ] bid/offer subscriptions
+- [ ] reconnect/backoff supervisor
+- [ ] stale-feed circuit breaker
+- [ ] SET / SET50 / SET100 symbol-universe loader
+- [ ] TFEX contract-universe loader
+- [ ] OHLCV persistence
 - [ ] historical data adapter
-- [ ] event-driven backtester
+- [ ] scanner ranking for price, value, volume and relative volume
+- [ ] ATR / ADX / Bollinger / VWAP indicators
+- [ ] WebSocket/SSE fan-out for dashboard clients
+
+**Exit criteria:** strategies run from timestamped Settrade inputs, stale feeds stop execution, and recorded sessions can be replayed.
+
+## Phase C — TFEX execution
+
+- [ ] derivatives broker contract
+- [ ] LONG / SHORT and OPEN / CLOSE / AUTO position semantics
+- [ ] derivatives account/margin snapshot
+- [ ] derivatives order placement/cancel/change
+- [ ] stop-order parameters
+- [ ] contract rollover rules
+- [ ] margin and call-force risk controls
+- [ ] SET and TFEX strategy isolation
+
+## Phase D — Advanced strategy research
+
+- [ ] strategy plugin registry
+- [ ] ATR position sizing
+- [ ] volatility targeting
+- [ ] trailing stops
+- [ ] scale-in / scale-out policies
+- [ ] multi-timeframe signals
+- [ ] commission, slippage and partial-fill models
 - [ ] walk-forward testing
-- [ ] parameter-set versioning
-- [ ] strategy comparison report
-- [ ] paper fill simulator
+- [ ] parameter/version registry
+- [ ] strategy comparison and tear-sheet reports
+- [ ] paper-vs-backtest drift reports
 
-**Exit criteria:** every strategy promoted to Sandbox has a versioned backtest and paper-trading report.
+## Phase E — Advanced risk
 
-## Phase 5 — Advanced risk controls
-
-- [ ] maximum gross/net exposure
-- [ ] per-symbol allocation
-- [ ] sector concentration
-- [ ] daily realized/unrealized loss guard
-- [ ] rolling drawdown limit
+- [ ] gross and net exposure limits
+- [ ] per-symbol and sector concentration limits
 - [ ] maximum open orders
-- [ ] market-session policy
-- [ ] stale quote / price divergence guard
-- [ ] price-band/slippage guard
-- [ ] consecutive broker-error breaker
-- [ ] global kill switch
-- [ ] manual approval mode
+- [ ] consecutive broker/API error circuit breaker
+- [ ] trading-session and auction-state policy
+- [ ] price-band and tick-size validation
+- [ ] stale-quote and spread guards
 - [ ] account allow-list
+- [ ] operator approval queue
+- [ ] four-eyes production approval option
 
-**Exit criteria:** all critical controls are covered by failure-path tests and can stop execution independently.
+## Phase F — Security and operations
 
-## Phase 6 — Dashboard and notifications
+- [ ] authenticated users and RBAC
+- [ ] read-only / operator / risk-admin roles
+- [ ] CSRF and hardened browser session controls
+- [ ] Vault/KMS secret integration
+- [ ] TLS reverse proxy
+- [ ] Prometheus metrics
+- [ ] OpenTelemetry traces
+- [ ] Grafana dashboards and alerts
+- [ ] structured JSON logs and Loki
+- [ ] dependency/image/SBOM scanning
+- [ ] database backup/restore verification
+- [ ] disaster recovery runbooks and SLOs
 
-- [ ] Next.js dashboard
-- [ ] live market/scanner view
-- [ ] signal queue
-- [ ] approval/reject workflow
-- [ ] orders/deals view
-- [ ] portfolio/P&L
-- [ ] risk status
-- [ ] kill switch UI with server-side authorization
-- [ ] Telegram/LINE/Discord/email notification adapters
-- [ ] daily trading report
+## Phase G — AI-assisted research
 
-## Phase 7 — AI-assisted operations
+AI stays outside the trusted execution boundary.
 
-AI remains outside the trusted execution boundary.
-
-- [ ] market-context summarizer
-- [ ] news summarizer from approved sources
-- [ ] scanner-result explanation
+- [ ] market-context and news summarization
+- [ ] scanner explanations
 - [ ] strategy research assistant
-- [ ] anomaly detection/reporting
-- [ ] natural-language read-only portfolio query
-- [ ] tool permissions restricting AI from direct broker mutation
-- [ ] auditable human approval for any AI-originated proposed action
+- [ ] anomaly detection and incident summaries
+- [ ] natural-language read-only portfolio queries
+- [ ] AI proposal queue with deterministic validation
+- [ ] explicit human approval for any proposed live action
 
-## Phase 8 — Production readiness
+## Controlled production rollout
 
-- [ ] Docker Compose production profile
-- [ ] metrics: Prometheus
-- [ ] dashboards: Grafana
-- [ ] logs: Loki/OpenTelemetry
-- [ ] tracing
-- [ ] secret manager integration
-- [ ] TLS/reverse proxy
-- [ ] database backup/restore tests
-- [ ] disaster-recovery runbook
-- [ ] SLOs and alerts
-- [ ] dependency and image scanning
-- [ ] protected production environment
-- [ ] operational runbooks
+Production promotion should be operational, not a frontend switch:
 
-## Phase 9 — Controlled live rollout
+1. Validate Settrade SDK configuration in UAT (`environment=uat`).
+2. Run recorded/replay tests and paper trading.
+3. Reconcile every sandbox order against broker state.
+4. Enable authenticated manual-confirmation production mode only.
+5. Start with conservative server-side limits.
+6. Verify stop/alert/kill-switch behavior during canary operation.
+7. Increase limits only from reviewed evidence.
 
-- [ ] broker/Settrade permissions confirmed
-- [ ] production adapter enabled only for an allow-listed account
-- [ ] tiny-capital canary strategy
-- [ ] manual-confirmation mode first
-- [ ] compare expected vs broker fills
-- [ ] verify alerts and kill switch
-- [ ] gradually increase limits only after reviewed evidence
-
-Live mode should remain a deliberate operational promotion, not a feature flag exposed to an untrusted client.
+Autonomous live execution remains intentionally outside the supported trust boundary.
