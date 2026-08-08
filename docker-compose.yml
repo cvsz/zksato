@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "9999:9999"
+      - "9569:9569"
     env_file:
       - .env
     restart: unless-stopped
