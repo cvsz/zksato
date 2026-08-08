@@ -24,6 +24,7 @@ from zksato.domain import (
     BotConfig,
     BotStatus,
     DashboardSnapshot,
+    OrderIntent,
     OrderRecord,
     OrderSubmission,
     PortfolioSnapshot,
@@ -42,7 +43,13 @@ from zksato.reconcile import ReconciliationService, ReconciliationWorker
 from zksato.scanner import MarketScanner
 from zksato.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from zksato.service import RiskRejectedError, TradingModeError, TradingService
-from zksato.tfex import SettradeTfexGateway, TfexOrderSubmission, TfexRiskDecision, TfexRiskEngine
+from zksato.tfex import (
+    SettradeTfexGateway,
+    TfexOrderIntent,
+    TfexOrderSubmission,
+    TfexRiskDecision,
+    TfexRiskEngine,
+)
 
 settings = get_settings()
 store = build_store(settings)
@@ -347,6 +354,12 @@ async def risk_check(submission: OrderSubmission, _principal: ReadPrincipal) -> 
     return service.check_risk(submission)
 
 
+@app.post("/v1/risk/preflight", response_model=RiskDecision)
+async def risk_preflight(intent: OrderIntent, _principal: ReadPrincipal) -> RiskDecision:
+    context = await service.risk_context_for(intent)
+    return service.risk_engine.evaluate(intent, context)
+
+
 @app.post("/v1/live-approvals", response_model=LiveApproval, status_code=201)
 async def create_live_approval(
     request: ApprovalRequest,
@@ -354,6 +367,10 @@ async def create_live_approval(
 ) -> LiveApproval:
     if settings.trading_mode != "live":
         raise HTTPException(status_code=409, detail="live approvals are only valid in live mode")
+    context = await service.risk_context_for(request.intent)
+    decision = service.risk_engine.evaluate(request.intent, context)
+    if not decision.approved:
+        raise HTTPException(status_code=422, detail=decision.model_dump())
     ttl = request.ttl_seconds or settings.live_approval_ttl_seconds
     approval = approvals.create(request.intent, created_by=principal.subject, ttl_seconds=ttl)
     store.add_audit(
@@ -378,9 +395,11 @@ async def place_order(
     principal: OrderPrincipal,
     approval_id: LiveApprovalHeader = None,
 ) -> OrderRecord:
+    trusted_context = await service.risk_context_for(submission.intent)
+    trusted_submission = submission.model_copy(update={"risk": trusted_context})
     try:
         return await service.submit(
-            submission,
+            trusted_submission,
             automated=False,
             actor=principal.subject,
             approval_id=approval_id,
@@ -482,6 +501,20 @@ async def tfex_risk_check(
     return tfex_risk.evaluate(submission)
 
 
+@app.post("/v1/tfex/risk/preflight", response_model=TfexRiskDecision)
+async def tfex_risk_preflight(
+    intent: TfexOrderIntent,
+    _principal: ReadPrincipal,
+) -> TfexRiskDecision:
+    gateway = _tfex_gateway()
+    quote_age = store.quote_age_seconds(intent.symbol)
+    context = await gateway.risk_context(
+        quote_age_seconds=quote_age,
+        market_data_available=store.get_quote(intent.symbol) is not None,
+    )
+    return tfex_risk.evaluate(TfexOrderSubmission(intent=intent, risk=context))
+
+
 @app.post("/v1/tfex/orders/uat")
 async def tfex_place_uat_order(
     submission: TfexOrderSubmission,
@@ -489,11 +522,17 @@ async def tfex_place_uat_order(
 ) -> dict[str, object]:
     if settings.trading_mode != "sandbox":
         raise HTTPException(status_code=409, detail="TFEX mutation is UAT-only")
-    decision = tfex_risk.evaluate(submission)
+    gateway = _tfex_gateway()
+    context = await gateway.risk_context(
+        quote_age_seconds=store.quote_age_seconds(submission.intent.symbol),
+        market_data_available=store.get_quote(submission.intent.symbol) is not None,
+    )
+    trusted_submission = submission.model_copy(update={"risk": context})
+    decision = tfex_risk.evaluate(trusted_submission)
     if not decision.approved:
         raise HTTPException(status_code=422, detail=decision.model_dump())
     try:
-        result = await _tfex_gateway().place_uat_order(submission.intent)
+        result = await gateway.place_uat_order(submission.intent)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.add_audit(

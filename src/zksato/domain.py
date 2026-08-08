@@ -112,6 +112,9 @@ class RiskContext(BaseModel):
     quote_age_seconds: float | None = Field(default=None, ge=0)
     spread_pct: float | None = Field(default=None, ge=0)
     market_session_known: bool = True
+    market_data_available: bool = True
+    opens_new_position: bool = True
+    reduces_exposure: bool = False
 
 
 class OrderSubmission(BaseModel):

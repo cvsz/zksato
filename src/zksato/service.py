@@ -1,14 +1,31 @@
 from __future__ import annotations
 
 import hmac
+from datetime import UTC, datetime
 
 from zksato.approvals import ApprovalRepository
 from zksato.broker.base import Broker, BrokerAmbiguousError
 from zksato.config import Settings
-from zksato.domain import OrderRecord, OrderStatus, OrderSubmission, PortfolioSnapshot, RiskDecision
+from zksato.domain import (
+    OrderIntent,
+    OrderRecord,
+    OrderStatus,
+    OrderSubmission,
+    PortfolioSnapshot,
+    RiskContext,
+    RiskDecision,
+    Side,
+)
 from zksato.observability import ORDER_SUBMISSIONS, RISK_REJECTIONS
 from zksato.risk import RiskEngine
 from zksato.store import StateStore
+
+OPEN_ORDER_STATUSES = {
+    OrderStatus.PENDING,
+    OrderStatus.ACCEPTED,
+    OrderStatus.PARTIALLY_FILLED,
+    OrderStatus.NEEDS_RECONCILIATION,
+}
 
 
 class RiskRejectedError(Exception):
@@ -37,6 +54,62 @@ class TradingService:
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
         return self.risk_engine.evaluate(submission.intent, submission.risk)
+
+    async def risk_context_for(self, intent: OrderIntent) -> RiskContext:
+        portfolio = await self.portfolio()
+        quote = self.store.get_quote(intent.symbol)
+        reference_price = quote.last if quote is not None else None
+        estimate_price = intent.price or reference_price or 0.0
+        notional = estimate_price * intent.quantity
+        equity = float(portfolio.equity or 0)
+        existing = next(
+            (position for position in portfolio.positions if position.symbol == intent.symbol),
+            None,
+        )
+        existing_value = float(existing.market_value) if existing else 0.0
+        gross_value = sum(float(position.market_value) for position in portfolio.positions)
+        if intent.side == Side.BUY:
+            symbol_after = existing_value + notional
+            gross_after = gross_value + notional
+        else:
+            reduction = min(existing_value, notional)
+            symbol_after = max(0.0, existing_value - reduction)
+            gross_after = max(0.0, gross_value - reduction)
+        position_pct = (symbol_after / equity * 100) if equity else 100.0
+        gross_pct = (gross_after / equity * 100) if equity else 100.0
+        symbol_pct = (symbol_after / equity * 100) if equity else 100.0
+        daily_pnl_pct = (portfolio.daily_pnl / equity * 100) if equity else 0.0
+        drawdown = 0.0
+        account = getattr(self.broker, "account", None)
+        if account is not None and hasattr(account, "drawdown_pct"):
+            drawdown = float(account.drawdown_pct())
+        orders = self.store.list_orders()
+        today = datetime.now(UTC).date()
+        orders_today = sum(item.created_at.date() == today for item in orders)
+        open_orders = sum(item.status in OPEN_ORDER_STATUSES for item in orders)
+        spread_pct: float | None = None
+        if quote and quote.bid and quote.offer and quote.last:
+            spread_pct = (quote.offer - quote.bid) / quote.last * 100
+        holding_qty = int(existing.quantity) if existing else 0
+        return RiskContext(
+            current_positions=len(portfolio.positions),
+            daily_pnl_pct=daily_pnl_pct,
+            drawdown_pct=drawdown,
+            position_pct_after_trade=min(max(position_pct, 0.0), 100.0),
+            line_available=max(float(portfolio.cash), 0.0),
+            reference_price=reference_price,
+            orders_today=orders_today,
+            open_orders=open_orders,
+            portfolio_value=equity if equity > 0 else None,
+            gross_exposure_pct=max(gross_pct, 0.0),
+            symbol_exposure_pct=max(symbol_pct, 0.0),
+            quote_age_seconds=self.store.quote_age_seconds(intent.symbol),
+            spread_pct=spread_pct,
+            market_session_known=True,
+            market_data_available=quote is not None,
+            opens_new_position=intent.side == Side.BUY and holding_qty <= 0,
+            reduces_exposure=intent.side == Side.SELL and holding_qty > 0,
+        )
 
     async def submit(
         self,

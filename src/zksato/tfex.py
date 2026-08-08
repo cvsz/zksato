@@ -50,6 +50,7 @@ class TfexRiskContext(BaseModel):
     current_contracts: int = Field(default=0, ge=0)
     margin_usage_pct_after_trade: float = Field(default=0, ge=0)
     market_session_known: bool = True
+    market_data_available: bool = True
 
 
 class TfexRiskDecision(BaseModel):
@@ -73,6 +74,8 @@ class TfexRiskEngine:
             reasons.append("global kill switch is active")
         if not context.market_session_known:
             reasons.append("market session state is unknown")
+        if not context.market_data_available:
+            reasons.append("trusted market data is unavailable")
         if context.current_contracts + submission.intent.volume > self.settings.max_tfex_contracts:
             reasons.append("maximum TFEX contract exposure exceeded")
         if context.margin_usage_pct_after_trade > self.settings.max_tfex_margin_usage_pct:
@@ -121,6 +124,54 @@ class SettradeTfexGateway:
         rows = await asyncio.to_thread(self.derivatives.get_orders)
         return list(rows or [])
 
+    async def risk_context(
+        self,
+        *,
+        quote_age_seconds: float | None,
+        market_data_available: bool,
+    ) -> TfexRiskContext:
+        account, positions = await asyncio.gather(self.account(), self.portfolio())
+        current_contracts = 0
+        for row in positions:
+            long_qty = self._number(
+                row,
+                "actualLongPosition",
+                "longPosition",
+                "actualLongQty",
+                "longQty",
+            )
+            short_qty = self._number(
+                row,
+                "actualShortPosition",
+                "shortPosition",
+                "actualShortQty",
+                "shortQty",
+            )
+            if long_qty is None and short_qty is None:
+                generic = self._number(row, "qty", "volume", "actualVolume") or 0
+                current_contracts += abs(int(generic))
+            else:
+                current_contracts += abs(int(long_qty or 0)) + abs(int(short_qty or 0))
+
+        margin_usage = self._number(
+            account,
+            "marginUsagePct",
+            "marginUtilizationPct",
+            "marginUtilization",
+        )
+        if margin_usage is None:
+            margin = self._number(account, "totalMargin", "margin", "initialMargin")
+            equity = self._number(account, "equity", "totalEquity", "balance")
+            margin_usage = (margin / equity * 100) if margin and equity and equity > 0 else 0.0
+
+        return TfexRiskContext(
+            quote_age_seconds=quote_age_seconds,
+            current_contracts=max(current_contracts, 0),
+            margin_usage_pct_after_trade=max(float(margin_usage or 0), 0.0),
+            market_session_known=True,
+            market_data_available=market_data_available,
+        )
+
     async def place_uat_order(self, intent: TfexOrderIntent) -> dict[str, Any]:
         if self.settings.trading_mode != "sandbox":
             raise RuntimeError("TFEX mutation is restricted to sandbox/UAT")
@@ -147,3 +198,15 @@ class SettradeTfexGateway:
         if not isinstance(payload, dict):
             return {"result": payload}
         return payload
+
+    @staticmethod
+    def _number(data: dict[str, Any], *keys: str) -> float | None:
+        for key in keys:
+            value = data.get(key)
+            if value is None:
+                continue
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                continue
+        return None
