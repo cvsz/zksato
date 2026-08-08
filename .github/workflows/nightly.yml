@@ -1,0 +1,144 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "30 20 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  runtime-smoke:
+    name: Runtime smoke and bounded load
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: zksato_nightly
+          POSTGRES_USER: zksato
+          POSTGRES_PASSWORD: zksato_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zksato -d zksato_nightly"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: zksato_test
+      ZKSATO_DATABASE_URL: postgresql+psycopg://zksato:zksato_test@127.0.0.1:5432/zksato_nightly
+      ZKSATO_REDIS_URL: redis://127.0.0.1:6379/0
+      ZKSATO_TRADING_MODE: paper
+      ZKSATO_LIVE_TRADING_ENABLED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Apply migrations
+        run: |
+          set -euo pipefail
+          for migration in migrations/[0-9][0-9][0-9][0-9]_*.sql; do
+            psql -h 127.0.0.1 -U zksato -d zksato_nightly -v ON_ERROR_STOP=1 -f "$migration"
+          done
+      - name: Start API and run bounded load probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          uvicorn zksato.api:app --host 127.0.0.1 --port 9569 >/tmp/zksato-nightly.log 2>&1 &
+          api_pid=$!
+          trap 'cat /tmp/zksato-nightly.log || true; kill "$api_pid" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:9569/health >/tmp/health.json; then
+              cat /tmp/health.json
+              break
+            fi
+            if ! kill -0 "$api_pid" 2>/dev/null; then
+              echo "API exited during startup" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:9569/health >/dev/null
+          python scripts/load_test.py --url http://127.0.0.1:9569/health --requests 250 --concurrency 20
+
+  backup-restore-drill:
+    name: PostgreSQL backup and restore drill
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: zksato_dr
+          POSTGRES_USER: zksato
+          POSTGRES_PASSWORD: zksato_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zksato -d zksato_dr"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: zksato_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Apply migrations and seed probe row
+        run: |
+          set -euo pipefail
+          for migration in migrations/[0-9][0-9][0-9][0-9]_*.sql; do
+            psql -h 127.0.0.1 -U zksato -d zksato_dr -v ON_ERROR_STOP=1 -f "$migration"
+          done
+          psql -h 127.0.0.1 -U zksato -d zksato_dr -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO runtime_state (key, payload, updated_at)
+          VALUES ('nightly-dr-probe', '{"status":"ok"}', NOW())
+          ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at;
+          SQL
+      - name: Backup
+        env:
+          ZKSATO_DATABASE_URL: postgresql://zksato:zksato_test@127.0.0.1:5432/zksato_dr
+          BACKUP_DIR: /tmp/zksato-backups
+        run: scripts/backup_postgres.sh | tee /tmp/backup-path.txt
+      - name: Restore into clean database and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup="$(tail -n 1 /tmp/backup-path.txt)"
+          createdb -h 127.0.0.1 -U zksato zksato_restore
+          ZKSATO_DATABASE_URL=postgresql://zksato:zksato_test@127.0.0.1:5432/zksato_restore \
+            CONFIRM_RESTORE=zksato \
+            scripts/restore_postgres.sh "$backup"
+          restored="$(psql -h 127.0.0.1 -U zksato -d zksato_restore -Atc "SELECT payload->>'status' FROM runtime_state WHERE key='nightly-dr-probe'")"
+          test "$restored" = "ok"
