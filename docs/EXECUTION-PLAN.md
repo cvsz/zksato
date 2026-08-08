@@ -1,53 +1,55 @@
 # Production completion execution plan
 
-## P0 — Durable correctness
-1. PostgreSQL schema/migrations for orders, order events, fills, positions, risk decisions, signals, strategy runs, audit events, account snapshots.
-2. Repository layer replacing process-local trading truth.
-3. Durable idempotency keys and uniqueness constraints.
-4. Broker order/deal reconciliation worker with ambiguous-timeout recovery.
-5. Redis coordination only after durable semantics are defined.
-6. Restart/crash tests proving no duplicate execution.
+## Completed source-code foundation
 
-**Exit:** process restart and network ambiguity cannot silently duplicate orders; local state converges to broker state.
+The v0.3 implementation closes the major source-code gaps identified by the earlier P0-P3 plan:
 
-## P1 — Trusted market data and risk
-1. Native Settrade realtime feed with reconnect/backoff/subscription manager.
-2. Feed freshness/gap/out-of-order monitoring and stale-feed execution breaker.
-3. Expanded risk: gross/net/symbol/sector exposure, session rules, price bands, open-order limits.
-4. Dedicated account allow-list and operator approval records.
+1. SQL-backed durable operational state and restart-safe idempotency.
+2. Persistent paper account state.
+3. Broker ambiguity classification and reconciliation worker.
+4. Durable notification outbox.
+5. Versioned PostgreSQL migration baseline and PostgreSQL CI integration test.
+6. Native Settrade realtime subscription bridge with stale-feed execution guard.
+7. Expanded deterministic exposure/spread/open-order risk controls.
+8. API-key RBAC, configurable CORS/trusted hosts, rate limiting and security headers.
+9. One-time intent-bound live approval with optional four-eyes separation.
+10. Prometheus metrics.
+11. Dedicated TFEX domain/risk/read APIs and sandbox-only order gateway.
+12. Expanded indicators/scanner and cost-aware backtesting.
 
-**Exit:** automation only acts on fresh trusted data and all required risk inputs are available.
+## Next execution gate — broker UAT evidence
 
-## P2 — Security and operator control
-1. Authentication, RBAC, secure sessions, CSRF/CORS/rate limiting.
-2. Managed secret store integration and rotation runbook.
-3. Tamper-evident audit export and sensitive-data redaction tests.
-4. Permission-separated read, strategy-control, risk-admin, and order-approval roles.
+Source code cannot prove behavior of a broker account or installed SDK. Use Settrade UAT to validate:
 
-**Exit:** exposed deployments have authenticated least-privilege control over every mutation.
+1. Equity account and portfolio response mappings.
+2. Accepted/rejected/cancelled/partial-filled order mappings.
+3. Timeout/unknown-outcome reconciliation without duplicate submission.
+4. Realtime subscription stability and reconnect behavior.
+5. TFEX account, portfolio, order and margin semantics.
+6. TFEX order signature for the installed SDK release.
 
-## P3 — TFEX
-1. Contract metadata/series/expiry/rollover.
-2. Long/short/open/close semantics and margin.
-3. TFEX portfolio/P&L and risk integration.
-4. UAT certification for order lifecycle and reconciliation.
+Do not promote a behavior to production until the UAT evidence is recorded.
 
-## P4 — Observability and resilience
-1. Metrics/logs/traces with stable correlation IDs.
-2. SLOs and actionable alerts.
-3. Backup/restore, recovery drills, DB/Redis/broker outage tests.
-4. Performance/load tests and queue/reconciliation lag limits.
+## Deployment gate
 
-## P5 — Strategy research maturity
-1. Event-driven historical store/replay.
-2. Fees/slippage/session-aware backtests.
-3. Walk-forward/out-of-sample reports and parameter registry.
-4. Promotion gates from research → paper → UAT.
+1. Apply `migrations/` before application rollout.
+2. Use managed PostgreSQL with backup/restore procedures.
+3. Enable `ZKSATO_AUTH_REQUIRED=true` and separate risk-admin/order-approver credentials.
+4. Keep credentials and PINs in a managed secret facility.
+5. Terminate TLS at a trusted ingress/reverse proxy.
+6. Configure host/origin allow-lists.
+7. Scrape `/metrics` and define alerts for availability, risk rejection and reconciliation backlog.
+8. Centralize logs/traces and preserve audit evidence.
+9. Exercise database restore, broker outage and kill-switch procedures.
 
-## P6 — Controlled production rollout
-1. Complete broker permissions/legal/operational requirements.
-2. Manual-confirmation live canary only.
-3. Compare expected vs broker fills/positions daily.
-4. Increase limits only from reviewed evidence.
+## Controlled live canary
+
+1. Start signal-only.
+2. Create a one-time approval for one exact order intent.
+3. Have a distinct order approver submit that same intent.
+4. Start with deliberately small server-side limits.
+5. Compare local order/portfolio state against broker/Streaming state.
+6. Stop on any unexplained divergence.
+7. Increase limits only after reviewed evidence.
 
 Autonomous live-money execution remains out of scope by design.
