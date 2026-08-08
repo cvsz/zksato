@@ -4,6 +4,19 @@ All notable changes are recorded using Keep a Changelog principles and semantic 
 
 ## [Unreleased]
 
+### Added
+- Hardened multi-job GitHub Actions CI with Python 3.11/3.12 integration coverage, PostgreSQL/Redis services, migration execution, Compose validation, container build caching, and runtime health smoke testing.
+- Dedicated security workflow with Python dependency auditing, repository secret/misconfiguration/vulnerability scanning, and container vulnerability scanning.
+- Nightly runtime/load verification and disposable PostgreSQL backup/checksum/restore drill.
+- Tag-gated release workflow that validates project version, builds wheel/sdist, publishes GHCR images with BuildKit provenance/SBOM metadata, and creates GitHub Releases.
+- Manual, read-only Settrade UAT certification workflow and non-mutating production-readiness/canary-plan workflow.
+- Expanded Dependabot coverage for Python, GitHub Actions, and Docker dependencies.
+
+### Changed
+- GitHub-maintained workflow actions moved to Node 24 generation and all workflow actions are pinned to immutable commit SHAs with version comments.
+- Workflow token permissions, concurrency, timeouts, and checkout credential persistence are explicitly controlled.
+- Governance now rejects unsafe `pull_request_target`, `write-all`, missing workflow permissions, legacy action runtime references, deprecated port `9999`, and invalid shell syntax.
+
 ## [0.4.0]
 
 ### Added
