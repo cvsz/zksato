@@ -1,131 +1,130 @@
 # GitHub repository and Actions configuration
 
-This document is the operational contract for GitHub Actions, branch protection, dependency maintenance, security automation, releases, UAT evidence, production-readiness evidence, and disaster-recovery drills.
+This document is the operational contract for GitHub Actions, pull-request policy, dependency maintenance, security automation, release assurance, UAT evidence, disaster-recovery drills, and production-readiness evidence.
 
 ## Workflow inventory
 
-| Workflow | Trigger | Purpose | Required by default |
+| Workflow | Trigger | Purpose | Baseline requirement |
 | --- | --- | --- | --- |
-| `CI` | push to `main`, PR, manual | Python 3.11 integration checks plus Python 3.11-3.14 compatibility matrix | yes |
-| `Governance` | push to `main`, PR, manual | required docs, port invariant, immutable action pins, least-privilege workflow policy | yes |
-| `Security` | push to `main`, PR, weekly, manual | `pip-audit`, Bandit, high-confidence secret patterns, optional CodeQL | yes for `python-security` |
-| `Container` | relevant push/PR paths, manual | Docker build, non-root invariant, runtime `/health` smoke test | recommended |
-| `Dependency Review` | PR | GitHub dependency review, gated by repository capability | optional/gated |
-| `Performance` | weekly, manual | bounded local health-endpoint load probe | evidence workflow |
-| `Disaster Recovery Drill` | monthly, manual | PostgreSQL migration → backup → checksum → restore → sentinel verification | evidence workflow |
-| `UAT Certification` | manual | non-mutating evidence collection against protected Settrade UAT deployment | manual approval workflow |
-| `Production Readiness` | manual | fail-closed runtime/external readiness evaluation and non-executing canary-plan evidence | manual approval workflow |
-| `Release` | `v*` tag | dependency audit, wheel/sdist, SBOM/checksums, GHCR image, optional attestation, GitHub Release | tag gate |
+| `CI` | push `main`, PR, merge group, manual | PostgreSQL/Redis integration, migrations, Ruff, branch coverage, Python 3.11-3.14 | required |
+| `Quality` | push `main`, PR, merge group, manual | Ruff format, mypy, YAML/actionlint/zizmor, OpenAPI contract, package metadata, runtime-license policy | required |
+| `Governance` | push `main`, PR, merge group, manual | required docs, port invariant, immutable action pins, least privilege, ShellCheck, Hadolint | required |
+| `Security` | push `main`, PR, merge group, weekly, manual | runtime `pip-audit`, Bandit, Gitleaks, high-confidence secret patterns, optional CodeQL | required for Python security |
+| `Container` | relevant push/PR, merge group, manual | production image build, non-root and hardened read-only runtime `/health` smoke | required for runtime/container changes |
+| `Container Security` | relevant push/PR, merge group, weekly, manual | Trivy CVE evidence, fixed-critical gate, image CycloneDX SBOM, hardened-runtime check | required for runtime/container changes |
+| `PR Policy` | PR | Conventional title plus evidence sections for risk-sensitive changes | required for PRs |
+| `Labeler` | PR | path-based labels using an unprivileged `pull_request` trigger | advisory |
+| `Resilience` | sensitive PR paths, merge group, weekly, manual | deterministic recovery/fail-closed suite across two hash seeds | required for sensitive changes |
+| `Dependency Review` | PR | GitHub dependency review when the private-repository capability is enabled | capability-gated |
+| `Repository Health` | GitHub-config push, weekly, manual | read-only GitHub API capability/control evidence | evidence |
+| `Performance` | weekly, manual | bounded local hardened-container load probe with explicit p95/failure threshold | evidence |
+| `Disaster Recovery Drill` | monthly, manual | migrations, backup, checksum, corruption detection, restore, sentinel verification, timing evidence | evidence |
+| `UAT Certification` | manual | protected non-mutating evidence collection against deployed Settrade UAT | protected manual |
+| `Production Readiness` | manual | protected non-executing runtime/external evidence gate and one-order manual canary plan | protected manual |
+| `Release` | `v*` tag | audited Python release + image scan/SBOM + multi-arch GHCR publication + checksums + optional attestation + GitHub Release | release gate |
+| `Release Verification` | published release, manual | re-download/checksum/clean-install and immutable GHCR digest runtime verification | post-release evidence |
+
+GitHub also creates dynamic Dependabot Update and Dependency Graph workflows outside `.github/workflows/`.
 
 ## Action supply-chain policy
 
-All external `uses:` references in `.github/workflows/` must be pinned to a full 40-character commit SHA. Human-readable release versions stay in comments, for example:
+Every external `uses:` reference must be pinned to a full 40-character commit SHA. Human-readable release versions remain comments only. `Governance` rejects shortened/moving refs, `write-all`, and `pull_request_target` by default. `Quality` independently runs `actionlint` and `zizmor` so workflow syntax and high-confidence workflow-security findings are validated before merge.
 
-```yaml
-uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-```
+Dependabot maintains `pip`, `github-actions`, and Docker ecosystems on a weekly Bangkok-time schedule. Updates are grouped and automatically rebased.
 
-`Governance` rejects moving tags such as `@main`, `@master`, `@v6`, shortened SHAs, and `pull_request_target` by default. Every workflow must declare explicit top-level `permissions`; `write-all` is forbidden.
+## Recommended protection for `main`
 
-Dependabot keeps `pip`, `github-actions`, and Docker references current on a weekly Bangkok-time schedule. Updates are grouped to reduce PR noise while preserving reviewability.
-
-## Recommended branch protection for `main`
-
-Require pull requests for non-trivial changes, dismiss stale approvals, require conversation resolution, block force pushes and branch deletion, and restrict bypass. Require the stable checks that always run:
+When the repository plan supports rulesets/branch protection, require PRs, stale-approval dismissal, conversation resolution, block force push/deletion, restrict bypass, and require the stable checks that run for every relevant change:
 
 - `CI / Quality / Python 3.11`
-- all supported-interpreter `CI / Compatibility` jobs if the repository promises Python 3.11+
+- `CI / Compatibility / Python 3.11`
+- `CI / Compatibility / Python 3.12`
+- `CI / Compatibility / Python 3.13`
+- `CI / Compatibility / Python 3.14`
+- `Quality / Format, types, workflows, contract, package and licenses`
 - `Governance / required-docs`
 - `Security / Python dependency and static security`
+- `PR Policy / Title and risk-sensitive change policy`
 
-Do not require path-filtered or capability-gated checks such as `Container`, `CodeQL`, or `Dependency Review` until their trigger and repository entitlements guarantee that they run for every protected PR.
+After merge queue is available, the core workflows already support `merge_group`. Do not make path-filtered/capability-gated checks globally required unless their trigger guarantees they run on every protected PR.
 
 ## Repository variables and protected environments
 
-The workflows intentionally fail closed or skip capability-dependent features instead of assuming a GitHub plan or external environment.
+Capability-gated repository variables:
 
-Repository variables:
+- `ENABLE_CODEQL=true` — enable only when code scanning is available for this private repository.
+- `ENABLE_DEPENDENCY_REVIEW=true` — enable only when Dependency Review is available.
+- `ENABLE_ATTESTATIONS=true` — enable only when private-repository artifact attestations are available.
 
-- `ENABLE_CODEQL=true` — enables CodeQL advanced analysis. Enable only when code scanning is available for this private repository.
-- `ENABLE_DEPENDENCY_REVIEW=true` — enables Dependency Review. Enable only when the dependency review API is available for the repository.
-- `ENABLE_ATTESTATIONS=true` — enables release artifact attestations. Enable only when private-repository attestations are available for the account/organization plan.
+Create protected environments outside source control:
 
-Create a protected GitHub environment named `uat` with required reviewers and the environment secret documented in the UAT runbook. The UAT workflow accepts only an HTTPS deployment URL and performs non-mutating certification probes.
+### `uat`
+- required reviewers
+- deployment restrictions
+- `ZKSATO_UAT_API_KEY`
 
-Create a separate protected environment named `production` with required reviewers for the manual Production Readiness workflow. That workflow accepts only an HTTPS endpoint, requires the literal confirmation `READINESS_ONLY`, evaluates the repository-defined external/runtime evidence contract, stores the report and canary plan as short-lived evidence, and never calls an order endpoint. See `ACTIONS-OPERATIONS.md` and `PRODUCTION-READINESS.md`.
+### `production`
+- required reviewers
+- deployment restrictions
+- `ZKSATO_PRODUCTION_RISK_API_KEY`
 
-## CI guarantees
+Environment secrets must never be repository variables, workflow inputs, committed files, or PR secrets.
 
-The primary CI job validates:
+## CI and quality guarantees
 
-1. pinned Python 3.11 environment and cached dependency installation;
-2. byte compilation of `src`, tests, and scripts;
-3. all numbered PostgreSQL migrations against PostgreSQL 16;
-4. Redis service availability during the integration job;
-5. `pip check` dependency consistency;
-6. Ruff policy;
-7. pytest excluding explicit UAT/performance markers;
-8. Docker Compose configuration;
-9. JUnit evidence retained as a short-lived workflow artifact.
+`CI` uses PostgreSQL 16 and Redis 7, applies all numbered migrations, runs dependency consistency, Ruff, the normal pytest suite with branch coverage, Compose validation, and a Python 3.11-3.14 compatibility matrix. The current branch-coverage floor is 65%; it is a ratchet rather than a target.
 
-A separate compatibility matrix runs the non-UAT/non-performance test suite on Python 3.11, 3.12, 3.13, and 3.14 because `pyproject.toml` declares `requires-python = ">=3.11"`.
+`Quality` validates full-repository Ruff formatting, mypy across `src/zksato` and `scripts`, YAML, GitHub Actions semantics, high-confidence workflow security, the safety-critical OpenAPI contract, wheel/sdist build, `twine` metadata, and runtime dependency license policy.
 
 ## Security automation
 
-`Security` performs dependency vulnerability auditing with `pip-audit`, Bandit medium/high static analysis, and a high-confidence scan for common committed credential formats. CodeQL is preconfigured but gated behind `ENABLE_CODEQL` so unsupported private-repository entitlements cannot make baseline CI permanently red.
+`Security` separately installs runtime dependencies, captures their resolved graph, audits that graph with `pip-audit`, runs Bandit, runs Gitleaks against the tracked tree, and applies a second high-confidence secret-pattern scan. CodeQL remains present but fail-safe/capability-gated.
 
-GitHub-native secret scanning and push protection should also be enabled in repository settings whenever available. Workflow scanning complements those controls; it does not replace them.
+GitHub-native Secret Protection, push protection, Code Security, private vulnerability reporting, and Dependency Review should be enabled in repository settings when the account/plan supports them. Workflow scanners complement those controls; they do not replace them.
 
-## Container validation
+## Container assurance
 
-`Container` builds the production Dockerfile with `--pull`, verifies the configured image user is `zksato`, launches the image on port `9569`, and requires `/health` to become reachable. It does not publish the image or inject broker credentials.
+The Dockerfile is multi-stage and produces a minimal non-root runtime. Container workflows verify user `zksato`, read-only root filesystem compatibility, tmpfs `/tmp`, dropped Linux capabilities, `no-new-privileges`, and `/health`. `Container Security` records HIGH/CRITICAL Trivy findings, blocks fixed CRITICAL vulnerabilities, and emits an image CycloneDX SBOM.
 
-Docker base-image changes are maintained by Dependabot and must pass the same repository controls as application changes.
+Compose applies the same defensive runtime profile to the API and keeps PostgreSQL/Redis persistent state outside the read-only application filesystem.
 
 ## Release process
 
-A release tag must match the version in `pyproject.toml`, e.g. project version `0.4.0` requires tag `v0.4.0`.
+A release tag must match `pyproject.toml`, e.g. version `0.4.0` requires tag `v0.4.0`. The release workflow:
 
-The release workflow:
-
-1. audits resolved dependencies;
+1. audits resolved runtime dependencies;
 2. builds wheel and source distribution;
-3. installs the wheel into a clean virtual environment;
-4. generates a CycloneDX JSON dependency SBOM;
-5. builds and publishes versioned and `latest` zksato images to GHCR with BuildKit provenance and container SBOM metadata;
-6. records the immutable container digest in `CONTAINER_IMAGE.txt` and creates SHA-256 checksums;
-7. uploads a retained release bundle;
-8. optionally generates GitHub artifact attestations;
-9. creates the GitHub Release from the tag.
+3. validates metadata and clean installation/version identity;
+4. creates dependency and image SBOMs;
+5. scans the local release-candidate image before publishing;
+6. publishes `linux/amd64` and `linux/arm64` images to GHCR with provenance/SBOM metadata;
+7. records the immutable image digest;
+8. creates SHA-256 checksums;
+9. optionally creates GitHub attestations when supported;
+10. creates the GitHub Release.
 
-It intentionally does not publish to PyPI or deploy production infrastructure. Publishing a release container is artifact distribution, not permission to connect it to a brokerage account.
+`Release Verification` then downloads the published assets, checks hashes, installs the wheel in a clean environment, pulls the immutable GHCR digest, and starts it with the hardened runtime profile before accepting `/health`.
 
-## UAT, production-readiness, performance, and disaster-recovery evidence
+The release process intentionally does not deploy production infrastructure or submit broker orders.
 
-`UAT Certification` is manual and uses a protected environment. It runs `scripts/uat_certify.py` against a deployed HTTPS endpoint and stores non-mutating evidence.
+## UAT, performance, DR, and readiness evidence
 
-`Production Readiness` is manual and uses a separate protected environment. It only calls the non-executing readiness/canary-plan boundary and fails closed unless the application confirms the manual-canary prerequisites. Source code and Actions cannot self-certify external broker, legal, TLS, monitoring, or operator approval.
+`UAT Certification` is manual, protected, HTTPS-only, and non-mutating. `Performance` targets only a locally built hardened container and emits p50/p95/p99/throughput/failure evidence against explicit limits. `Disaster Recovery Drill` uses ephemeral PostgreSQL, proves checksum corruption detection, restores a checksummed backup, verifies application tables/sentinel data, and records backup/restore durations.
 
-`Performance` is bounded by the existing load-probe caps and targets only a locally built container. It cannot be used by the scheduled workflow to load-test an external production endpoint.
+`Production Readiness` never submits an order. It requires production/live runtime selection, durable services, authentication, trusted hosts, four-eyes confirmation, explicit account allow-list, strict reference/session controls, Settrade configuration, clear kill switch, reconciliation, audit integrity, and explicit external evidence for broker/legal/UAT/TLS/secrets/DR/monitoring/incident/rollback/capacity/time-sync/market-data-failover/data-retention/release verification/manual canary authorization. Even when it passes, the generated canary plan remains non-autonomous and limited to one separately authorized order.
 
-`Disaster Recovery Drill` uses an ephemeral PostgreSQL database, applies every migration, writes a sentinel, creates a checksummed custom-format backup, restores it with the repository restore guard, and verifies the sentinel after restore. Production restore drills remain an operator-controlled exercise documented in `docs/DR-RUNBOOK.md`.
-
-## Repository features
+## Repository features and plan boundaries
 
 Enable where available:
 
 - Dependabot alerts and security updates;
 - secret scanning and push protection;
-- code scanning / CodeQL after setting `ENABLE_CODEQL=true`;
-- dependency review after setting `ENABLE_DEPENDENCY_REVIEW=true`;
-- private vulnerability reporting where applicable;
-- protected `uat` and `production` environments with required reviewers;
+- CodeQL/Code Security;
+- Dependency Review;
+- private vulnerability reporting;
+- protected `uat` and `production` environments;
 - least-privilege Actions token policy;
-- branch protection or rulesets for `main` and release tags;
-- GHCR package visibility and retention policy appropriate for this private repository.
+- branch protection/rulesets and merge queue;
+- artifact attestations.
 
-## Labels and templates
-
-Suggested labels: `bug`, `enhancement`, `documentation`, `security`, `risk`, `strategy`, `market-data`, `broker`, `tfex`, `persistence`, `dashboard`, `operations`, `incident`, `needs-design`, `P0`, `P1`, `P2`, `P3`.
-
-Issue templates cover bugs, features, strategy/risk changes, and incidents. The PR template requires risk, testing, rollout, rollback, and security evidence.
+A GitHub API 403 or plan limitation is recorded by `Repository Health` as unavailable capability evidence. Source code must not reinterpret such an external limitation as configured or complete.

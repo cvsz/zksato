@@ -1,94 +1,73 @@
 # zksato Roadmap
 
-## Current release — v0.4 P0-P6 source completion
+## Current release — v0.4 P0-P7 repository/source completion
 
-All repository-controlled P0-P6 work is implemented or represented by fail-closed control-plane gates. Items that require a broker account, legal/operational approval, production infrastructure, or measured deployment evidence remain explicitly external and cannot be self-certified by source code.
+All repository-controlled P0-P7 work is implemented or represented by fail-closed control/evidence gates. Items requiring a broker account, legal/operational approval, GitHub-plan features, production infrastructure, or measured external deployment evidence remain explicitly external and cannot be self-certified by source code.
 
 ### P0 — Durable correctness
-
-- [x] PostgreSQL/SQLAlchemy system of record for orders, order events, fills, risk evaluations, account snapshots, signals, audit, alerts, idempotency, outbox and historical bars
-- [x] versioned migrations `0001_core.sql` and `0002_priority_state.sql`
-- [x] restart-safe `client_order_id` uniqueness
-- [x] persistent paper state and broker-reconciliation readiness
-- [x] ambiguous place/cancel outcomes fail into `needs_reconciliation`
-- [x] reconciliation convergence gate before sandbox/live broker mutation
-- [x] durable fill/order-event capture
+- [x] PostgreSQL/SQLAlchemy system of record for trading state, risk/audit, idempotency, outbox and historical bars
+- [x] versioned migrations and restart-safe `client_order_id` uniqueness
+- [x] persistent paper state, durable fills/events, reconciliation readiness and ambiguous-outcome handling
 - [x] optional Redis distributed coordination with local safe fallback
-- [x] PostgreSQL + Redis CI services and migration validation
-- [x] restart/recovery/idempotency/reconciliation tests
+- [x] PostgreSQL + Redis CI integration, migration/restart/idempotency/reconciliation tests
 
 ### P1 — Trusted market data and deterministic risk
-
 - [x] supervised Settrade realtime subscriptions with reconnect backoff
-- [x] quote freshness, sequence-gap and out-of-order diagnostics
-- [x] stale-feed execution guard
-- [x] trusted account/portfolio-derived risk context
-- [x] gross, net, symbol and sector exposure guards
-- [x] open-order, daily-order, daily-loss, drawdown, notional and spread limits
-- [x] account allow-list
-- [x] optional exchange-session enforcement
-- [x] trusted instrument registry for tick-size and price-band checks
-- [x] one-time intent-bound live approvals remain downstream of deterministic risk
+- [x] quote freshness, gap/out-of-order diagnostics and stale-feed execution guard
+- [x] trusted portfolio/account-derived risk context
+- [x] gross/net/symbol/sector/open-order/daily-order/loss/drawdown/notional/spread controls
+- [x] explicit account allow-list, market-session enforcement, tick/price-band reference data
+- [x] one-time intent-bound approvals downstream of deterministic risk
 
 ### P2 — Security and operator controls
-
-- [x] API-key RBAC with separate reader/strategy/order/risk/auditor/admin roles
-- [x] HMAC-signed expiring HttpOnly sessions
-- [x] CSRF enforcement for session-authenticated mutations
-- [x] CORS, trusted-host, CSP, HSTS and browser security headers
-- [x] Redis-coordinated rate limiting when Redis is configured
-- [x] server-side secret-file loading and rotation runbook
-- [x] tamper-evident audit hash chain
-- [x] recursive sensitive-data redaction for audit API output
-- [x] four-eyes live approval option
+- [x] API-key RBAC, signed HttpOnly sessions and CSRF
+- [x] CORS/trusted-host/CSP/HSTS/security headers and coordinated rate limits
+- [x] secret-file loading/rotation, tamper-evident audit chain and redacted audit API
+- [x] optional four-eyes live approval; legacy reusable live token disabled by readiness policy
 
 ### P3 — TFEX isolation and semantics
-
 - [x] dedicated LONG/SHORT and OPEN/CLOSE/AUTO domain
-- [x] account/portfolio/order read gateway
-- [x] contract metadata registry with series, multiplier, tick, expiry and settlement metadata
-- [x] contract-count, margin, stale-data, tick-size and expiry-window risk controls
-- [x] settlement P&L helper
+- [x] TFEX account/portfolio/order read gateway and contract metadata registry
+- [x] contract/margin/stale/tick/expiry risk controls and settlement P&L helper
 - [x] sandbox/UAT-only TFEX mutation boundary
 - [ ] installed-SDK and broker-account TFEX behavior certified in Settrade UAT — **external evidence required**
 
 ### P4 — Observability, resilience and recovery
-
-- [x] Prometheus metrics for HTTP, order/risk, reconciliation, feed freshness, outbox and coordination
-- [x] correlation context and JSON logging
-- [x] optional OpenTelemetry exporter
-- [x] Prometheus scrape/alert configuration
-- [x] SLO definition
-- [x] PostgreSQL backup/restore scripts and DR runbook
-- [x] bounded load probe
-- [x] broker/reconciliation fail-closed behavior
-- [ ] production alert delivery, restore drill, RPO/RTO measurement and sustained load evidence — **deployment evidence required**
+- [x] Prometheus metrics, correlation/JSON logging and optional OpenTelemetry exporter
+- [x] Prometheus scrape/alert config and SLO definition
+- [x] PostgreSQL backup/restore scripts, DR runbook and automated checksum/corruption/restore evidence workflow
+- [x] bounded performance probe with explicit failure/p95 limits and JSON evidence
+- [x] deterministic reconciliation/failure-path suite across multiple hash seeds
+- [ ] production alert delivery, restore drill, measured production RPO/RTO and sustained production load evidence — **external deployment evidence required**
 
 ### P5 — Strategy research and promotion
-
-- [x] durable OHLCV bar storage
-- [x] deterministic historical replay using the production strategy engine
-- [x] commission/slippage-aware backtesting
-- [x] market-session-aware replay/walk-forward when session enforcement is enabled
-- [x] train/out-of-sample walk-forward reporting
-- [x] strategy/version registry and code/config hash
-- [x] promotion gates from research to paper to UAT to manual-live canary
-- [x] paper/backtest drift reporting primitive
+- [x] durable OHLCV, deterministic replay and cost-aware backtesting
+- [x] session-aware walk-forward/OOS reporting
+- [x] strategy/version registry, code/config hash, promotion gates and drift primitive
+- [x] broad deterministic indicator tests
 - [ ] strategy-specific performance evidence — **research evidence, not a code-completion claim**
 
 ### P6 — Controlled production rollout
+- [x] machine-readable production-readiness report and one-order non-autonomous canary plan
+- [x] runtime gates for prod/live mode, durable services, auth, trusted hosts, confirmations, allow-list/reference/session controls, Settrade config, kill switch, reconciliation and audit integrity
+- [x] external evidence model for broker/legal/UAT/TLS/secrets/DR/monitoring/incident/rollback/capacity/time-sync/market-data-failover/data-retention/release/manual-canary approval
+- [x] protected non-mutating UAT and production-readiness workflows
+- [ ] broker permission/legal sign-off, Settrade UAT certification, production TLS/secrets/monitoring/backup evidence and authorized minimal live canary — **external**
 
-- [x] machine-readable production-readiness report
-- [x] external evidence model for broker/legal/UAT/TLS/secrets/backup/monitoring/canary approval
-- [x] fail-closed one-order manual canary plan
-- [x] durable-fill versus broker-position session reconciliation service
-- [x] UAT certification probe and runbook
-- [x] production readiness, secrets, DR and SLO runbooks
-- [ ] broker permission and legal/operational sign-off — **external**
-- [ ] Settrade UAT certification evidence — **external**
-- [ ] production TLS/managed-secret/monitoring/backup drill evidence — **external**
-- [ ] explicitly authorized minimal live canary — **external operator action**
+### P7 — Repository assurance and software supply chain
+- [x] Python 3.11-3.14 matrix, PostgreSQL/Redis integration and branch coverage ratchet
+- [x] Ruff lint/format, full mypy, Hypothesis risk properties and safety-critical OpenAPI contract
+- [x] package build/twine/version identity and runtime dependency license inventory/policy
+- [x] runtime pip-audit, Bandit, Gitleaks and secret-pattern scanning
+- [x] full-SHA external Actions, least-privilege permissions, actionlint/yamllint/zizmor/ShellCheck/Hadolint
+- [x] minimal multi-stage non-root Docker build, hardened runtime checks, Trivy CVE gate and image SBOM
+- [x] multi-architecture GHCR release, dependency/image SBOMs, immutable digest, checksums, provenance and independent release verification
+- [x] repository-health capability evidence, PR policy, safe path labeler and Dependabot for Python/Actions/Docker
+- [x] documented developer parity through Make/pre-commit/editor/linter policies
+- [ ] protected `uat`/`production` GitHub environments — **external repository setting**
+- [ ] main branch protection/ruleset/merge queue — **GitHub plan/settings dependent**
+- [ ] GitHub native Code Security/Secret Protection/Dependency Review/attestations — **plan/settings dependent**
 
 ## Non-negotiable invariant
 
-**Autonomous live-money execution remains forbidden by design.** AI, agents and strategies may research, rank, explain, paper-trade and operate in broker UAT, but a live equity mutation requires deterministic risk plus explicit operator authorization. TFEX mutation remains UAT-only until its external certification gate is completed.
+**Autonomous live-money execution remains forbidden by design.** AI, agents, workflows and strategies may research, rank, explain, paper-trade and operate in broker UAT, but a live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains UAT-only until its external certification gate is completed.
