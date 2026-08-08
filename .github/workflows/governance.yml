@@ -42,7 +42,7 @@ jobs:
           set -euo pipefail
           if grep -R --exclude-dir=.git --exclude='*.pyc' -n \
             '127\.0\.0\.1:9999\|--port 9999\|9999:9999' \
-            README.md docs Dockerfile docker-compose.yml .github; then
+            README.md docs Dockerfile docker-compose.yml; then
             echo 'Deprecated port 9999 found; use 9569.'
             exit 1
           fi
