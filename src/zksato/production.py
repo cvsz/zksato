@@ -52,27 +52,107 @@ class ProductionReadinessService:
 
     def report(self, evidence: ExternalReadinessEvidence) -> ProductionReadinessReport:
         checks = [
-            self._check(bool(self.settings.database_url), "durable PostgreSQL configured", "runtime"),
-            self._check(self.settings.auth_required, "authentication/RBAC required", "runtime"),
-            self._check(bool(self.settings.session_secret), "signed session secret configured", "runtime"),
-            self._check(not self.settings.legacy_live_token_enabled, "legacy reusable live token disabled", "runtime"),
-            self._check(self.settings.live_requires_confirmation, "live confirmation required", "runtime"),
-            self._check(self.settings.require_distinct_approver, "four-eyes live approval enabled", "runtime"),
-            self._check(self.settings.account_allowed, "configured account is allow-listed", "runtime"),
-            self._check(self.settings.strict_reference_data, "strict equity reference data enabled", "runtime"),
-            self._check(self.settings.enforce_market_sessions, "market-session enforcement enabled", "runtime"),
-            self._check(self.settings.settrade_configured, "Settrade equity credentials configured", "runtime"),
-            self._check(self.store.broker_reconciliation_ready(), "broker reconciliation converged", "runtime"),
-            self._check(self.store.verify_audit_chain(), "audit hash chain verifies", "runtime"),
-            self._check(evidence.broker_permission_confirmed, "broker permission confirmed", "external"),
-            self._check(evidence.legal_operational_review_complete, "legal/operational review complete", "external"),
-            self._check(evidence.settrade_uat_complete, "Settrade UAT evidence complete", "external"),
-            self._check(evidence.uat_orders_reconciled > 0, "at least one UAT order reconciled", "external"),
+            self._check(
+                bool(self.settings.database_url),
+                "durable PostgreSQL configured",
+                "runtime",
+            ),
+            self._check(
+                self.settings.auth_required,
+                "authentication/RBAC required",
+                "runtime",
+            ),
+            self._check(
+                bool(self.settings.session_secret),
+                "signed session secret configured",
+                "runtime",
+            ),
+            self._check(
+                not self.settings.legacy_live_token_enabled,
+                "legacy reusable live token disabled",
+                "runtime",
+            ),
+            self._check(
+                self.settings.live_requires_confirmation,
+                "live confirmation required",
+                "runtime",
+            ),
+            self._check(
+                self.settings.require_distinct_approver,
+                "four-eyes live approval enabled",
+                "runtime",
+            ),
+            self._check(
+                self.settings.account_allowed,
+                "configured account is allow-listed",
+                "runtime",
+            ),
+            self._check(
+                self.settings.strict_reference_data,
+                "strict equity reference data enabled",
+                "runtime",
+            ),
+            self._check(
+                self.settings.enforce_market_sessions,
+                "market-session enforcement enabled",
+                "runtime",
+            ),
+            self._check(
+                self.settings.settrade_configured,
+                "Settrade equity credentials configured",
+                "runtime",
+            ),
+            self._check(
+                self.store.broker_reconciliation_ready(),
+                "broker reconciliation converged",
+                "runtime",
+            ),
+            self._check(
+                self.store.verify_audit_chain(),
+                "audit hash chain verifies",
+                "runtime",
+            ),
+            self._check(
+                evidence.broker_permission_confirmed,
+                "broker permission confirmed",
+                "external",
+            ),
+            self._check(
+                evidence.legal_operational_review_complete,
+                "legal/operational review complete",
+                "external",
+            ),
+            self._check(
+                evidence.settrade_uat_complete,
+                "Settrade UAT evidence complete",
+                "external",
+            ),
+            self._check(
+                evidence.uat_orders_reconciled > 0,
+                "at least one UAT order reconciled",
+                "external",
+            ),
             self._check(evidence.tls_verified, "TLS ingress verified", "external"),
-            self._check(evidence.managed_secrets_verified, "managed secrets verified", "external"),
-            self._check(evidence.backup_restore_drill_complete, "backup/restore drill complete", "external"),
-            self._check(evidence.monitoring_alerts_verified, "monitoring and alerts verified", "external"),
-            self._check(evidence.manual_canary_authorized, "manual canary explicitly authorized", "external"),
+            self._check(
+                evidence.managed_secrets_verified,
+                "managed secrets verified",
+                "external",
+            ),
+            self._check(
+                evidence.backup_restore_drill_complete,
+                "backup/restore drill complete",
+                "external",
+            ),
+            self._check(
+                evidence.monitoring_alerts_verified,
+                "monitoring and alerts verified",
+                "external",
+            ),
+            self._check(
+                evidence.manual_canary_authorized,
+                "manual canary explicitly authorized",
+                "external",
+            ),
         ]
         return ProductionReadinessReport(
             ready_for_manual_canary=all(item.passed for item in checks),
@@ -98,4 +178,9 @@ class ProductionReadinessService:
 
     @staticmethod
     def _check(passed: bool, detail: str, source: str) -> ReadinessCheck:
-        return ReadinessCheck(name=detail.replace(" ", "_"), passed=passed, source=source, detail=detail)
+        return ReadinessCheck(
+            name=detail.replace(" ", "_"),
+            passed=passed,
+            source=source,
+            detail=detail,
+        )
