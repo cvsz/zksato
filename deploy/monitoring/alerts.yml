@@ -1,0 +1,31 @@
+groups:
+  - name: zksato-slo
+    rules:
+      - alert: ZksatoUnresolvedReconciliation
+        expr: zksato_reconciliation_unresolved_orders > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Broker reconciliation has unresolved orders
+      - alert: ZksatoMarketFeedStale
+        expr: zksato_market_feed_age_seconds > 10
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Trusted market data is stale
+      - alert: ZksatoCoordinationUnhealthy
+        expr: zksato_coordination_healthy < 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis coordination is unhealthy
+      - alert: ZksatoOutboxBacklog
+        expr: zksato_outbox_backlog > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Durable notification outbox is accumulating
