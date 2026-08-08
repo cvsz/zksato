@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -27,8 +26,10 @@ class CoordinationManager:
     def __init__(self, redis_url: str | None, *, lock_ttl_seconds: int = 30) -> None:
         self.redis_url = redis_url
         self.lock_ttl_seconds = lock_ttl_seconds
-        self.redis: Redis | None = Redis.from_url(redis_url, decode_responses=True) if redis_url else None
-        self._local_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+        self.redis: Redis | None = (
+            Redis.from_url(redis_url, decode_responses=True) if redis_url else None
+        )
+        self._local_locks: dict[str, asyncio.Lock] = {}
 
     @asynccontextmanager
     async def lock(
@@ -38,7 +39,7 @@ class CoordinationManager:
         wait_seconds: float = 0.0,
     ) -> AsyncIterator[None]:
         if self.redis is None:
-            lock = self._local_locks[name]
+            lock = self._local_locks.setdefault(name, asyncio.Lock())
             try:
                 if wait_seconds > 0:
                     await asyncio.wait_for(lock.acquire(), timeout=wait_seconds)
