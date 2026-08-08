@@ -39,6 +39,34 @@ on:
         required: true
         default: false
         type: boolean
+      incident_response_verified:
+        required: true
+        default: false
+        type: boolean
+      deployment_rollback_verified:
+        required: true
+        default: false
+        type: boolean
+      capacity_slo_verified:
+        required: true
+        default: false
+        type: boolean
+      time_sync_verified:
+        required: true
+        default: false
+        type: boolean
+      market_data_failover_verified:
+        required: true
+        default: false
+        type: boolean
+      data_retention_verified:
+        required: true
+        default: false
+        type: boolean
+      release_artifact_verified:
+        required: true
+        default: false
+        type: boolean
       manual_canary_authorized:
         required: true
         default: false
@@ -50,7 +78,7 @@ on:
         type: string
       evidence_reference:
         description: "Change ticket, approval record, or evidence reference"
-        required: false
+        required: true
         default: ""
         type: string
 
@@ -77,26 +105,37 @@ jobs:
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
-      - name: Validate endpoint and protected secret
+      - name: Validate endpoint, evidence reference and protected secret
         env:
           BASE_URL: ${{ inputs.base_url }}
           API_KEY: ${{ secrets.ZKSATO_PRODUCTION_RISK_API_KEY }}
           UAT_ORDERS_RECONCILED: ${{ inputs.uat_orders_reconciled }}
-        shell: bash
+          EVIDENCE_REFERENCE: ${{ inputs.evidence_reference }}
+        shell: python
         run: |
-          set -euo pipefail
-          case "$BASE_URL" in
-            https://*) ;;
-            *) echo "Production readiness requires an https:// endpoint" >&2; exit 2 ;;
-          esac
-          test -n "$API_KEY" || {
-            echo "Missing production environment secret ZKSATO_PRODUCTION_RISK_API_KEY" >&2
-            exit 3
-          }
-          [[ "$UAT_ORDERS_RECONCILED" =~ ^[0-9]+$ ]] || {
-            echo "uat_orders_reconciled must be a non-negative integer" >&2
-            exit 4
-          }
+          import ipaddress
+          import os
+          import sys
+          from urllib.parse import urlsplit
+
+          url = urlsplit(os.environ["BASE_URL"])
+          if url.scheme != "https" or not url.hostname or url.username or url.password:
+              raise SystemExit("Production readiness requires a credential-free https:// endpoint")
+          if url.query or url.fragment:
+              raise SystemExit("Production readiness base_url must not contain query or fragment data")
+          try:
+              address = ipaddress.ip_address(url.hostname)
+          except ValueError:
+              address = None
+          if address and (address.is_loopback or address.is_unspecified or address.is_link_local):
+              raise SystemExit("Production readiness endpoint must not be loopback/link-local")
+          if not os.environ.get("API_KEY"):
+              raise SystemExit("Missing production environment secret ZKSATO_PRODUCTION_RISK_API_KEY")
+          reconciled = os.environ["UAT_ORDERS_RECONCILED"]
+          if not reconciled.isdigit():
+              raise SystemExit("uat_orders_reconciled must be a non-negative integer")
+          if not os.environ.get("EVIDENCE_REFERENCE", "").strip():
+              raise SystemExit("evidence_reference is required for production readiness")
       - name: Build external evidence payload
         env:
           BROKER_PERMISSION: ${{ inputs.broker_permission_confirmed }}
@@ -106,6 +145,13 @@ jobs:
           MANAGED_SECRETS: ${{ inputs.managed_secrets_verified }}
           BACKUP_RESTORE: ${{ inputs.backup_restore_drill_complete }}
           MONITORING: ${{ inputs.monitoring_alerts_verified }}
+          INCIDENT_RESPONSE: ${{ inputs.incident_response_verified }}
+          DEPLOYMENT_ROLLBACK: ${{ inputs.deployment_rollback_verified }}
+          CAPACITY_SLO: ${{ inputs.capacity_slo_verified }}
+          TIME_SYNC: ${{ inputs.time_sync_verified }}
+          MARKET_DATA_FAILOVER: ${{ inputs.market_data_failover_verified }}
+          DATA_RETENTION: ${{ inputs.data_retention_verified }}
+          RELEASE_ARTIFACT: ${{ inputs.release_artifact_verified }}
           CANARY_AUTHORIZED: ${{ inputs.manual_canary_authorized }}
           UAT_ORDERS_RECONCILED: ${{ inputs.uat_orders_reconciled }}
           EVIDENCE_REFERENCE: ${{ inputs.evidence_reference }}
@@ -125,9 +171,16 @@ jobs:
               "managed_secrets_verified": flag("MANAGED_SECRETS"),
               "backup_restore_drill_complete": flag("BACKUP_RESTORE"),
               "monitoring_alerts_verified": flag("MONITORING"),
+              "incident_response_verified": flag("INCIDENT_RESPONSE"),
+              "deployment_rollback_verified": flag("DEPLOYMENT_ROLLBACK"),
+              "capacity_slo_verified": flag("CAPACITY_SLO"),
+              "time_sync_verified": flag("TIME_SYNC"),
+              "market_data_failover_verified": flag("MARKET_DATA_FAILOVER"),
+              "data_retention_verified": flag("DATA_RETENTION"),
+              "release_artifact_verified": flag("RELEASE_ARTIFACT"),
               "manual_canary_authorized": flag("CANARY_AUTHORIZED"),
               "uat_orders_reconciled": int(os.environ["UAT_ORDERS_RECONCILED"]),
-              "evidence_reference": os.environ.get("EVIDENCE_REFERENCE") or None,
+              "evidence_reference": os.environ["EVIDENCE_REFERENCE"].strip(),
           }
           with open("readiness-evidence.json", "w", encoding="utf-8") as handle:
               json.dump(payload, handle, indent=2)
@@ -141,6 +194,8 @@ jobs:
           set -euo pipefail
           base="${BASE_URL%/}"
           curl --fail --silent --show-error \
+            --connect-timeout 5 \
+            --max-time 20 \
             --request POST \
             --header "X-API-Key: ${API_KEY}" \
             --header "Content-Type: application/json" \
@@ -148,6 +203,8 @@ jobs:
             "${base}/v1/production/readiness" \
             --output readiness-report.json
           curl --fail --silent --show-error \
+            --connect-timeout 5 \
+            --max-time 20 \
             --request POST \
             --header "X-API-Key: ${API_KEY}" \
             --header "Content-Type: application/json" \
@@ -181,7 +238,8 @@ jobs:
           ready = report.get("ready_for_manual_canary") is True
           allowed = plan.get("allowed") is True
           non_autonomous = plan.get("autonomous_execution") is False
-          if not (ready and allowed and non_autonomous):
+          maximum_orders = plan.get("maximum_orders") == 1
+          if not (ready and allowed and non_autonomous and maximum_orders):
               print("Production readiness gate is not satisfied; no execution was attempted.")
               sys.exit(1)
-          print("Readiness evidence passed for a separately authorized manual canary only.")
+          print("Readiness evidence passed for a separately authorized one-order manual canary only.")
