@@ -39,7 +39,7 @@ class OrderIntent(BaseModel):
         return value.strip().upper()
 
     @model_validator(mode="after")
-    def validate_price(self) -> "OrderIntent":
+    def validate_price(self) -> OrderIntent:
         if self.order_type == OrderType.LIMIT and self.price is None:
             raise ValueError("price is required for limit orders")
         return self
