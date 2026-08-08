@@ -60,9 +60,12 @@ class RiskEngine:
         ):
             reasons.append("buy take profit must be above entry price")
 
-        if context.line_available is not None and intent.side == Side.BUY:
-            if estimated_notional > context.line_available:
-                reasons.append("estimated notional exceeds available line")
+        if (
+            context.line_available is not None
+            and intent.side == Side.BUY
+            and estimated_notional > context.line_available
+        ):
+            reasons.append("estimated notional exceeds available line")
 
         if context.reference_price and intent.price:
             deviation = abs(intent.price - context.reference_price) / context.reference_price * 100
