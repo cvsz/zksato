@@ -20,6 +20,7 @@ from zksato.domain import (
     RiskEvaluation,
     Side,
 )
+from zksato.market_rules import InstrumentRegistry, MarketSessionPolicy
 from zksato.observability import ORDER_SUBMISSIONS, RISK_REJECTIONS
 from zksato.risk import RiskEngine
 from zksato.store import StateStore
@@ -55,6 +56,11 @@ class TradingService:
         self.store = store
         self.approvals = approvals
         self.risk_engine = RiskEngine(settings)
+        self.instruments = InstrumentRegistry(settings.instrument_metadata_json)
+        self.market_sessions = MarketSessionPolicy(
+            settings.market_timezone,
+            settings.equity_sessions,
+        )
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
         return self.risk_engine.evaluate(submission.intent, submission.risk)
@@ -87,6 +93,7 @@ class TradingService:
         gross_pct = (gross_after / equity * 100) if equity else 100.0
         net_pct = (net_after / equity * 100) if equity else 100.0
         symbol_pct = (symbol_after / equity * 100) if equity else 100.0
+        sector_pct = self._sector_exposure_after_trade(intent, portfolio, notional, equity)
         daily_pnl_pct = (portfolio.daily_pnl / equity * 100) if equity else 0.0
         drawdown = 0.0
         account = getattr(self.broker, "account", None)
@@ -99,6 +106,19 @@ class TradingService:
         spread_pct: float | None = None
         if quote and quote.bid and quote.offer and quote.last:
             spread_pct = (quote.offer - quote.bid) / quote.last * 100
+
+        if self.settings.enforce_market_sessions:
+            market_session_known, market_session_open = self.market_sessions.state()
+        else:
+            market_session_known, market_session_open = True, True
+        metadata_known, price_band_ok, tick_size_ok = self.instruments.validate_price(
+            intent.symbol,
+            intent.price,
+        )
+        market_data_available = quote is not None
+        if self.settings.strict_reference_data and not metadata_known:
+            market_data_available = False
+
         return RiskContext(
             current_positions=len(portfolio.positions),
             daily_pnl_pct=daily_pnl_pct,
@@ -113,19 +133,48 @@ class TradingService:
             gross_exposure_pct=max(gross_pct, 0.0),
             net_exposure_pct=net_pct,
             symbol_exposure_pct=max(symbol_pct, 0.0),
+            sector_exposure_pct=max(sector_pct, 0.0),
             quote_age_seconds=self.store.quote_age_seconds(intent.symbol),
             spread_pct=spread_pct,
-            market_session_known=True,
-            market_session_open=True,
-            market_data_available=quote is not None,
-            price_band_ok=True,
-            tick_size_ok=True,
-            account_allowed=True,
+            market_session_known=market_session_known,
+            market_session_open=market_session_open,
+            market_data_available=market_data_available,
+            price_band_ok=price_band_ok,
+            tick_size_ok=tick_size_ok,
+            account_allowed=self.settings.account_allowed,
             opens_new_position=intent.side == Side.BUY and holding_qty <= 0,
             reduces_exposure=(
                 intent.side == Side.SELL and holding_qty > 0 and intent.quantity <= holding_qty
             ),
         )
+
+    def _sector_exposure_after_trade(
+        self,
+        intent: OrderIntent,
+        portfolio: PortfolioSnapshot,
+        notional: float,
+        equity: float,
+    ) -> float:
+        if equity <= 0:
+            return 100.0
+        target_sector = self.instruments.sector_for(intent.symbol)
+        if not target_sector:
+            return 0.0
+        sector_value = sum(
+            float(position.market_value)
+            for position in portfolio.positions
+            if self.instruments.sector_for(position.symbol) == target_sector
+        )
+        existing = next(
+            (position for position in portfolio.positions if position.symbol == intent.symbol),
+            None,
+        )
+        existing_value = float(existing.market_value) if existing else 0.0
+        if intent.side == Side.BUY:
+            sector_after = sector_value + notional
+        else:
+            sector_after = max(0.0, sector_value - min(existing_value, notional))
+        return sector_after / equity * 100
 
     async def submit(
         self,
