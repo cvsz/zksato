@@ -34,9 +34,11 @@ class TradingService:
             raise TradingModeError("live trading is disabled by server policy")
 
         if self.settings.trading_mode != "paper":
-            raise TradingModeError(
-                "sandbox/live broker adapter is not wired yet; refusing to fall back to paper silently"
+            message = (
+                "sandbox/live broker adapter is not wired yet; refusing to fall back "
+                "to paper silently"
             )
+            raise TradingModeError(message)
 
         return await self.broker.place_order(submission.intent)
 
