@@ -58,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           trap 'docker logs zksato-perf || true' ERR
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:9569/health >/dev/null; then
               exit 0
             fi
