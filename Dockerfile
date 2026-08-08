@@ -1,20 +1,37 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv
 
-WORKDIR /app
-
-RUN groupadd --system zksato && useradd --system --gid zksato --create-home zksato
+WORKDIR /build
+RUN python -m venv "$VIRTUAL_ENV"
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 COPY pyproject.toml README.md ./
 COPY src ./src
+RUN python -m pip install --upgrade pip \
+    && python -m pip install .
 
-RUN pip install --upgrade pip \
-    && pip install . \
-    && chown -R zksato:zksato /app
+FROM python:3.11-slim AS runtime
 
+LABEL org.opencontainers.image.title="zksato" \
+      org.opencontainers.image.description="Risk-first SET/TFEX trading control plane" \
+      org.opencontainers.image.source="https://github.com/cvsz/zksato"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    HOME=/home/zksato
+
+RUN groupadd --system zksato \
+    && useradd --system --gid zksato --create-home --home-dir /home/zksato zksato
+
+COPY --from=builder /opt/venv /opt/venv
+
+WORKDIR /app
 USER zksato
 EXPOSE 9569
 
