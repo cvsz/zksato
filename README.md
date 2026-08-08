@@ -213,7 +213,7 @@ src/zksato/
   strategy.py          EMA / RSI / breakout strategies
   broker/
     base.py             broker protocol
-    paper.py            paper execution
+    paper.py            safe default execution adapter
     settrade.py         Settrade Open API v2 adapter
 
 tests/
@@ -221,6 +221,21 @@ docs/
 ROADMAP.md
 ```
 
+## Engineering operating system
+
+The repository now includes a complete contributor/agent and project-governance layer:
+
+- `AGENTS.md` — repository-wide engineering contract and non-negotiable trading invariants.
+- `agents/` — specialist playbooks for architecture, market data, strategy, risk, execution, Settrade, TFEX, portfolio, persistence, dashboard, security, testing, DevOps, observability, incidents, docs, releases, and AI research.
+- `skills/` — reusable task procedures covering repository orientation, Settrade, market data, strategy, risk, execution, portfolio accounting, backtesting, dashboard, PostgreSQL, Redis, security, testing, observability, deployment, incidents, releases, documentation, AI assistance, TFEX, and GitHub maintenance.
+- `docs/INDEX.md` — canonical documentation map.
+- `docs/FEATURE-MATRIX.md` — truthful implemented/partial/planned status.
+- `docs/EXECUTION-PLAN.md` — ordered completion plan from durable state through controlled production rollout.
+- `docs/adr/` — architecture decisions that protect risk, persistence, reconciliation, TFEX, and AI boundaries.
+- `.github/` — CODEOWNERS, PR template, issue templates, Dependabot, release categorization, Copilot instructions, and governance checks.
+
+For any substantial change, start with `AGENTS.md` and `docs/INDEX.md`, then use the relevant specialist agent and skill.
+
 ## Production hardening still recommended
 
-The current release is a complete single-node paper/UAT platform. Before running mission-critical production workloads, replace process-local state with PostgreSQL/Redis persistence, add authenticated RBAC, durable event/outbox processing, broker-order reconciliation workers, metrics/tracing, encrypted secret management, disaster recovery and an independent UAT certification checklist. Those items remain tracked in `ROADMAP.md` because they require deployment-specific infrastructure rather than only application code.
+The current release is a complete single-node paper/UAT platform. Before running mission-critical production workloads, replace process-local state with PostgreSQL/Redis persistence, add authenticated RBAC, durable event/outbox processing, broker-order reconciliation workers, metrics/tracing, encrypted secret management, disaster recovery and an independent UAT certification checklist. Those items are tracked in `ROADMAP.md`, `docs/FEATURE-MATRIX.md`, and `docs/EXECUTION-PLAN.md` because they require implementation and deployment evidence rather than documentation alone.

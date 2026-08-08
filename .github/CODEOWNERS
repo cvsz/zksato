@@ -1,0 +1,10 @@
+* @cvsz
+
+# High-risk execution boundaries
+/src/zksato/risk.py @cvsz
+/src/zksato/service.py @cvsz
+/src/zksato/broker/ @cvsz
+/src/zksato/portfolio.py @cvsz
+/SECURITY.md @cvsz
+/docs/adr/ @cvsz
+/.github/workflows/ @cvsz

@@ -1,0 +1,22 @@
+name: Governance
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  required-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify repository operating documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in AGENTS.md README.md ROADMAP.md SECURITY.md CONTRIBUTING.md CODE_OF_CONDUCT.md GOVERNANCE.md docs/INDEX.md docs/FEATURE-MATRIX.md docs/EXECUTION-PLAN.md; do
+            test -s "$f" || { echo "Missing required file: $f"; exit 1; }
+          done
+          if grep -R --exclude-dir=.git --exclude='*.pyc' -n '127\.0\.0\.1:9999\|--port 9999\|9999:9999' README.md docs Dockerfile docker-compose.yml; then
+            echo 'Deprecated port 9999 found; use 9569.'
+            exit 1
+          fi

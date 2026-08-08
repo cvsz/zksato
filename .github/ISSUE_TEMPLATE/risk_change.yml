@@ -1,0 +1,31 @@
+name: Risk or execution change
+description: Propose a change to risk, order execution, or live controls
+title: "risk: "
+labels: ["risk", "needs-design"]
+body:
+  - type: textarea
+    id: invariant
+    attributes:
+      label: Invariant affected
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+    validations:
+      required: true
+  - type: textarea
+    id: failure
+    attributes:
+      label: Failure modes and fail-closed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Required tests / UAT evidence
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback plan
