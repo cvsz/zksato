@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     market_data_stale_seconds: float = Field(default=10.0, gt=0, le=300)
     market_timezone: str = "Asia/Bangkok"
     equity_sessions: str = "09:30-12:30,14:00-16:30"
+    instrument_metadata_json: str = ""
+    strict_reference_data: bool = False
     max_positions: int = Field(default=5, ge=1, le=100)
     max_position_pct: float = Field(default=10.0, gt=0, le=100)
     max_risk_per_trade_pct: float = Field(default=0.5, gt=0, le=20)
