@@ -1,0 +1,164 @@
+name: Production Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Deployed production-facing zksato base URL"
+        required: true
+        type: string
+      confirmation:
+        description: "Type READINESS_ONLY; this workflow never submits an order"
+        required: true
+        type: string
+      broker_permission_confirmed:
+        required: true
+        default: false
+        type: boolean
+      legal_operational_review_complete:
+        required: true
+        default: false
+        type: boolean
+      settrade_uat_complete:
+        required: true
+        default: false
+        type: boolean
+      tls_verified:
+        required: true
+        default: false
+        type: boolean
+      managed_secrets_verified:
+        required: true
+        default: false
+        type: boolean
+      backup_restore_drill_complete:
+        required: true
+        default: false
+        type: boolean
+      monitoring_alerts_verified:
+        required: true
+        default: false
+        type: boolean
+      manual_canary_authorized:
+        required: true
+        default: false
+        type: boolean
+      uat_orders_reconciled:
+        description: "Count of externally verified and reconciled UAT orders"
+        required: true
+        default: "0"
+        type: string
+      evidence_reference:
+        description: "Change ticket / approval / evidence URL or identifier"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: production-readiness
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Evaluate readiness without execution
+    if: inputs.confirmation == 'READINESS_ONLY'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11"
+      - name: Validate endpoint and secret
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          API_KEY: ${{ secrets.ZKSATO_PRODUCTION_READ_API_KEY }}
+          UAT_ORDERS_RECONCILED: ${{ inputs.uat_orders_reconciled }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$BASE_URL" in
+            https://*) ;;
+            *) echo "Production readiness requires an https:// endpoint" >&2; exit 2 ;;
+          esac
+          test -n "$API_KEY" || {
+            echo "Missing production environment secret ZKSATO_PRODUCTION_READ_API_KEY" >&2
+            exit 3
+          }
+          [[ "$UAT_ORDERS_RECONCILED" =~ ^[0-9]+$ ]] || {
+            echo "uat_orders_reconciled must be a non-negative integer" >&2
+            exit 4
+          }
+      - name: Build external evidence payload
+        env:
+          BROKER_PERMISSION: ${{ inputs.broker_permission_confirmed }}
+          LEGAL_REVIEW: ${{ inputs.legal_operational_review_complete }}
+          SETTRADE_UAT: ${{ inputs.settrade_uat_complete }}
+          TLS_VERIFIED: ${{ inputs.tls_verified }}
+          MANAGED_SECRETS: ${{ inputs.managed_secrets_verified }}
+          BACKUP_RESTORE: ${{ inputs.backup_restore_drill_complete }}
+          MONITORING: ${{ inputs.monitoring_alerts_verified }}
+          CANARY_AUTHORIZED: ${{ inputs.manual_canary_authorized }}
+          UAT_ORDERS_RECONCILED: ${{ inputs.uat_orders_reconciled }}
+          EVIDENCE_REFERENCE: ${{ inputs.evidence_reference }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          def flag(name: str) -> bool:
+              return os.environ[name].lower() == "true"
+
+          payload = {
+              "broker_permission_confirmed": flag("BROKER_PERMISSION"),
+              "legal_operational_review_complete": flag("LEGAL_REVIEW"),
+              "settrade_uat_complete": flag("SETTRADE_UAT"),
+              "tls_verified": flag("TLS_VERIFIED"),
+              "managed_secrets_verified": flag("MANAGED_SECRETS"),
+              "backup_restore_drill_complete": flag("BACKUP_RESTORE"),
+              "monitoring_alerts_verified": flag("MONITORING"),
+              "manual_canary_authorized": flag("CANARY_AUTHORIZED"),
+              "uat_orders_reconciled": int(os.environ["UAT_ORDERS_RECONCILED"]),
+              "evidence_reference": os.environ.get("EVIDENCE_REFERENCE") or None,
+          }
+          with open("/tmp/readiness-evidence.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle)
+          PY
+      - name: Evaluate readiness report
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          API_KEY: ${{ secrets.ZKSATO_PRODUCTION_READ_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "X-API-Key: ${API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data @/tmp/readiness-evidence.json \
+            "${BASE_URL%/}/v1/production/readiness" \
+            --output /tmp/readiness-report.json
+          python -m json.tool /tmp/readiness-report.json
+      - name: Generate non-executing canary plan
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          API_KEY: ${{ secrets.ZKSATO_PRODUCTION_READ_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "X-API-Key: ${API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data @/tmp/readiness-evidence.json \
+            "${BASE_URL%/}/v1/production/canary-plan" \
+            --output /tmp/canary-plan.json
+          python -m json.tool /tmp/canary-plan.json
