@@ -117,9 +117,11 @@ class ApprovalRepository:
             with self._lock:
                 return self._items.get(approval_id)
         with self.engine.connect() as conn:
-            row = conn.execute(
-                select(approvals_table).where(approvals_table.c.id == approval_id)
-            ).mappings().first()
+            row = (
+                conn.execute(select(approvals_table).where(approvals_table.c.id == approval_id))
+                .mappings()
+                .first()
+            )
         return self._from_row(row) if row else None
 
     def list_recent(self, limit: int = 100) -> list[LiveApproval]:
@@ -133,9 +135,7 @@ class ApprovalRepository:
                 return rows[:limit]
         with self.engine.connect() as conn:
             rows = conn.execute(
-                select(approvals_table)
-                .order_by(approvals_table.c.created_at.desc())
-                .limit(limit)
+                select(approvals_table).order_by(approvals_table.c.created_at.desc()).limit(limit)
             ).mappings()
             return [self._from_row(row) for row in rows]
 
@@ -164,9 +164,11 @@ class ApprovalRepository:
                 approval.consumed_by = consumed_by
                 return approval
         with self.engine.begin() as conn:
-            row = conn.execute(
-                select(approvals_table).where(approvals_table.c.id == approval_id)
-            ).mappings().first()
+            row = (
+                conn.execute(select(approvals_table).where(approvals_table.c.id == approval_id))
+                .mappings()
+                .first()
+            )
             approval = self._from_row(row) if row else None
             self._validate(
                 approval,

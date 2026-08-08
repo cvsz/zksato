@@ -333,10 +333,7 @@ class TradingService:
         if self.settings.trading_mode == "live" and automated:
             message = "autonomous live execution is disabled; live orders require approval"
             raise TradingModeError(message)
-        if (
-            self.settings.reconciliation_enabled
-            and not self.store.broker_reconciliation_ready()
-        ):
+        if self.settings.reconciliation_enabled and not self.store.broker_reconciliation_ready():
             raise TradingModeError("broker reconciliation has not completed successfully")
         if self.settings.trading_mode == "sandbox":
             return

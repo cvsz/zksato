@@ -46,12 +46,16 @@ def test_equity_sell_cannot_exceed_available_position(quantity: int, available: 
         available = quantity - 1
     engine = RiskEngine(Settings(require_stop_loss=False, allow_equity_short_selling=False))
     intent = OrderIntent(symbol="PTT", side=Side.SELL, quantity=quantity, price=30.0)
-    decision = engine.evaluate(intent, context(30.0, available_quantity=available, reduces_exposure=True))
+    decision = engine.evaluate(
+        intent, context(30.0, available_quantity=available, reduces_exposure=True)
+    )
     assert decision.approved is False
     assert "sell quantity exceeds available position" in decision.reasons
 
 
-@given(extra_age=st.floats(min_value=0.001, max_value=10_000, allow_nan=False, allow_infinity=False))
+@given(
+    extra_age=st.floats(min_value=0.001, max_value=10_000, allow_nan=False, allow_infinity=False)
+)
 def test_stale_quote_always_rejects(extra_age: float) -> None:
     settings = Settings(require_stop_loss=False, market_data_stale_seconds=5.0)
     engine = RiskEngine(settings)

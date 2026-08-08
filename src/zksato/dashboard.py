@@ -1,7 +1,7 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
-DASHBOARD_HTML = r'''<!doctype html>
+DASHBOARD_HTML = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -52,4 +52,4 @@ async function preflight(){const intent=buildIntent();try{const d=await api('/v1
 async function addAlert(){try{await api('/v1/alerts',jsonOpt('POST',{symbol:val('asymbol'),operator:val('aop'),price:Number(val('aprice')),enabled:true}));await refresh()}catch(e){alert(e.message)}}async function deleteAlert(id){try{await api('/v1/alerts/'+encodeURIComponent(id),{method:'DELETE'});await refresh()}catch(e){alert(e.message)}}
 function tfexIntent(){return{symbol:val('tsymbol').trim().toUpperCase(),side:val('tside'),position:val('tposition'),volume:Number(val('tvolume')),price:Number(val('tprice')),price_type:'LIMIT',validity_type:'GOOD_TILL_DAY',stop_condition:'',stop_price:0,stop_symbol:'',bypass_warning:false}}async function tfexRead(kind){try{const r=await api('/v1/tfex/'+kind);document.getElementById('tfexOut').textContent=JSON.stringify(r,null,2)}catch(e){document.getElementById('tfexOut').textContent=e.message}}async function tfexPreflight(){try{const r=await api('/v1/tfex/risk/preflight',jsonOpt('POST',tfexIntent()));document.getElementById('tfexOut').textContent=JSON.stringify(r,null,2)}catch(e){document.getElementById('tfexOut').textContent=e.message}}async function tfexUatOrder(){try{const r=await api('/v1/tfex/orders/uat',jsonOpt('POST',{intent:tfexIntent(),risk:{}}));document.getElementById('tfexOut').textContent=JSON.stringify(r,null,2);await refresh()}catch(e){document.getElementById('tfexOut').textContent=e.message}}
 setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleString(),1000);setInterval(refresh,3000);whoami();refresh();
-</script></body></html>'''
+</script></body></html>"""

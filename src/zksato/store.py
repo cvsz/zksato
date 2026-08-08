@@ -53,9 +53,7 @@ class StateStore:
             if current is not None and quote.timestamp < current.timestamp:
                 return current
             self.quotes[quote.symbol] = quote
-            history = self.price_history.setdefault(
-                quote.symbol, deque(maxlen=self._history_size)
-            )
+            history = self.price_history.setdefault(quote.symbol, deque(maxlen=self._history_size))
             history.append(quote.last)
             return quote
 

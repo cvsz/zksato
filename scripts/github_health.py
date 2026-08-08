@@ -86,7 +86,9 @@ def build_report(repository: str, token: str) -> tuple[dict[str, Any], list[str]
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Audit GitHub repository controls without mutating settings")
+    parser = argparse.ArgumentParser(
+        description="Audit GitHub repository controls without mutating settings"
+    )
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
     parser.add_argument("--output", default="repository-health.json")
     args = parser.parse_args()
@@ -97,7 +99,9 @@ def main() -> int:
         raise SystemExit("GITHUB_TOKEN is required")
 
     report, blocking = build_report(args.repository, token)
-    Path(args.output).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    Path(args.output).write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(report["source_controlled_checks"], indent=2))
     for name, probe in report["capability_probes"].items():
         state = "available" if probe["available"] else f"unavailable ({probe.get('status')})"

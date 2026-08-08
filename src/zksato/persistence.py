@@ -180,9 +180,7 @@ class SqlStateStore(StateStore):
             ).scalars():
                 quote = Quote.model_validate(payload)
                 self.quotes[quote.symbol] = quote
-                self.price_history[quote.symbol] = deque(
-                    [quote.last], maxlen=self._history_size
-                )
+                self.price_history[quote.symbol] = deque([quote.last], maxlen=self._history_size)
             for payload in conn.execute(
                 select(orders_table.c.payload).order_by(orders_table.c.created_at)
             ).scalars():
@@ -542,9 +540,7 @@ class SqlStateStore(StateStore):
         sent_at = datetime.now(UTC)
         with self.engine.begin() as conn:
             conn.execute(
-                update(outbox_table)
-                .where(outbox_table.c.id == message_id)
-                .values(sent_at=sent_at)
+                update(outbox_table).where(outbox_table.c.id == message_id).values(sent_at=sent_at)
             )
 
     def health(self) -> bool:

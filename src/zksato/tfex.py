@@ -177,9 +177,7 @@ class SettradeTfexGateway:
             app_code=settings.settrade_app_code,
             is_auto_queue=False,
         )
-        self.derivatives = investor.Derivatives(
-            account_no=settings.settrade_derivatives_account_no
-        )
+        self.derivatives = investor.Derivatives(account_no=settings.settrade_derivatives_account_no)
 
     async def account(self) -> dict[str, Any]:
         return await asyncio.to_thread(self.derivatives.get_account_info)

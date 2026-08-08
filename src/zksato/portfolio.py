@@ -31,9 +31,7 @@ class PaperPortfolio:
         self.initial_cash = float(state.get("initial_cash", self.initial_cash))
         self.cash = float(state.get("cash", self.initial_cash))
         self.realized_pnl = float(state.get("realized_pnl", 0.0))
-        self._day_start_equity = float(
-            state.get("day_start_equity", self.initial_cash)
-        )
+        self._day_start_equity = float(state.get("day_start_equity", self.initial_cash))
         self._peak_equity = float(state.get("peak_equity", self.initial_cash))
         raw_holdings = state.get("holdings", {})
         if isinstance(raw_holdings, dict):
@@ -56,9 +54,7 @@ class PaperPortfolio:
                 "realized_pnl": self.realized_pnl,
                 "day_start_equity": self._day_start_equity,
                 "peak_equity": self._peak_equity,
-                "holdings": {
-                    symbol: asdict(holding) for symbol, holding in self.holdings.items()
-                },
+                "holdings": {symbol: asdict(holding) for symbol, holding in self.holdings.items()},
             }
         )
 

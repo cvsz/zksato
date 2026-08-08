@@ -558,8 +558,7 @@ async def cancel_order(order_id: str, _principal: OrderPrincipal) -> OrderRecord
 @app.get("/v1/order-events")
 async def order_events(_principal: AuditorPrincipal, limit: int = 200) -> list[dict[str, object]]:
     return [
-        item.model_dump(mode="json")
-        for item in store.list_order_events(min(max(limit, 1), 2000))
+        item.model_dump(mode="json") for item in store.list_order_events(min(max(limit, 1), 2000))
     ]
 
 
@@ -616,10 +615,7 @@ async def delete_alert(alert_id: str, _principal: StrategyPrincipal) -> dict[str
 
 @app.get("/v1/audit")
 async def audit(_principal: AuditorPrincipal, limit: int = 100) -> list[dict[str, object]]:
-    rows = [
-        event.model_dump(mode="json")
-        for event in store.list_audit(min(max(limit, 1), 1000))
-    ]
+    rows = [event.model_dump(mode="json") for event in store.list_audit(min(max(limit, 1), 1000))]
     return redact_sensitive(rows)
 
 
