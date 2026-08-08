@@ -65,7 +65,8 @@ class TradingService:
         if self.settings.trading_mode == "sandbox":
             return
         if automated:
-            raise TradingModeError("autonomous live execution is disabled; live orders require confirmation")
+            message = "autonomous live execution is disabled; live orders require confirmation"
+            raise TradingModeError(message)
         if not self.settings.live_trading_enabled:
             raise TradingModeError("live trading is disabled by server policy")
         if self.settings.live_requires_confirmation:
