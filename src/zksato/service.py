@@ -172,6 +172,7 @@ class TradingService:
                 message=str(exc),
             )
             self.store.upsert_order(order)
+            self.store.set_broker_reconciliation_ready(False)
             self.store.add_audit(
                 "order.ambiguous",
                 f"broker outcome unknown for {submission.intent.symbol}",
@@ -210,6 +211,11 @@ class TradingService:
             return
         if not self.settings.settrade_configured:
             raise TradingModeError("Settrade credentials are not configured")
+        if (
+            self.settings.reconciliation_enabled
+            and not self.store.broker_reconciliation_ready()
+        ):
+            raise TradingModeError("broker reconciliation has not completed successfully")
         if self.settings.trading_mode == "sandbox":
             return
         if automated:
@@ -238,13 +244,52 @@ class TradingService:
         raise TradingModeError("one-time intent-bound live approval is required")
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
-        order = await self.broker.cancel_order(order_id)
-        self.store.upsert_order(order)
-        self.store.add_audit("order.cancelled", f"cancelled order {order_id}")
-        return order
+        target = self.store.find_order(order_id)
+        if target is None:
+            raise ValueError("order not found")
+        broker_order_id = order_id
+        if self.settings.trading_mode != "paper":
+            if not target.broker_order_id:
+                raise ValueError("order has no broker order id; reconcile before cancellation")
+            broker_order_id = target.broker_order_id
+        try:
+            remote = await self.broker.cancel_order(broker_order_id)
+        except BrokerAmbiguousError as exc:
+            target.status = OrderStatus.NEEDS_RECONCILIATION
+            target.message = str(exc)
+            target.updated_at = datetime.now(UTC)
+            self.store.upsert_order(target)
+            self.store.set_broker_reconciliation_ready(False)
+            self.store.add_audit(
+                "order.cancel_ambiguous",
+                f"cancel outcome unknown for {target.symbol}",
+                {
+                    "order_id": str(target.id),
+                    "broker_order_id": target.broker_order_id or "",
+                },
+            )
+            return target
+
+        merged = remote.model_copy(
+            update={
+                "id": target.id,
+                "client_order_id": target.client_order_id or remote.client_order_id,
+                "stop_loss": target.stop_loss,
+                "take_profit": target.take_profit,
+                "source": target.source,
+                "created_at": target.created_at,
+            }
+        )
+        self.store.upsert_order(merged)
+        self.store.add_audit(
+            "order.cancelled",
+            f"cancelled order {target.id}",
+            {"broker_order_id": merged.broker_order_id or ""},
+        )
+        return merged
 
     async def list_orders(self) -> list[OrderRecord]:
-        return await self.broker.list_orders()
+        return self.store.list_orders()
 
     async def portfolio(self) -> PortfolioSnapshot:
         return await self.broker.portfolio()

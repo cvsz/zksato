@@ -64,6 +64,7 @@ class ReconciliationService:
         ]
         RECONCILIATION_UNRESOLVED.set(len(unresolved))
         RECONCILIATION_RUNS.labels(result="success").inc()
+        self.store.set_broker_reconciliation_ready(True)
         self.store.add_audit(
             "reconciliation.completed",
             "broker reconciliation completed",
@@ -93,6 +94,7 @@ class ReconciliationWorker:
 
     def start(self) -> None:
         if self._task is None or self._task.done():
+            self.service.store.set_broker_reconciliation_ready(False)
             self._task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
@@ -102,12 +104,14 @@ class ReconciliationWorker:
         with suppress(asyncio.CancelledError):
             await self._task
         self._task = None
+        self.service.store.set_broker_reconciliation_ready(False)
 
     async def _run(self) -> None:
         while True:
             try:
                 await self.service.run()
             except (RuntimeError, OSError, ValueError) as exc:
+                self.service.store.set_broker_reconciliation_ready(False)
                 RECONCILIATION_RUNS.labels(result="error").inc()
                 self.service.store.add_audit("reconciliation.failed", str(exc))
             await asyncio.sleep(self.interval_seconds)

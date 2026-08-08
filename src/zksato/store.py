@@ -22,6 +22,7 @@ class StateStore:
         self.paper_account: dict[str, object] | None = None
         self._client_order_ids: set[str] = set()
         self._history_size = history_size
+        self._broker_reconciliation_ready = False
 
     def update_quote(self, quote: Quote) -> Quote:
         with self._lock:
@@ -72,6 +73,17 @@ class StateStore:
         with self._lock:
             return list(reversed(self.orders))
 
+    def find_order(self, order_id: str) -> OrderRecord | None:
+        with self._lock:
+            return next(
+                (
+                    order
+                    for order in self.orders
+                    if str(order.id) == order_id or order.broker_order_id == order_id
+                ),
+                None,
+            )
+
     def find_order_by_client_order_id(self, client_order_id: str) -> OrderRecord | None:
         with self._lock:
             return next(
@@ -96,6 +108,14 @@ class StateStore:
     def release_client_order_id(self, client_order_id: str) -> None:
         with self._lock:
             self._client_order_ids.discard(client_order_id)
+
+    def set_broker_reconciliation_ready(self, ready: bool) -> None:
+        with self._lock:
+            self._broker_reconciliation_ready = ready
+
+    def broker_reconciliation_ready(self) -> bool:
+        with self._lock:
+            return self._broker_reconciliation_ready
 
     def save_paper_account(self, payload: dict[str, object]) -> None:
         with self._lock:

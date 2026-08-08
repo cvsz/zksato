@@ -169,14 +169,20 @@ async def dashboard_page() -> str:
 @app.get("/health")
 async def health() -> dict[str, object]:
     database_healthy = store.health()
+    reconciliation_ready = (
+        True
+        if settings.trading_mode == "paper" or not settings.reconciliation_enabled
+        else store.broker_reconciliation_ready()
+    )
     return {
-        "status": "ok" if database_healthy else "degraded",
+        "status": "ok" if database_healthy and reconciliation_ready else "degraded",
         "mode": settings.trading_mode,
         "automation": automation.status.state,
         "settrade_configured": settings.settrade_configured,
         "settrade_tfex_configured": settings.settrade_tfex_configured,
         "persistence": "sql" if settings.database_url else "memory",
         "persistence_healthy": database_healthy,
+        "reconciliation_ready": reconciliation_ready,
     }
 
 
@@ -205,6 +211,7 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
         "persistence_enabled": bool(settings.database_url),
         "settrade_configured": settings.settrade_configured,
         "settrade_tfex_configured": settings.settrade_tfex_configured,
+        "reconciliation_ready": store.broker_reconciliation_ready(),
         "watchlist": settings.watchlist,
         "risk": {
             "kill_switch": settings.kill_switch,
@@ -430,6 +437,7 @@ async def reconcile_orders(_principal: OrderPrincipal) -> ReconciliationReport:
     try:
         return await reconciler.run()
     except (RuntimeError, OSError, ValueError) as exc:
+        store.set_broker_reconciliation_ready(False)
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
