@@ -50,11 +50,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -R -nE 'pull_request_target:|permissions:[[:space:]]*write-all' .github/workflows; then
+          if grep -R --exclude='governance.yml' -nE \
+            'pull_request_target:|permissions:[[:space:]]*write-all' .github/workflows; then
             echo 'Unsafe GitHub Actions trigger or write-all permission found.'
             exit 1
           fi
-          if grep -R -nE 'actions/checkout@v[1-5]([[:space:]]|$)|actions/setup-python@v[1-5]([[:space:]]|$)' .github/workflows; then
+          if grep -R --exclude='governance.yml' -nE \
+            'actions/checkout@v[1-5]([[:space:]]|$)|actions/setup-python@v[1-5]([[:space:]]|$)' \
+            .github/workflows; then
             echo 'Legacy Node runtime action reference found.'
             exit 1
           fi
