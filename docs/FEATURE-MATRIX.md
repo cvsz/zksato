@@ -4,49 +4,65 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 
 | Area | Capability | Status | Notes |
 | --- | --- | --- | --- |
-| Trading | Paper broker/order lifecycle | Implemented | market/limit/fill/cancel/idempotency paths |
-| Trading | Portfolio/P&L and persistent paper recovery | Implemented | durable state when DB configured |
+| Trading | Paper market/limit lifecycle | Implemented | market, resting limit, later-quote match, fill, partial fill, cancel |
+| Trading | Paper price improvement / per-quote partial-fill cap | Implemented | deterministic simulator; not exchange queue simulation |
+| Trading | Restart-safe paper recovery/client IDs | Implemented | durable with SQL store |
+| Trading | Portfolio/P&L recovery | Implemented | persistent cash/holdings/realized P&L |
 | Trading | Settrade v2 equity adapter | Implemented | broker UAT certification remains external |
-| Trading | Confirmed manual live equity boundary | Implemented | deterministic risk + approval; not production-certified by source |
+| Trading | Confirmed manual live equity boundary | Implemented | deterministic risk + one-time approval |
 | Trading | Autonomous live-money execution | Intentionally unsupported | permanent safety invariant |
+| Execution | Durable idempotency | Implemented | `client_order_id` uniqueness |
+| Execution | Incremental fill ledger | Implemented | cumulative broker snapshots converted to new-fill deltas |
+| Execution | Reconciliation fail-closed gate | Implemented | unresolved orders keep execution gate closed |
+| Execution | Order identity preservation | Implemented | reconciliation/cancel retain local economic intent |
+| Execution | Order detail/filter/cancel-open API | Implemented | bulk action only cancels already-open orders |
 | Market data | External quote ingestion/demo feed | Implemented | paper/demo and API ingestion |
-| Market data | Supervised Settrade realtime bridge | Implemented | reconnect/freshness/gap controls; long-running UAT evidence external |
+| Market data | Supervised Settrade realtime bridge | Implemented | UAT evidence external |
 | Market data | Durable OHLCV/scanner | Implemented | research/strategy support |
-| Strategy | EMA/RSI/Breakout + indicators | Implemented | deterministic engine; broad indicator edge tests |
-| Strategy | Cost-aware backtest/walk-forward/version registry | Implemented | strategy-specific performance evidence external |
-| Risk | Pre-trade deterministic RiskEngine | Implemented | stale feed, position/notional/exposure/loss/drawdown/session/reference controls |
-| Risk | Property-based fail-closed invariants | Implemented | kill switch, stale quote, sell inventory, max notional |
-| Execution | Durable idempotency and reconciliation gate | Implemented | unknown broker outcomes require reconciliation |
+| Market calendar | Recurring sessions/weekends | Implemented | timezone-aware |
+| Market calendar | Operator holiday/special-date overrides | Implemented | official calendar verification external |
+| Market calendar | Session explanation API | Implemented | source/reason/session list |
+| Strategy | EMA/SMA cross | Implemented | deterministic |
+| Strategy | RSI/Bollinger reversion | Implemented | deterministic |
+| Strategy | Momentum/MACD/breakout | Implemented | deterministic |
+| Indicators | SMA/EMA/RSI/ATR/ADX/Bollinger/VWAP | Implemented | deterministic |
+| Indicators | MACD/rate-of-change/realized volatility | Implemented | deterministic |
+| Research | Cost/slippage backtest | Implemented | fees/slippage modeled |
+| Research | Backtest analytics | Implemented | closed trades, gross P/L, profit factor, fees, exposure, buy/hold |
+| Research | Walk-forward/OOS | Implemented | session-aware single train/OOS split |
+| Research | Strategy/version registry and run history | Implemented | durable with SQL store |
+| Research | Drift/promotion evidence gates | Implemented | no broker authority |
+| Risk | Deterministic trusted pre-trade RiskEngine | Implemented | stale feed/exposure/inventory/loss/session/reference controls |
+| Risk | Property-based fail-closed invariants | Implemented | safety properties in CI |
 | Security | RBAC/session/CSRF/browser hardening | Implemented | server-side authorization |
-| Security | One-time intent-bound four-eyes approval | Implemented | live execution boundary |
-| Security | Tamper-evident/redacted audit trail | Implemented | production readiness verifies chain integrity |
-| TFEX | Isolated domain/risk/UAT mutation | Implemented | production mutation intentionally unavailable |
+| Security | Intent-bound four-eyes approval | Implemented | live boundary |
+| Security | Tamper-evident/redacted audit trail | Implemented | readiness verifies chain |
+| Operations | Bot start/pause/resume/stop/tick | Implemented | live auto-execute prohibited |
+| Operations | Liveness/readiness | Implemented | persistence/coordination/reconciliation/audit checks |
+| Operations | Request correlation response ID | Implemented | generated or propagated `X-Request-ID` |
+| Operations | Notification durable outbox | Implemented | failed item does not block unrelated batch items |
+| Operations | Account snapshot history | Implemented | auditor/admin endpoint |
+| TFEX | Isolated domain/risk/UAT mutation | Implemented | production mutation unavailable |
 | TFEX | Real broker UAT certification | External gate | credentials/account/broker evidence required |
-| Persistence | PostgreSQL durable system of record | Implemented | migrations validated on PostgreSQL 16 in CI |
+| Persistence | PostgreSQL durable system of record | Implemented | migrations validated on PostgreSQL 16 |
 | Coordination | Redis distributed coordination | Implemented | PostgreSQL remains correctness boundary |
-| Observability | Metrics/logging/optional OTel/SLO config | Implemented | production delivery/alert evidence external |
-| DR | Backup/restore automation and ephemeral drill | Implemented | checksum, corruption detection, sentinel and timing evidence |
-| DR | Production restore/RPO/RTO evidence | External gate | must be measured in production-like environment |
-| Performance | Bounded local hardened-container SLO probe | Implemented | explicit p95/failure threshold and JSON artifact |
-| CI | Python 3.11-3.14 + Postgres/Redis integration | Implemented | migrations, compile, dependency consistency, tests |
-| CI | Branch coverage ratchet | Implemented | current floor 65% |
-| Quality | Ruff full-repo lint/format and mypy | Implemented | `src/zksato` + scripts |
-| Quality | OpenAPI safety contract | Implemented | critical routes required; live-TFEX routes rejected |
-| Quality | Package/twine/version identity | Implemented | clean release installation verified |
-| Quality | Runtime dependency license policy | Implemented | isolated inventory; blocks selected strong-copyleft runtime deps |
-| Security automation | Runtime pip-audit/Bandit/Gitleaks | Implemented | plus high-confidence secret patterns |
-| Workflow security | Full SHA pins/least privilege/actionlint/yamllint/zizmor | Implemented | `pull_request_target` and `write-all` rejected |
-| Container | Minimal multi-stage non-root image | Implemented | hardened read-only runtime compatibility checked |
-| Container security | Trivy CVE gate + image CycloneDX SBOM | Implemented | fixed CRITICAL findings block |
-| Supply chain | Multi-arch GHCR release | Implemented | amd64 + arm64, provenance/SBOM metadata |
-| Supply chain | Release checksums/SBOMs/immutable digest | Implemented | independent Release Verification workflow |
-| GitHub automation | PR policy and safe path labeling | Implemented | Conventional title + risk-sensitive evidence sections |
-| GitHub automation | Dependabot Python/Actions/Docker | Implemented | grouped weekly Bangkok schedule |
-| GitHub automation | Repository capability health report | Implemented | read-only; records unavailable/403 capabilities truthfully |
-| GitHub security | CodeQL/Dependency Review | External gate | workflows prepared; private-repo plan/settings dependent |
-| GitHub security | Secret scanning/push protection | External gate | repository/account capability |
-| GitHub protection | `uat`/`production` environments | External gate | required reviewers/secrets must be configured in GitHub |
-| GitHub protection | main ruleset/branch protection/merge queue | External gate | source workflows support `merge_group`; plan/settings dependent |
-| Supply chain | GitHub artifact attestations | External gate | capability-gated for private repository |
-| Production | Machine-readable readiness and canary plan | Implemented | non-executing; one-order/non-autonomous plan only |
-| Production | Broker/legal/UAT/TLS/secrets/monitoring/DR/incident/rollback/capacity/time-sync/failover/retention/release evidence | External gate | source cannot self-certify operational facts |
+| Observability | Metrics/logging/optional OTel/SLO | Implemented | production delivery evidence external |
+| DR | Backup/restore automation and ephemeral drill | Implemented | checksum/corruption/sentinel/timing evidence |
+| DR | Production restore/RPO/RTO evidence | External gate | measured externally |
+| Performance | Bounded hardened-container SLO probe | Implemented | JSON evidence |
+| CI | Python 3.11-3.14 + Postgres/Redis | Implemented | migrations/dependencies/tests |
+| CI | Branch coverage ratchet | Implemented | floor 65% |
+| Quality | Ruff format/lint and mypy | Implemented | source/scripts |
+| Quality | OpenAPI safety contract | Implemented | critical control paths required; live TFEX rejected |
+| Quality | Package/twine/version identity | Implemented | clean installation verified |
+| Quality | Runtime dependency license policy | Implemented | isolated inventory |
+| Security automation | pip-audit/Bandit/Gitleaks | Implemented | plus secret-pattern scanning |
+| Workflow security | immutable SHA pins/actionlint/yamllint/zizmor | Implemented | unsafe patterns rejected |
+| Container | Minimal non-root hardened image | Implemented | read-only/no-capabilities/no-new-privileges tests |
+| Container security | Trivy CVE gate + CycloneDX SBOM | Implemented | fixed CRITICAL findings block |
+| Supply chain | Multi-arch GHCR + release verification | Implemented | digest/checksums/provenance/SBOM |
+| GitHub automation | PR policy/labeling/Dependabot/repository health | Implemented | capability report read-only |
+| GitHub security | CodeQL/Dependency Review/Secret Protection | External gate | private-repo plan/settings dependent |
+| GitHub protection | environments/ruleset/merge queue | External gate | plan/settings dependent |
+| Production | Machine-readable readiness + one-order canary plan | Implemented | non-executing/non-autonomous |
+| Production | Broker/legal/UAT/TLS/secrets/monitoring/DR/incident/rollback/capacity/time-sync/failover/retention/release evidence | External gate | source cannot certify operational facts |
