@@ -1,1 +1,0 @@
-Video-derived behavior is research evidence only and cannot bypass zksato execution controls.
