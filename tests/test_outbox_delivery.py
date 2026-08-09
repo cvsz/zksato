@@ -132,14 +132,26 @@ class _FailingAsyncClient:
         return httpx.Response(503, request=request)
 
 
+class _PoisonAsyncClient(_FailingAsyncClient):
+    async def post(
+        self,
+        url: str,
+        *,
+        json: object,
+        headers: dict[str, str],
+    ) -> httpx.Response:
+        del url, json, headers
+        raise TypeError("payload contains an unsupported object")
+
+
 @pytest.mark.asyncio
-async def test_dispatcher_dead_letters_after_bounded_attempts(monkeypatch) -> None:
+async def test_dispatcher_dead_letters_without_persisting_webhook_secret(monkeypatch) -> None:
     monkeypatch.setattr("zksato.notifications.httpx.AsyncClient", _FailingAsyncClient)
     store = StateStore()
     message = store.enqueue_outbox("notification.test", {"hello": "world"})
     dispatcher = OutboxDispatcher(
         store,
-        "https://example.invalid/webhook",
+        "https://example.invalid/webhook?token=super-secret",
         timeout_seconds=1,
         batch_size=10,
         retry_base_seconds=1,
@@ -152,11 +164,36 @@ async def test_dispatcher_dead_letters_after_bounded_attempts(monkeypatch) -> No
     assert state is not None
     assert state.attempt_count == 1
     assert state.dead_lettered_at is not None
+    assert state.last_error == "HTTPStatusError: status=503"
+    assert "super-secret" not in state.last_error
     assert store.dead_lettered_outbox() == [message]
-    assert store.list_audit(1)[0].event_type == "notification.dead_lettered"
+    audit = store.list_audit(1)[0]
+    assert audit.event_type == "notification.dead_lettered"
+    assert "super-secret" not in audit.message
+
+
+@pytest.mark.asyncio
+async def test_poison_payload_is_bounded_instead_of_crashing_dispatcher(monkeypatch) -> None:
+    monkeypatch.setattr("zksato.notifications.httpx.AsyncClient", _PoisonAsyncClient)
+    store = StateStore()
+    message = store.enqueue_outbox("notification.poison", {"value": object()})
+    dispatcher = OutboxDispatcher(
+        store,
+        "https://example.invalid/webhook",
+        retry_base_seconds=1,
+        retry_max_seconds=10,
+        max_attempts=1,
+    )
+
+    assert await dispatcher.flush_once() == 0
+    state = store.get_outbox_delivery_state(str(message.id))
+    assert state is not None
+    assert state.last_error == "TypeError"
+    assert state.dead_lettered_at is not None
 
 
 def test_error_truncation_is_bounded() -> None:
     value = truncate_error("x" * 800)
     assert len(value) == 500
     assert value.endswith("...")
+    assert truncate_error("abcdef", limit=2) == "ab"
