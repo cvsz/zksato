@@ -26,6 +26,8 @@
 - `BACKTESTING.md`
 - `PORTFOLIO-ACCOUNTING.md`
 - `ORDER-LIFECYCLE.md`
+- `VIDEO-EA-ANALYSIS.md` — frame-derived PA-zone + bounded stop-grid EA hypothesis, SET adaptation and safety differences
+- `../ea/README.md` — demo/Strategy-Tester MQL5 reference EA
 
 ## Platform contracts
 - `API-SPEC.md`
