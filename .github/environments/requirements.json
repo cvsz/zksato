@@ -28,7 +28,6 @@
       "recommended_protection": {
         "required_reviewers": true,
         "prevent_self_review": true,
-        "prevent_admin_bypass": true,
         "plan_gated_for_private_repository": true
       }
     },
@@ -57,7 +56,6 @@
       "recommended_protection": {
         "required_reviewers": true,
         "prevent_self_review": true,
-        "prevent_admin_bypass": true,
         "plan_gated_for_private_repository": true
       }
     },
@@ -85,7 +83,6 @@
       "recommended_protection": {
         "required_reviewers": true,
         "prevent_self_review": true,
-        "prevent_admin_bypass": true,
         "plan_gated_for_private_repository": true
       }
     }
