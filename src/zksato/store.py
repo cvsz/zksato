@@ -366,6 +366,11 @@ class StateStore:
             state = self.outbox_delivery.get(message_id)
             return replace(state) if state is not None else None
 
+    def _outbox_due_at(self, message: OutboxMessage) -> datetime:
+        state = self.outbox_delivery[str(message.id)]
+        due_at = state.next_attempt_at or message.created_at
+        return ensure_utc(due_at)
+
     def pending_outbox(
         self,
         limit: int = 100,
@@ -386,13 +391,7 @@ class StateStore:
                 if retry_at is not None and retry_at > current:
                     continue
                 pending.append(message)
-            pending.sort(
-                key=lambda item: (
-                    ensure_utc(self.outbox_delivery[str(item.id)].next_attempt_at)
-                    if self.outbox_delivery[str(item.id)].next_attempt_at
-                    else ensure_utc(item.created_at)
-                )
-            )
+            pending.sort(key=self._outbox_due_at)
             return pending[:limit]
 
     def dead_lettered_outbox(self, limit: int = 100) -> list[OutboxMessage]:
