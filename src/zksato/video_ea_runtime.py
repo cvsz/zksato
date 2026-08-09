@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from zksato.video_ea import (
     VideoDerivedEaPlanner,
     VideoEaActivationRequest,
+    VideoEaBias,
     VideoEaPlan,
     VideoEaTrigger,
 )
@@ -19,6 +20,13 @@ class VideoEaCycleState(StrEnum):
     TAKE_PROFIT = "take_profit"
     STOPPED = "stopped"
     INVALIDATED = "invalidated"
+
+
+_TERMINAL_STATES = {
+    VideoEaCycleState.TAKE_PROFIT,
+    VideoEaCycleState.STOPPED,
+    VideoEaCycleState.INVALIDATED,
+}
 
 
 class VideoEaCycleSnapshot(BaseModel):
@@ -61,6 +69,8 @@ class VideoEaCycleRuntime:
             raise ValueError("cannot arm a plan without virtual triggers")
         if plan.executable:
             raise ValueError("video EA plans must remain non-executable")
+        if self._state in {VideoEaCycleState.ARMED, VideoEaCycleState.ACTIVE}:
+            raise ValueError("active cycle must be reset before arming a new plan")
         self._plan = plan
         self._state = VideoEaCycleState.ARMED
         self._last_price = current_price
@@ -76,17 +86,9 @@ class VideoEaCycleRuntime:
         if price <= 0:
             raise ValueError("price must be positive")
         if self._plan is None or self._last_price is None:
-            return VideoEaRuntimeEvent(
-                event_type="cycle.idle",
-                state=VideoEaCycleState.IDLE,
-                reason="no video EA plan is armed",
-            )
+            return self._idle_event()
         if self._state not in {VideoEaCycleState.ARMED, VideoEaCycleState.ACTIVE}:
-            return VideoEaRuntimeEvent(
-                event_type="cycle.closed",
-                state=self._state,
-                reason="cycle is terminal and requires an explicit reset",
-            )
+            return self._closed_event()
 
         if self._invalidated(price):
             self._state = VideoEaCycleState.INVALIDATED
@@ -105,7 +107,9 @@ class VideoEaCycleRuntime:
             )
         )
         self._last_price = price
-        fresh = [item for item in activation.triggered if item.dedupe_key not in self._fired]
+        fresh = [
+            item for item in activation.triggered if item.dedupe_key not in self._fired
+        ]
         for trigger in fresh:
             self._fired.add(trigger.dedupe_key)
         if fresh:
@@ -127,25 +131,24 @@ class VideoEaCycleRuntime:
 
     def on_basket_pnl_r(self, pnl_r: float) -> VideoEaRuntimeEvent:
         if self._plan is None:
-            return VideoEaRuntimeEvent(
-                event_type="cycle.idle",
-                state=VideoEaCycleState.IDLE,
-                reason="no video EA plan is armed",
-            )
+            return self._idle_event()
+        if self._state in _TERMINAL_STATES:
+            return self._closed_event()
+
         self._cycle_pnl_r = pnl_r
         if pnl_r >= self._plan.basket_take_profit_r:
             self._state = VideoEaCycleState.TAKE_PROFIT
             return VideoEaRuntimeEvent(
                 event_type="basket.take_profit",
                 state=self._state,
-                reason="basket target reached; execution layer may cancel/flatten through policy",
+                reason="basket target reached; execution may flatten only through policy",
             )
         if pnl_r <= -self._plan.cycle_stop_r:
             self._state = VideoEaCycleState.STOPPED
             return VideoEaRuntimeEvent(
                 event_type="basket.stop",
                 state=self._state,
-                reason="basket loss boundary reached; execution layer may reduce exposure safely",
+                reason="basket loss boundary reached; execution may reduce exposure safely",
             )
         return VideoEaRuntimeEvent(
             event_type="basket.observed",
@@ -186,8 +189,23 @@ class VideoEaCycleRuntime:
     def _invalidated(self, price: float) -> bool:
         if self._plan is None or self._plan.invalidation_price is None:
             return False
-        if self._plan.bias.value == "long":
+        if self._plan.bias == VideoEaBias.LONG:
             return price <= self._plan.invalidation_price
-        if self._plan.bias.value == "short":
+        if self._plan.bias == VideoEaBias.SHORT:
             return price >= self._plan.invalidation_price
         return False
+
+    @staticmethod
+    def _idle_event() -> VideoEaRuntimeEvent:
+        return VideoEaRuntimeEvent(
+            event_type="cycle.idle",
+            state=VideoEaCycleState.IDLE,
+            reason="no video EA plan is armed",
+        )
+
+    def _closed_event(self) -> VideoEaRuntimeEvent:
+        return VideoEaRuntimeEvent(
+            event_type="cycle.closed",
+            state=self._state,
+            reason="cycle is terminal and requires an explicit reset",
+        )
