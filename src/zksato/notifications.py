@@ -10,6 +10,16 @@ from zksato.outbox_delivery import plan_retry, truncate_error
 from zksato.store import StateStore
 
 
+def _safe_delivery_error(exc: Exception) -> str:
+    """Return bounded diagnostic text without persisting webhook URLs or payload data."""
+
+    if isinstance(exc, httpx.HTTPStatusError):
+        return truncate_error(
+            f"{type(exc).__name__}: status={exc.response.status_code}"
+        )
+    return truncate_error(type(exc).__name__)
+
+
 class OutboxDispatcher:
     """Dispatch durable webhook notifications with bounded retry/dead-letter semantics."""
 
@@ -87,14 +97,14 @@ class OutboxDispatcher:
                         headers={"X-ZKSATO-Outbox-Id": message_id},
                     )
                     response.raise_for_status()
-                except httpx.HTTPError as exc:
+                except (httpx.HTTPError, TypeError, ValueError) as exc:
                     retry = plan_retry(
                         attempt_count=attempt.attempt_count,
                         base_seconds=self.retry_base_seconds,
                         max_seconds=self.retry_max_seconds,
                         max_attempts=self.max_attempts,
                     )
-                    error = truncate_error(exc)
+                    error = _safe_delivery_error(exc)
                     self.store.mark_outbox_failed(
                         message_id,
                         error=error,
