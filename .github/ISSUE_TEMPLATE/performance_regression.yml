@@ -1,7 +1,7 @@
 name: Performance regression
 description: Report measurable latency, throughput, resource, or backlog regression
 title: "perf: "
-labels: ["performance"]
+labels: ["operations", "tests"]
 body:
   - type: input
     id: revision
