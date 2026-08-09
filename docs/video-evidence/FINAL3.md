@@ -1,1 +1,0 @@
-Reference MQL5 EA is demo/Strategy Tester only.
