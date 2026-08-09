@@ -1,3 +1,5 @@
+import pytest
+
 from zksato.domain import Side
 from zksato.video_ea import VideoEaBias, VideoEaPlan, VideoEaTrigger
 from zksato.video_ea_runtime import VideoEaCycleRuntime, VideoEaCycleState
@@ -50,6 +52,18 @@ def test_runtime_deduplicates_trigger_crossings() -> None:
     assert runtime.snapshot().fired_quantity == 200
 
 
+def test_runtime_rejects_rearm_while_cycle_is_active() -> None:
+    runtime = VideoEaCycleRuntime()
+    runtime.arm(_plan(), current_price=100.0)
+
+    with pytest.raises(ValueError, match="reset"):
+        runtime.arm(_plan(), current_price=100.5)
+
+    runtime.on_price(101.5)
+    with pytest.raises(ValueError, match="reset"):
+        runtime.arm(_plan(), current_price=101.5)
+
+
 def test_runtime_basket_boundaries_are_terminal_until_reset() -> None:
     runtime = VideoEaCycleRuntime()
     runtime.arm(_plan(), current_price=100.0)
@@ -59,8 +73,24 @@ def test_runtime_basket_boundaries_are_terminal_until_reset() -> None:
     assert event.state == VideoEaCycleState.TAKE_PROFIT
     assert runtime.on_price(102.5).event_type == "cycle.closed"
 
+    repeated = runtime.on_basket_pnl_r(-10.0)
+    assert repeated.event_type == "cycle.closed"
+    assert repeated.state == VideoEaCycleState.TAKE_PROFIT
+
     runtime.reset()
     assert runtime.snapshot().state == VideoEaCycleState.IDLE
+
+
+def test_runtime_stop_state_cannot_be_overwritten_by_later_profit() -> None:
+    runtime = VideoEaCycleRuntime()
+    runtime.arm(_plan(), current_price=100.0)
+
+    stopped = runtime.on_basket_pnl_r(-1.0)
+    assert stopped.state == VideoEaCycleState.STOPPED
+
+    later = runtime.on_basket_pnl_r(5.0)
+    assert later.event_type == "cycle.closed"
+    assert later.state == VideoEaCycleState.STOPPED
 
 
 def test_runtime_fails_closed_on_invalidation() -> None:
@@ -71,3 +101,7 @@ def test_runtime_fails_closed_on_invalidation() -> None:
     assert event.state == VideoEaCycleState.INVALIDATED
     assert event.triggers == []
     assert runtime.snapshot().executable is False
+
+    later = runtime.on_basket_pnl_r(5.0)
+    assert later.event_type == "cycle.closed"
+    assert later.state == VideoEaCycleState.INVALIDATED
