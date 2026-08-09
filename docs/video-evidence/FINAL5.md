@@ -1,1 +1,0 @@
-Autonomous live-money execution remains unsupported.
