@@ -56,6 +56,15 @@ def test_reference_ea_normalizes_symbol_volume_and_trade_constraints() -> None:
         assert token in source
 
 
+def test_reference_ea_rejects_volume_outside_symbol_bounds_before_rounding() -> None:
+    source = _source()
+    normalize_body = source.split("double NormalizeVolume", 1)[1].split(
+        "bool AcceptedTradeRetcode", 1
+    )[0]
+    assert "requested<minimum || requested>maximum" in normalize_body
+    assert "MathMin(requested,maximum)" not in normalize_body
+
+
 def test_reference_ea_is_restart_safe_and_session_bounded() -> None:
     source = _source()
     for token in (

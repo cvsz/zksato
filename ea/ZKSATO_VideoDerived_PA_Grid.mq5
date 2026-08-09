@@ -174,10 +174,10 @@ double NormalizeVolume(const double requested)
    double step=SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_STEP);
    double minimum=SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_MIN);
    double maximum=SymbolInfoDouble(_Symbol,SYMBOL_VOLUME_MAX);
-   if(step<=0.0 || minimum<=0.0 || maximum<=0.0 || requested<=0.0)
+   if(step<=0.0 || minimum<=0.0 || maximum<=0.0 || requested<=0.0 ||
+      requested<minimum || requested>maximum)
       return(0.0);
-   double capped=MathMin(requested,maximum);
-   double units=MathFloor((capped+1e-12)/step);
+   double units=MathFloor((requested+1e-12)/step);
    double normalized=units*step;
    if(normalized<minimum || normalized>maximum)
       return(0.0);
