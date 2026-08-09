@@ -1,0 +1,1 @@
+Any SET order derived from a virtual trigger must be reconstructed server-side and pass TradingService and RiskEngine.
