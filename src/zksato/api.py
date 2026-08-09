@@ -245,7 +245,9 @@ async def _health_payload() -> dict[str, object]:
         MARKET_FEED_AGE.set(min(usable_ages))
     OUTBOX_BACKLOG.set(len(store.pending_outbox(10_000)))
     audit_chain_valid = store.verify_audit_chain()
-    healthy = database_healthy and coordination_healthy and reconciliation_ready and audit_chain_valid
+    healthy = (
+        database_healthy and coordination_healthy and reconciliation_ready and audit_chain_valid
+    )
     return {
         "status": "ok" if healthy else "degraded",
         "mode": settings.trading_mode,
