@@ -25,6 +25,11 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Strategy | EMA/SMA cross | Implemented | deterministic |
 | Strategy | RSI/Bollinger reversion | Implemented | deterministic |
 | Strategy | Momentum/MACD/breakout | Implemented | deterministic |
+| Strategy | Video-derived PA breakout/retest planner | Implemented | OHLC/ATR planner; research-only and non-executing |
+| Strategy | Bounded virtual stop ladder | Implemented | hard trigger/quantity caps, fixed size, dedupe keys, no martingale |
+| Strategy | Symmetric video-grid reproduction | Implemented | generic/TFEX research only; rejected for SET-equity profile |
+| Strategy | Video-EA virtual cycle runtime | Implemented | arm/trigger/dedupe/invalidate/basket-boundary/reset; no broker calls |
+| Strategy | MQL5 video-derived reference EA | Implemented | Strategy Tester/demo only; real-account initialization is blocked |
 | Indicators | SMA/EMA/RSI/ATR/ADX/Bollinger/VWAP | Implemented | deterministic |
 | Indicators | MACD/rate-of-change/realized volatility | Implemented | deterministic |
 | Research | Cost/slippage backtest | Implemented | fees/slippage modeled |
@@ -32,6 +37,7 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Research | Walk-forward/OOS | Implemented | session-aware single train/OOS split |
 | Research | Strategy/version registry and run history | Implemented | durable with SQL store |
 | Research | Drift/promotion evidence gates | Implemented | no broker authority |
+| Research | Trading-video evidence extractor | Implemented | ffprobe metadata + deterministic timestamped frames; no media committed |
 | Risk | Deterministic trusted pre-trade RiskEngine | Implemented | stale feed/exposure/inventory/loss/session/reference controls |
 | Risk | Property-based fail-closed invariants | Implemented | safety properties in CI |
 | Security | RBAC/session/CSRF/browser hardening | Implemented | server-side authorization |
