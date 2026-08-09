@@ -73,4 +73,6 @@ def test_order_listing_filters_and_cancel_open_endpoint() -> None:
     assert any(item["id"] == order_id for item in filtered.json())
     cancelled = client.post("/v1/orders/cancel-open", params={"symbol": "APIQ"})
     assert cancelled.status_code == 200
-    assert any(item["id"] == order_id and item["status"] == "cancelled" for item in cancelled.json())
+    assert any(
+        item["id"] == order_id and item["status"] == "cancelled" for item in cancelled.json()
+    )

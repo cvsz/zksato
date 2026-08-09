@@ -141,7 +141,10 @@ class MarketSessionPolicy:
             "source": source,
             "reason": reason,
             "holiday": day in self.holidays,
-            "sessions": [f"{start.isoformat(timespec='minutes')}-{end.isoformat(timespec='minutes')}" for start, end in sessions],
+            "sessions": [
+                f"{start.isoformat(timespec='minutes')}-{end.isoformat(timespec='minutes')}"
+                for start, end in sessions
+            ],
         }
 
     def _sessions_for_date(self, day: date) -> tuple[list[tuple[time, time]], bool]:

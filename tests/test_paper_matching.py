@@ -21,9 +21,7 @@ async def test_resting_buy_limit_matches_on_later_quote_with_price_improvement()
     )
     assert order.status == OrderStatus.ACCEPTED
 
-    matched = await broker.process_quote(
-        Quote(symbol="AOT", last=38.8, bid=38.7, offer=38.9)
-    )
+    matched = await broker.process_quote(Quote(symbol="AOT", last=38.8, bid=38.7, offer=38.9))
     assert len(matched) == 1
     assert matched[0].status == OrderStatus.FILLED
     assert matched[0].average_fill_price == pytest.approx(38.9)

@@ -62,14 +62,18 @@ class PaperBroker:
                 raise ValueError("market order requires a current quote")
             fill_price = self._market_price(intent.side, quote)
             order = self._new_order(intent)
-            return self._apply_fill(order, intent.quantity, fill_price, event_type="paper_market_fill")
+            return self._apply_fill(
+                order, intent.quantity, fill_price, event_type="paper_market_fill"
+            )
 
         if intent.price is None:
             raise ValueError("limit order requires price")
         if quote is not None and self._limit_marketable(intent.side, intent.price, quote):
             order = self._new_order(intent)
             fill_price = self._limit_fill_price(intent.side, intent.price, quote)
-            return self._apply_fill(order, intent.quantity, fill_price, event_type="paper_limit_fill")
+            return self._apply_fill(
+                order, intent.quantity, fill_price, event_type="paper_limit_fill"
+            )
         return self._accepted(intent)
 
     async def process_quote(self, quote: Quote) -> list[OrderRecord]:

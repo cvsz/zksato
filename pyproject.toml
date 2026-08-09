@@ -91,7 +91,7 @@ pretty = true
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 103
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
