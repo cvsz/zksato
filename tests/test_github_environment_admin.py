@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -12,9 +13,11 @@ MANIFEST = ROOT / ".github" / "environments" / "requirements.json"
 
 
 def _load_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("github_environment_admin", SCRIPT)
+    name = "github_environment_admin_testmodule"
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
