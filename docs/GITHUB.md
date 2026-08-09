@@ -2,6 +2,8 @@
 
 This document is the operational contract for GitHub Actions, pull-request policy, dependency maintenance, security automation, release assurance, UAT evidence, disaster-recovery drills, and production-readiness evidence.
 
+GitHub Environment desired state is machine-readable in `.github/environments/requirements.json`. `docs/GITHUB-ENVIRONMENTS.md` and `scripts/github_environment_admin.py` are the canonical runbook and bootstrap/audit implementation. Secret values remain external and are never committed.
+
 ## Workflow inventory
 
 | Workflow | Trigger | Purpose | Baseline requirement |
@@ -16,12 +18,12 @@ This document is the operational contract for GitHub Actions, pull-request polic
 | `Labeler` | PR | path-based labels using an unprivileged `pull_request` trigger | advisory |
 | `Resilience` | sensitive PR paths, merge group, weekly, manual | deterministic recovery/fail-closed suite across two hash seeds | required for sensitive changes |
 | `Dependency Review` | PR | GitHub dependency review when the private-repository capability is enabled | capability-gated |
-| `Repository Health` | GitHub-config push, weekly, manual | read-only GitHub API capability/control evidence | evidence |
+| `Repository Health` | GitHub-config push, weekly, manual | read-only GitHub API capability/control/environment evidence | evidence |
 | `Performance` | weekly, manual | bounded local hardened-container load probe with explicit p95/failure threshold | evidence |
 | `Disaster Recovery Drill` | monthly, manual | migrations, backup, checksum, corruption detection, restore, sentinel verification, timing evidence | evidence |
 | `UAT Certification` | manual | protected non-mutating evidence collection against deployed Settrade UAT | protected manual |
 | `Production Readiness` | manual | protected non-executing runtime/external evidence gate and one-order manual canary plan | protected manual |
-| `Release` | `v*` tag | audited Python release + image scan/SBOM + multi-arch GHCR publication + checksums + optional attestation + GitHub Release | release gate |
+| `Release` | `v*` tag | protected release-environment build/audit/image/SBOM/attestation/GitHub Release | release gate |
 | `Release Verification` | published release, manual | re-download/checksum/clean-install and immutable GHCR digest runtime verification | post-release evidence |
 
 GitHub also creates dynamic Dependabot Update and Dependency Graph workflows outside `.github/workflows/`.
@@ -50,25 +52,40 @@ After merge queue is available, the core workflows already support `merge_group`
 
 ## Repository variables and protected environments
 
-Capability-gated repository variables:
+Capability-gated repository variables default to fail-closed values in `.github/environments/requirements.json`:
 
-- `ENABLE_CODEQL=true` — enable only when code scanning is available for this private repository.
-- `ENABLE_DEPENDENCY_REVIEW=true` — enable only when Dependency Review is available.
-- `ENABLE_ATTESTATIONS=true` — enable only when private-repository artifact attestations are available.
+- `ENABLE_CODEQL=false` until code scanning is verified for this private repository.
+- `ENABLE_DEPENDENCY_REVIEW=false` until Dependency Review is verified.
+- `ENABLE_ATTESTATIONS=false` until private-repository artifact attestations are verified.
 
-Create protected environments outside source control:
+Required GitHub Environments:
 
 ### `uat`
-- required reviewers
-- deployment restrictions
-- `ZKSATO_UAT_API_KEY`
+- workflow: `UAT Certification`
+- evidence job only; no deployment-history record
+- branch policy: `main`
+- environment variable: `ZKSATO_UAT_BASE_URL`
+- environment secret: `ZKSATO_UAT_API_KEY`
+- required reviewer/prevent-self-review when the private-repository plan supports those controls
 
 ### `production`
-- required reviewers
-- deployment restrictions
-- `ZKSATO_PRODUCTION_RISK_API_KEY`
+- workflow: `Production Readiness`
+- evidence job only; no deployment-history record
+- branch policy: `main`
+- environment variable: `ZKSATO_PRODUCTION_BASE_URL`
+- environment secret: `ZKSATO_PRODUCTION_RISK_API_KEY`
+- required reviewer/prevent-self-review when the private-repository plan supports those controls
 
-Environment secrets must never be repository variables, workflow inputs, committed files, or PR secrets.
+### `release`
+- workflow: `Release`
+- creates release/deployment history
+- tag policy: `v*`
+- managed safe default: `ENABLE_ATTESTATIONS=false`
+- required reviewer/prevent-self-review when supported
+
+Environment secret values must never be repository variables, workflow inputs, committed files, or PR content. Settrade App Secret/PIN, database/Redis credentials, session/application API secrets, live confirmation tokens, and notification endpoints are runtime secret-manager values and are deliberately excluded from the GitHub Environment contract.
+
+Run `python scripts/github_environment_admin.py audit` from a trusted administrator context to compare GitHub with the contract. See `docs/GITHUB-ENVIRONMENTS.md` for bootstrap and secure secret installation.
 
 ## CI and quality guarantees
 
@@ -90,7 +107,7 @@ Compose applies the same defensive runtime profile to the API and keeps PostgreS
 
 ## Release process
 
-A release tag must match `pyproject.toml`, e.g. version `0.4.0` requires tag `v0.4.0`. The release workflow:
+A release tag must match `pyproject.toml`, e.g. version `0.5.0` requires tag `v0.5.0`. The release workflow is bound to the `release` GitHub Environment and:
 
 1. audits resolved runtime dependencies;
 2. builds wheel and source distribution;
@@ -100,7 +117,7 @@ A release tag must match `pyproject.toml`, e.g. version `0.4.0` requires tag `v0
 6. publishes `linux/amd64` and `linux/arm64` images to GHCR with provenance/SBOM metadata;
 7. records the immutable image digest;
 8. creates SHA-256 checksums;
-9. optionally creates GitHub attestations when supported;
+9. optionally creates GitHub attestations only when verified and enabled;
 10. creates the GitHub Release.
 
 `Release Verification` then downloads the published assets, checks hashes, installs the wheel in a clean environment, pulls the immutable GHCR digest, and starts it with the hardened runtime profile before accepting `/health`.
@@ -109,9 +126,9 @@ The release process intentionally does not deploy production infrastructure or s
 
 ## UAT, performance, DR, and readiness evidence
 
-`UAT Certification` is manual, protected, HTTPS-only, and non-mutating. `Performance` targets only a locally built hardened container and emits p50/p95/p99/throughput/failure evidence against explicit limits. `Disaster Recovery Drill` uses ephemeral PostgreSQL, proves checksum corruption detection, restores a checksummed backup, verifies application tables/sentinel data, and records backup/restore durations.
+`UAT Certification` is manual, environment-gated, HTTPS-only, non-mutating, and accepts an explicit URL override or `ZKSATO_UAT_BASE_URL`. `Performance` targets only a locally built hardened container and emits p50/p95/p99/throughput/failure evidence against explicit limits. `Disaster Recovery Drill` uses ephemeral PostgreSQL, proves checksum corruption detection, restores a checksummed backup, verifies application tables/sentinel data, and records backup/restore durations.
 
-`Production Readiness` never submits an order. It requires production/live runtime selection, durable services, authentication, trusted hosts, four-eyes confirmation, explicit account allow-list, strict reference/session controls, Settrade configuration, clear kill switch, reconciliation, audit integrity, and explicit external evidence for broker/legal/UAT/TLS/secrets/DR/monitoring/incident/rollback/capacity/time-sync/market-data-failover/data-retention/release verification/manual canary authorization. Even when it passes, the generated canary plan remains non-autonomous and limited to one separately authorized order.
+`Production Readiness` never submits an order. It is environment-gated and requires explicit external evidence for broker/legal/UAT/TLS/secrets/DR/monitoring/incident/rollback/capacity/time-sync/market-data-failover/data-retention/release verification/manual canary authorization. Even when it passes, the generated canary plan remains non-autonomous and limited to one separately authorized order.
 
 ## Repository features and plan boundaries
 
@@ -122,9 +139,9 @@ Enable where available:
 - CodeQL/Code Security;
 - Dependency Review;
 - private vulnerability reporting;
-- protected `uat` and `production` environments;
+- protected `uat`, `production`, and `release` environments;
 - least-privilege Actions token policy;
 - branch protection/rulesets and merge queue;
 - artifact attestations.
 
-A GitHub API 403 or plan limitation is recorded by `Repository Health` as unavailable capability evidence. Source code must not reinterpret such an external limitation as configured or complete.
+A GitHub API 403 or plan limitation is recorded as unavailable capability evidence. Source code must not reinterpret such an external limitation as configured or complete.

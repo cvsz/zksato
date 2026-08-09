@@ -1,0 +1,31 @@
+name: Production readiness evidence
+description: Track external prerequisites for a controlled manual canary
+title: "readiness: "
+labels: ["operations", "risk"]
+body:
+  - type: input
+    id: revision
+    attributes:
+      label: Release revision/artifact
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Source-controlled checks/artifacts
+    validations:
+      required: true
+  - type: textarea
+    id: external
+    attributes:
+      label: External evidence / remaining gates
+      description: Broker permission/UAT, calendar/reference, TLS/secrets, monitoring, DR, capacity, legal/ops, canary approval.
+    validations:
+      required: true
+  - type: checkboxes
+    id: invariant
+    attributes:
+      label: Invariant
+      options:
+        - label: Autonomous execution remains disabled; this issue cannot itself authorize live trading.
+          required: true

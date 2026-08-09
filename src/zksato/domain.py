@@ -286,6 +286,7 @@ class StrategyRun(BaseModel):
     mode: str = Field(default="research", min_length=1, max_length=32)
     inputs: dict[str, object] = Field(default_factory=dict)
     output: dict[str, object] = Field(default_factory=dict)
+    evidence_hash: str | None = Field(default=None, min_length=64, max_length=64)
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
 

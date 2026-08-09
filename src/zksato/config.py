@@ -108,6 +108,12 @@ class Settings(BaseSettings):
     settrade_derivatives_account_no: str | None = None
 
     notification_webhook_url: str | None = None
+    notification_dispatch_interval_seconds: float = Field(default=2.0, ge=0.25, le=300)
+    notification_timeout_seconds: float = Field(default=5.0, ge=0.25, le=120)
+    notification_batch_size: int = Field(default=50, ge=1, le=1000)
+    notification_retry_base_seconds: float = Field(default=5.0, gt=0, le=3600)
+    notification_retry_max_seconds: float = Field(default=300.0, gt=0, le=86_400)
+    notification_max_attempts: int = Field(default=5, ge=1, le=100)
 
     log_level: str = "INFO"
     log_json: bool = True

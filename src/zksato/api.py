@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from threading import RLock
 from time import monotonic
 from typing import Annotated
 
@@ -88,6 +89,36 @@ from zksato.tfex import (
     TfexRiskDecision,
     TfexRiskEngine,
 )
+from zksato.video_ea import VideoDerivedEaPlanner, VideoEaPlan, VideoEaPlanRequest
+from zksato.video_ea_research import (
+    BasketLifecycleMetrics,
+    BasketLifecycleRequest,
+    ExposureHeatmapRequest,
+    ExposureHeatmapResult,
+    MonteCarloTradeStressRequest,
+    MonteCarloTradeStressResult,
+    ParameterSweepRequest,
+    ParameterSweepResult,
+    RollingWalkForwardRequest,
+    RollingWalkForwardResult,
+    SensitivityRequest,
+    SensitivityResult,
+    VideoEaReplayRequest,
+    VideoEaReplayResult,
+    basket_lifecycle_metrics,
+    max_exposure_heatmap,
+    monte_carlo_trade_stress,
+    parameter_sweep,
+    replay_video_ea,
+    rolling_walk_forward,
+    sensitivity_analysis,
+)
+from zksato.video_ea_runtime import (
+    VideoEaArmRequest,
+    VideoEaCycleRuntime,
+    VideoEaPriceObservation,
+    VideoEaRuntimeControlResponse,
+)
 
 settings = get_settings()
 configure_logging(settings.log_level, json_logs=settings.log_json)
@@ -131,6 +162,8 @@ outbox_dispatcher = OutboxDispatcher(
 )
 research = ResearchService(settings, store)
 production = ProductionReadinessService(settings, store)
+video_ea_planner = VideoDerivedEaPlanner()
+video_ea_runtime_lock = RLock()
 settrade_feed: SettradeRealtimeFeed | None = None
 tfex_gateway: SettradeTfexGateway | None = None
 tfex_risk = TfexRiskEngine(settings)
@@ -228,6 +261,49 @@ def _tfex_gateway() -> SettradeTfexGateway:
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     return tfex_gateway
+
+
+def _require_video_ea_paper_mode() -> None:
+    if settings.trading_mode != "paper":
+        raise HTTPException(
+            status_code=409,
+            detail="video EA operator controls are restricted to paper mode",
+        )
+
+
+def _video_ea_runtime_key(symbol: str) -> str:
+    normalized = symbol.strip().upper()
+    if not normalized or len(normalized) > 32:
+        raise HTTPException(status_code=422, detail="invalid video EA symbol")
+    return f"video-ea-cycle:{normalized}"
+
+
+def _load_video_ea_runtime(symbol: str) -> VideoEaCycleRuntime:
+    payload = store.get_runtime_state(_video_ea_runtime_key(symbol))
+    if payload is None:
+        return VideoEaCycleRuntime()
+    snapshot = payload.get("snapshot")
+    if not isinstance(snapshot, dict):
+        raise HTTPException(status_code=409, detail="video EA runtime snapshot is invalid")
+    try:
+        return VideoEaCycleRuntime.from_snapshot(snapshot)
+    except ValueError as exc:
+        store.add_audit(
+            "video_ea.recovery_failed",
+            f"video EA runtime recovery failed for {symbol.upper()}",
+            {"symbol": symbol.upper(), "reason": str(exc)},
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="video EA runtime recovery failed closed; operator reset is required",
+        ) from exc
+
+
+def _persist_video_ea_runtime(symbol: str, runtime: VideoEaCycleRuntime) -> None:
+    store.save_runtime_state(
+        _video_ea_runtime_key(symbol),
+        {"snapshot": runtime.snapshot().model_dump(mode="json")},
+    )
 
 
 async def _health_payload() -> dict[str, object]:
@@ -802,6 +878,255 @@ async def research_walk_forward(
         return research.walk_forward(request)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/v1/research/video-ea/plan", response_model=VideoEaPlan)
+async def research_video_ea_plan(
+    request: VideoEaPlanRequest,
+    _principal: StrategyPrincipal,
+) -> VideoEaPlan:
+    _require_video_ea_paper_mode()
+    if not request.research_only:
+        raise HTTPException(status_code=422, detail="video EA plans must be research-only")
+    metadata = service.instruments.get(request.symbol)
+    if metadata is not None:
+        request = request.model_copy(
+            update={
+                "config": request.config.model_copy(
+                    update={
+                        "tick_size": metadata.tick_size or request.config.tick_size,
+                        "lower_price_band": metadata.lower_price_band,
+                        "upper_price_band": metadata.upper_price_band,
+                    }
+                )
+            }
+        )
+    try:
+        plan = video_ea_planner.plan(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if plan.executable or not plan.research_only:
+        raise HTTPException(status_code=422, detail="video EA plan failed closed")
+    store.add_audit(
+        "video_ea.plan_created",
+        f"video EA research plan created for {plan.symbol}",
+        {"symbol": plan.symbol, "trigger_count": len(plan.triggers)},
+    )
+    return plan
+
+
+@app.post("/v1/research/video-ea/replay", response_model=VideoEaReplayResult)
+async def research_video_ea_replay(
+    request: VideoEaReplayRequest,
+    _principal: ReadPrincipal,
+) -> VideoEaReplayResult:
+    _require_video_ea_paper_mode()
+    result = replay_video_ea(request)
+    store.add_audit(
+        "video_ea.replay_completed",
+        f"video EA historical replay completed for {result.symbol}",
+        {
+            "bars": result.bars_replayed,
+            "triggers": len(result.triggered_keys),
+            "duplicates": result.duplicate_crossings,
+        },
+    )
+    return result
+
+
+@app.post("/v1/research/video-ea/parameter-sweep", response_model=ParameterSweepResult)
+async def research_video_ea_parameter_sweep(
+    request: ParameterSweepRequest,
+    _principal: StrategyPrincipal,
+) -> ParameterSweepResult:
+    _require_video_ea_paper_mode()
+    try:
+        result = parameter_sweep(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    store.add_audit(
+        "video_ea.parameter_sweep_completed",
+        f"video EA parameter sweep completed for {result.symbol}",
+        {"combinations": result.combinations},
+    )
+    return result
+
+
+@app.post(
+    "/v1/research/video-ea/rolling-walk-forward",
+    response_model=RollingWalkForwardResult,
+)
+async def research_video_ea_rolling_walk_forward(
+    request: RollingWalkForwardRequest,
+    _principal: StrategyPrincipal,
+) -> RollingWalkForwardResult:
+    _require_video_ea_paper_mode()
+    try:
+        result = rolling_walk_forward(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
+
+
+@app.post(
+    "/v1/research/video-ea/monte-carlo",
+    response_model=MonteCarloTradeStressResult,
+)
+async def research_video_ea_monte_carlo(
+    request: MonteCarloTradeStressRequest,
+    _principal: StrategyPrincipal,
+) -> MonteCarloTradeStressResult:
+    _require_video_ea_paper_mode()
+    return monte_carlo_trade_stress(request)
+
+
+@app.post(
+    "/v1/research/video-ea/sensitivity",
+    response_model=SensitivityResult,
+)
+async def research_video_ea_sensitivity(
+    request: SensitivityRequest,
+    _principal: StrategyPrincipal,
+) -> SensitivityResult:
+    _require_video_ea_paper_mode()
+    try:
+        return sensitivity_analysis(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post(
+    "/v1/research/video-ea/exposure-heatmap",
+    response_model=ExposureHeatmapResult,
+)
+async def research_video_ea_exposure_heatmap(
+    request: ExposureHeatmapRequest,
+    _principal: StrategyPrincipal,
+) -> ExposureHeatmapResult:
+    _require_video_ea_paper_mode()
+    try:
+        return max_exposure_heatmap(
+            request.plan,
+            request.prices,
+            portfolio_value=request.portfolio_value,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post(
+    "/v1/research/video-ea/lifecycle-metrics",
+    response_model=BasketLifecycleMetrics,
+)
+async def research_video_ea_lifecycle_metrics(
+    request: BasketLifecycleRequest,
+    _principal: ReadPrincipal,
+) -> BasketLifecycleMetrics:
+    _require_video_ea_paper_mode()
+    return basket_lifecycle_metrics(request)
+
+
+@app.get("/v1/research/video-ea/state/{symbol}")
+async def research_video_ea_state(symbol: str, _principal: ReadPrincipal):
+    _require_video_ea_paper_mode()
+    with video_ea_runtime_lock:
+        return _load_video_ea_runtime(symbol).snapshot()
+
+
+@app.post(
+    "/v1/research/video-ea/arm",
+    response_model=VideoEaRuntimeControlResponse,
+)
+async def research_video_ea_arm(
+    request: VideoEaArmRequest,
+    _principal: StrategyPrincipal,
+) -> VideoEaRuntimeControlResponse:
+    _require_video_ea_paper_mode()
+    if request.plan.executable or not request.plan.research_only:
+        raise HTTPException(status_code=422, detail="video EA plans must remain research-only")
+    with video_ea_runtime_lock:
+        runtime = _load_video_ea_runtime(request.plan.symbol)
+        try:
+            event = runtime.arm(request.plan, current_price=request.current_price)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _persist_video_ea_runtime(request.plan.symbol, runtime)
+    store.add_audit(
+        "video_ea.cycle_armed",
+        f"video EA cycle armed for {request.plan.symbol.upper()}",
+        {"symbol": request.plan.symbol.upper()},
+    )
+    return VideoEaRuntimeControlResponse(event=event, snapshot=runtime.snapshot())
+
+
+@app.post(
+    "/v1/research/video-ea/price/{symbol}",
+    response_model=VideoEaRuntimeControlResponse,
+)
+async def research_video_ea_price(
+    symbol: str,
+    observation: VideoEaPriceObservation,
+    _principal: StrategyPrincipal,
+) -> VideoEaRuntimeControlResponse:
+    _require_video_ea_paper_mode()
+    with video_ea_runtime_lock:
+        runtime = _load_video_ea_runtime(symbol)
+        event = runtime.on_price(observation.price)
+        _persist_video_ea_runtime(symbol, runtime)
+    return VideoEaRuntimeControlResponse(event=event, snapshot=runtime.snapshot())
+
+
+@app.post(
+    "/v1/research/video-ea/pause/{symbol}",
+    response_model=VideoEaRuntimeControlResponse,
+)
+async def research_video_ea_pause(
+    symbol: str,
+    _principal: StrategyPrincipal,
+) -> VideoEaRuntimeControlResponse:
+    _require_video_ea_paper_mode()
+    with video_ea_runtime_lock:
+        runtime = _load_video_ea_runtime(symbol)
+        event = runtime.pause()
+        _persist_video_ea_runtime(symbol, runtime)
+    return VideoEaRuntimeControlResponse(event=event, snapshot=runtime.snapshot())
+
+
+@app.post(
+    "/v1/research/video-ea/resume/{symbol}",
+    response_model=VideoEaRuntimeControlResponse,
+)
+async def research_video_ea_resume(
+    symbol: str,
+    _principal: StrategyPrincipal,
+) -> VideoEaRuntimeControlResponse:
+    _require_video_ea_paper_mode()
+    with video_ea_runtime_lock:
+        runtime = _load_video_ea_runtime(symbol)
+        event = runtime.resume()
+        _persist_video_ea_runtime(symbol, runtime)
+    return VideoEaRuntimeControlResponse(event=event, snapshot=runtime.snapshot())
+
+
+@app.post(
+    "/v1/research/video-ea/reset/{symbol}",
+    response_model=VideoEaRuntimeControlResponse,
+)
+async def research_video_ea_reset(
+    symbol: str,
+    _principal: StrategyPrincipal,
+) -> VideoEaRuntimeControlResponse:
+    _require_video_ea_paper_mode()
+    with video_ea_runtime_lock:
+        runtime = _load_video_ea_runtime(symbol)
+        event = runtime.reset()
+        _persist_video_ea_runtime(symbol, runtime)
+    store.add_audit(
+        "video_ea.cycle_reset",
+        f"video EA cycle reset for {symbol.upper()}",
+        {"symbol": symbol.upper()},
+    )
+    return VideoEaRuntimeControlResponse(event=event, snapshot=runtime.snapshot())
 
 
 @app.post("/v1/research/drift", response_model=DriftReport)
