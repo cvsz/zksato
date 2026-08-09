@@ -1,7 +1,7 @@
 name: Database migration proposal
 description: Propose a schema/data migration affecting durable state
 title: "db: "
-labels: ["database"]
+labels: ["persistence", "operations"]
 body:
   - type: textarea
     id: purpose
