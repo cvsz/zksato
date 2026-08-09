@@ -7,9 +7,11 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Integer,
     MetaData,
     String,
     Table,
+    UniqueConstraint,
     create_engine,
     delete,
     insert,
@@ -36,6 +38,7 @@ from zksato.domain import (
     StrategyRun,
     StrategyVersion,
 )
+from zksato.outbox_delivery import OutboxDeliveryState
 from zksato.store import StateStore
 
 metadata = MetaData()
@@ -90,6 +93,7 @@ strategy_versions_table = Table(
     Column("version", String(64), nullable=False),
     Column("payload", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("name", "version", name="uq_strategy_versions_name_version"),
 )
 strategy_runs_table = Table(
     "strategy_runs",
@@ -148,6 +152,11 @@ outbox_table = Table(
     Column("payload", JSON, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("sent_at", DateTime(timezone=True)),
+    Column("attempt_count", Integer, nullable=False, default=0),
+    Column("last_attempt_at", DateTime(timezone=True)),
+    Column("next_attempt_at", DateTime(timezone=True)),
+    Column("last_error", String(500)),
+    Column("dead_lettered_at", DateTime(timezone=True)),
 )
 runtime_state_table = Table(
     "runtime_state",
@@ -246,6 +255,7 @@ class SqlStateStore(StateStore):
                 conn.execute(select(idempotency_table.c.client_order_id)).scalars()
             )
             for row in conn.execute(select(outbox_table)).mappings():
+                message_id = str(row["id"])
                 message = OutboxMessage(
                     id=row["id"],
                     topic=row["topic"],
@@ -253,7 +263,15 @@ class SqlStateStore(StateStore):
                     created_at=row["created_at"],
                     sent_at=row["sent_at"],
                 )
-                self.outbox[str(message.id)] = message
+                self.outbox[message_id] = message
+                self.outbox_delivery[message_id] = OutboxDeliveryState(
+                    message_id=message_id,
+                    attempt_count=int(row["attempt_count"] or 0),
+                    last_attempt_at=row["last_attempt_at"],
+                    next_attempt_at=row["next_attempt_at"],
+                    last_error=row["last_error"],
+                    dead_lettered_at=row["dead_lettered_at"],
+                )
             paper_state = conn.execute(
                 select(runtime_state_table.c.payload).where(
                     runtime_state_table.c.key == "paper_account"
@@ -279,6 +297,23 @@ class SqlStateStore(StateStore):
                 conn.execute(update(table).where(key_column == key).values(**values))
             else:
                 conn.execute(insert(table).values(**values))
+
+    def _persist_outbox_delivery_state(self, message_id: str) -> None:
+        state = self.get_outbox_delivery_state(message_id)
+        if state is None:
+            return
+        with self.engine.begin() as conn:
+            conn.execute(
+                update(outbox_table)
+                .where(outbox_table.c.id == message_id)
+                .values(
+                    attempt_count=state.attempt_count,
+                    last_attempt_at=state.last_attempt_at,
+                    next_attempt_at=state.next_attempt_at,
+                    last_error=state.last_error,
+                    dead_lettered_at=state.dead_lettered_at,
+                )
+            )
 
     def update_quote(self, quote: Quote) -> Quote:
         stored = super().update_quote(quote)
@@ -376,19 +411,37 @@ class SqlStateStore(StateStore):
         return snapshot
 
     def add_strategy_version(self, version: StrategyVersion) -> StrategyVersion:
-        super().add_strategy_version(version)
-        self._upsert_payload(
-            strategy_versions_table,
-            strategy_versions_table.c.id,
-            str(version.id),
-            {
-                "id": str(version.id),
-                "name": version.name,
-                "version": version.version,
-                "payload": version.model_dump(mode="json"),
-                "created_at": version.created_at,
-            },
-        )
+        stored = super().add_strategy_version(version)
+        if stored.id != version.id:
+            return stored
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(
+                    insert(strategy_versions_table).values(
+                        id=str(version.id),
+                        name=version.name,
+                        version=version.version,
+                        payload=version.model_dump(mode="json"),
+                        created_at=version.created_at,
+                    )
+                )
+        except IntegrityError as exc:
+            with self.engine.connect() as conn:
+                payload = conn.execute(
+                    select(strategy_versions_table.c.payload).where(
+                        strategy_versions_table.c.name == version.name,
+                        strategy_versions_table.c.version == version.version,
+                    )
+                ).scalar_one_or_none()
+            if payload is None:
+                raise
+            existing = StrategyVersion.model_validate(payload)
+            key = f"{existing.name}:{existing.version}"
+            with self._lock:
+                self.strategy_versions[key] = existing
+            if existing.code_hash == version.code_hash and existing.config == version.config:
+                return existing
+            raise ValueError(f"strategy version {key} is immutable") from exc
         return version
 
     def add_strategy_run(self, run: StrategyRun) -> StrategyRun:
@@ -520,16 +573,66 @@ class SqlStateStore(StateStore):
                     payload=message.payload,
                     created_at=message.created_at,
                     sent_at=None,
+                    attempt_count=0,
+                    last_attempt_at=None,
+                    next_attempt_at=None,
+                    last_error=None,
+                    dead_lettered_at=None,
                 )
             )
         return message
 
+    def mark_outbox_attempt(
+        self,
+        message_id: str,
+        *,
+        attempted_at: datetime | None = None,
+    ) -> OutboxDeliveryState | None:
+        state = super().mark_outbox_attempt(message_id, attempted_at=attempted_at)
+        if state is not None:
+            self._persist_outbox_delivery_state(message_id)
+        return state
+
+    def mark_outbox_failed(
+        self,
+        message_id: str,
+        *,
+        error: str,
+        next_attempt_at: datetime | None,
+        dead_lettered_at: datetime | None = None,
+    ) -> OutboxDeliveryState | None:
+        state = super().mark_outbox_failed(
+            message_id,
+            error=error,
+            next_attempt_at=next_attempt_at,
+            dead_lettered_at=dead_lettered_at,
+        )
+        if state is not None:
+            self._persist_outbox_delivery_state(message_id)
+        return state
+
+    def requeue_outbox(self, message_id: str) -> bool:
+        requeued = super().requeue_outbox(message_id)
+        if requeued:
+            self._persist_outbox_delivery_state(message_id)
+        return requeued
+
     def mark_outbox_sent(self, message_id: str) -> None:
         super().mark_outbox_sent(message_id)
-        sent_at = datetime.now(UTC)
+        state = self.get_outbox_delivery_state(message_id)
+        sent_at = self.outbox.get(message_id).sent_at if message_id in self.outbox else None
         with self.engine.begin() as conn:
             conn.execute(
-                update(outbox_table).where(outbox_table.c.id == message_id).values(sent_at=sent_at)
+                update(outbox_table)
+                .where(outbox_table.c.id == message_id)
+                .values(
+                    sent_at=sent_at,
+                    attempt_count=state.attempt_count if state else 0,
+                    last_attempt_at=state.last_attempt_at if state else None,
+                    next_attempt_at=state.next_attempt_at if state else None,
+                    last_error=state.last_error if state else None,
+                    dead_lettered_at=state.dead_lettered_at if state else None,
+                )
             )
 
     def health(self) -> bool:
