@@ -46,12 +46,7 @@ class VideoEaTrigger(BaseModel):
 
 
 class VideoEaConfig(BaseModel):
-    """Safe, instrument-agnostic interpretation of the supplied trading videos.
-
-    The videos show a stop-order ladder on XAUUSD with roughly 0.30 price spacing and
-    repeated basket resets. This configuration deliberately bounds the ladder, uses
-    fixed sizing only, and keeps symmetric operation research-only.
-    """
+    """Bounded, research-first interpretation of the supplied trading videos."""
 
     grid_mode: VideoEaGridMode = VideoEaGridMode.PA_FILTERED
     market_profile: VideoEaMarketProfile = VideoEaMarketProfile.SET_EQUITY
@@ -119,179 +114,71 @@ class VideoEaActivationResult(BaseModel):
 
 
 class VideoDerivedEaPlanner:
-    """Pure planning engine. It never calls a broker or submits an order."""
+    """Pure planner: no broker, credential, order-submission, or live authority."""
 
     def plan(self, request: VideoEaPlanRequest) -> VideoEaPlan:
         symbol = request.symbol.strip().upper()
         config = request.config
         candles = request.candles[-config.lookback_bars :]
-        if len(candles) < max(config.atr_period + 2, config.pivot_window * 2 + 5):
-            price = request.candles[-1].close
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=VideoEaBias.NEUTRAL,
-                anchor_price=price,
-                atr=0.0,
-                grid_step=config.grid_step_abs or config.tick_size,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=["insufficient candle history for PA-zone and ATR planning"],
+        minimum = max(config.atr_period + 2, config.pivot_window * 2 + 5)
+        if len(candles) < minimum:
+            return self._empty_plan(
+                symbol,
+                candles[-1].close,
+                config,
+                "insufficient candle history for PA-zone and ATR planning",
             )
 
         atr_value = atr(candles, config.atr_period)
         if atr_value is None or atr_value <= 0:
-            price = candles[-1].close
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=VideoEaBias.NEUTRAL,
-                anchor_price=price,
-                atr=0.0,
-                grid_step=config.grid_step_abs or config.tick_size,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=["ATR unavailable; planner fails closed"],
+            return self._empty_plan(
+                symbol,
+                candles[-1].close,
+                config,
+                "ATR unavailable; planner fails closed",
             )
 
         bias, zone, reasons = self._detect_pa_structure(candles, atr_value, config)
         anchor = candles[-1].close
-        step = self._round_to_tick(
-            config.grid_step_abs or (atr_value * config.grid_step_atr),
-            config.tick_size,
-        )
-        if step < config.tick_size:
-            step = config.tick_size
+        raw_step = config.grid_step_abs or (atr_value * config.grid_step_atr)
+        step = max(config.tick_size, self._round_to_tick(raw_step, config.tick_size))
 
-        if (
-            config.market_profile == VideoEaMarketProfile.SET_EQUITY
-            and config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH
-        ):
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=bias,
-                anchor_price=anchor,
-                atr=atr_value,
-                grid_step=step,
-                zone=zone,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=reasons
-                + [
-                    "SET-equity profile rejects symmetric long/short grids; short-side research belongs in the isolated TFEX/generic profile"
-                ],
+        blocked = self._blocked_reason(request, bias)
+        if blocked:
+            return self._base_plan(
+                symbol,
+                bias,
+                anchor,
+                atr_value,
+                step,
+                zone,
+                config,
+                reasons + [blocked],
             )
-
-        if (
-            config.market_profile == VideoEaMarketProfile.SET_EQUITY
-            and bias == VideoEaBias.SHORT
-            and config.grid_mode == VideoEaGridMode.PA_FILTERED
-        ):
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=bias,
-                anchor_price=anchor,
-                atr=atr_value,
-                grid_step=step,
-                zone=zone,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=reasons
-                + [
-                    "SET-equity profile does not create a naked short ladder; bearish evidence is informational/exit-only"
-                ],
-            )
-
-        if config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH and not request.research_only:
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=bias,
-                anchor_price=anchor,
-                atr=atr_value,
-                grid_step=step,
-                zone=zone,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=reasons
-                + ["symmetric grid is restricted to research/paper planning and was not armed"],
-            )
-
         if config.grid_mode == VideoEaGridMode.PA_FILTERED and bias == VideoEaBias.NEUTRAL:
-            return VideoEaPlan(
-                symbol=symbol,
-                bias=bias,
-                anchor_price=anchor,
-                atr=atr_value,
-                grid_step=step,
-                zone=zone,
-                basket_take_profit_r=config.basket_take_profit_r,
-                cycle_stop_r=config.cycle_stop_r,
-                max_total_quantity=config.max_total_quantity,
-                research_only=True,
-                executable=False,
-                reasons=reasons + ["PA-filtered mode does not seed a ladder without directional evidence"],
+            return self._base_plan(
+                symbol,
+                bias,
+                anchor,
+                atr_value,
+                step,
+                zone,
+                config,
+                reasons + ["PA-filtered mode requires directional evidence"],
             )
 
-        sides: list[Side]
-        if config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH:
-            sides = [Side.BUY, Side.SELL]
-            reasons.append("symmetric stop-ladder reproduced in research-only mode")
-        else:
-            sides = [Side.BUY] if bias == VideoEaBias.LONG else [Side.SELL]
-            reasons.append("ladder restricted to the PA-confirmed direction")
-
+        sides = self._sides(config, bias)
         max_by_quantity = config.max_total_quantity // config.quantity_per_level
-        allowed_levels = min(
+        levels = min(
             config.levels_per_side,
             max_by_quantity // len(sides),
             config.max_pending_triggers // len(sides),
         )
-        triggers: list[VideoEaTrigger] = []
-        for side in sides:
-            for level in range(1, allowed_levels + 1):
-                raw_price = anchor + (step * level) if side == Side.BUY else anchor - (step * level)
-                trigger_price = self._round_to_tick(raw_price, config.tick_size)
-                triggers.append(
-                    VideoEaTrigger(
-                        side=side,
-                        level=level,
-                        trigger_price=trigger_price,
-                        quantity=config.quantity_per_level,
-                        dedupe_key=f"video-ea:{symbol}:{side.value}:{level}:{trigger_price:.10f}",
-                    )
-                )
-
-        if allowed_levels < config.levels_per_side:
+        triggers = self._triggers(symbol, anchor, step, sides, levels, config)
+        if levels < config.levels_per_side:
             reasons.append("ladder truncated by hard quantity/pending-trigger caps")
-        reasons.append("fixed-size ladder only; martingale and duplicate stacking are intentionally absent")
-
-        invalidation: float | None = None
-        if zone is not None:
-            risk_distance = max(atr_value * config.cycle_stop_r, step)
-            if bias == VideoEaBias.LONG:
-                invalidation = self._round_to_tick(
-                    min(zone.low - risk_distance, anchor - risk_distance),
-                    config.tick_size,
-                )
-            elif bias == VideoEaBias.SHORT:
-                invalidation = self._round_to_tick(
-                    max(zone.high + risk_distance, anchor + risk_distance),
-                    config.tick_size,
-                )
-
+        reasons.append("fixed-size only; martingale and duplicate stacking are absent")
+        invalidation = self._invalidation(anchor, atr_value, step, bias, zone, config)
         return VideoEaPlan(
             symbol=symbol,
             bias=bias,
@@ -311,28 +198,82 @@ class VideoDerivedEaPlanner:
 
     @staticmethod
     def activate(request: VideoEaActivationRequest) -> VideoEaActivationResult:
-        triggered: list[VideoEaTrigger] = []
+        fresh: list[VideoEaTrigger] = []
         for trigger in request.plan.triggers:
-            if (
+            up = (
                 trigger.side == Side.BUY
                 and request.previous_price < trigger.trigger_price <= request.current_price
-            ):
-                triggered.append(trigger)
-            elif (
+            )
+            down = (
                 trigger.side == Side.SELL
                 and request.previous_price > trigger.trigger_price >= request.current_price
-            ):
-                triggered.append(trigger)
+            )
+            if up or down:
+                fresh.append(trigger)
+        reason = "no virtual trigger crossed"
+        if fresh:
+            reason = (
+                "virtual crossings detected; rebuild trusted OrderIntent and pass "
+                "TradingService/RiskEngine"
+            )
         return VideoEaActivationResult(
             symbol=request.plan.symbol,
-            triggered=triggered,
+            triggered=fresh,
             executable=False,
-            reason=(
-                "virtual trigger crossings detected; any order must be rebuilt server-side and pass TradingService/RiskEngine"
-                if triggered
-                else "no virtual trigger crossed"
-            ),
+            reason=reason,
         )
+
+    @staticmethod
+    def _blocked_reason(request: VideoEaPlanRequest, bias: VideoEaBias) -> str | None:
+        config = request.config
+        if (
+            config.market_profile == VideoEaMarketProfile.SET_EQUITY
+            and config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH
+        ):
+            return "SET-equity profile rejects symmetric long/short grids"
+        if (
+            config.market_profile == VideoEaMarketProfile.SET_EQUITY
+            and config.grid_mode == VideoEaGridMode.PA_FILTERED
+            and bias == VideoEaBias.SHORT
+        ):
+            return "SET-equity bearish evidence is informational/exit-only; no naked short ladder"
+        if config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH and not request.research_only:
+            return "symmetric grid is research/paper-only"
+        return None
+
+    @staticmethod
+    def _sides(config: VideoEaConfig, bias: VideoEaBias) -> list[Side]:
+        if config.grid_mode == VideoEaGridMode.SYMMETRIC_RESEARCH:
+            return [Side.BUY, Side.SELL]
+        return [Side.BUY] if bias == VideoEaBias.LONG else [Side.SELL]
+
+    def _triggers(
+        self,
+        symbol: str,
+        anchor: float,
+        step: float,
+        sides: list[Side],
+        levels: int,
+        config: VideoEaConfig,
+    ) -> list[VideoEaTrigger]:
+        result: list[VideoEaTrigger] = []
+        for side in sides:
+            direction = 1 if side == Side.BUY else -1
+            for level in range(1, levels + 1):
+                price = self._round_to_tick(
+                    anchor + (direction * step * level),
+                    config.tick_size,
+                )
+                result.append(
+                    VideoEaTrigger(
+                        side=side,
+                        level=level,
+                        trigger_price=price,
+                        quantity=config.quantity_per_level,
+                        dedupe_key=f"video-ea:{symbol}:{side.value}:{level}:{price:.10f}",
+                    )
+                )
+        return result
 
     def _detect_pa_structure(
         self,
@@ -340,183 +281,280 @@ class VideoDerivedEaPlanner:
         atr_value: float,
         config: VideoEaConfig,
     ) -> tuple[VideoEaBias, VideoEaZone | None, list[str]]:
-        pivots_high = self._pivot_highs(candles, config.pivot_window)
-        pivots_low = self._pivot_lows(candles, config.pivot_window)
-        breakout_buffer = atr_value * config.breakout_buffer_atr
-        retest_tolerance = atr_value * config.retest_tolerance_atr
-        zone_half = atr_value * config.zone_half_width_atr
+        highs = self._pivot_highs(candles, config.pivot_window)
+        lows = self._pivot_lows(candles, config.pivot_window)
+        buffer = atr_value * config.breakout_buffer_atr
+        tolerance = atr_value * config.retest_tolerance_atr
+        half_width = atr_value * config.zone_half_width_atr
+        found: list[tuple[int, VideoEaBias, VideoEaZone, str]] = []
 
-        candidates: list[tuple[int, VideoEaBias, VideoEaZone, str]] = []
-        for pivot_index, level in pivots_high:
-            for breakout_index in range(pivot_index + 1, len(candles) - 1):
-                if candles[breakout_index].close <= level + breakout_buffer:
-                    continue
-                for retest_index in range(breakout_index + 1, len(candles)):
-                    candle = candles[retest_index]
-                    touched = candle.low <= level + retest_tolerance
-                    held = candle.close >= level - retest_tolerance
-                    confirmed = (not config.require_pa_confirmation) or self._bullish_pa(
-                        candles,
+        for index, level in highs:
+            match = self._find_retest(
+                candles,
+                index,
+                level,
+                buffer,
+                tolerance,
+                bullish=True,
+                config=config,
+            )
+            if match:
+                breakout_index, retest_index = match
+                found.append(
+                    (
                         retest_index,
-                        config.rejection_wick_ratio,
+                        VideoEaBias.LONG,
+                        self._zone(
+                            "support",
+                            level,
+                            half_width,
+                            index,
+                            breakout_index,
+                            retest_index,
+                            config,
+                        ),
+                        "bullish breakout-retest / resistance-to-support flip detected",
                     )
-                    if touched and held and confirmed:
-                        candidates.append(
-                            (
-                                retest_index,
-                                VideoEaBias.LONG,
-                                VideoEaZone(
-                                    kind="support",
-                                    level=level,
-                                    low=max(config.tick_size, level - zone_half),
-                                    high=level + zone_half,
-                                    source_index=pivot_index,
-                                    breakout_index=breakout_index,
-                                    retest_index=retest_index,
-                                ),
-                                "bullish breakout-retest / resistance-to-support flip detected",
-                            )
-                        )
-                        break
-                break
+                )
 
-        for pivot_index, level in pivots_low:
-            for breakout_index in range(pivot_index + 1, len(candles) - 1):
-                if candles[breakout_index].close >= level - breakout_buffer:
-                    continue
-                for retest_index in range(breakout_index + 1, len(candles)):
-                    candle = candles[retest_index]
-                    touched = candle.high >= level - retest_tolerance
-                    held = candle.close <= level + retest_tolerance
-                    confirmed = (not config.require_pa_confirmation) or self._bearish_pa(
-                        candles,
+        for index, level in lows:
+            match = self._find_retest(
+                candles,
+                index,
+                level,
+                buffer,
+                tolerance,
+                bullish=False,
+                config=config,
+            )
+            if match:
+                breakout_index, retest_index = match
+                found.append(
+                    (
                         retest_index,
-                        config.rejection_wick_ratio,
+                        VideoEaBias.SHORT,
+                        self._zone(
+                            "resistance",
+                            level,
+                            half_width,
+                            index,
+                            breakout_index,
+                            retest_index,
+                            config,
+                        ),
+                        "bearish breakout-retest / support-to-resistance flip detected",
                     )
-                    if touched and held and confirmed:
-                        candidates.append(
-                            (
-                                retest_index,
-                                VideoEaBias.SHORT,
-                                VideoEaZone(
-                                    kind="resistance",
-                                    level=level,
-                                    low=max(config.tick_size, level - zone_half),
-                                    high=level + zone_half,
-                                    source_index=pivot_index,
-                                    breakout_index=breakout_index,
-                                    retest_index=retest_index,
-                                ),
-                                "bearish breakout-retest / support-to-resistance flip detected",
-                            )
-                        )
-                        break
-                break
+                )
 
-        if candidates:
-            latest = max(candidates, key=lambda item: item[0])
-            return latest[1], latest[2], [latest[3]]
+        if found:
+            _, bias, zone, reason = max(found, key=lambda item: item[0])
+            return bias, zone, [reason]
+        return self._direct_rejection(candles, highs, lows, tolerance, half_width, config)
 
-        # Fallback: direct rejection at a recent swing zone, matching the first PA
-        # example in the supplied teaching clip before a full S/R flip is visible.
+    def _find_retest(
+        self,
+        candles: list[Candle],
+        pivot_index: int,
+        level: float,
+        buffer: float,
+        tolerance: float,
+        *,
+        bullish: bool,
+        config: VideoEaConfig,
+    ) -> tuple[int, int] | None:
+        for breakout in range(pivot_index + 1, len(candles) - 1):
+            close = candles[breakout].close
+            if bullish and close <= level + buffer:
+                continue
+            if not bullish and close >= level - buffer:
+                continue
+            for retest in range(breakout + 1, len(candles)):
+                candle = candles[retest]
+                if bullish:
+                    touched = candle.low <= level + tolerance
+                    held = candle.close >= level - tolerance
+                    confirmed = self._bullish_pa(candles, retest, config.rejection_wick_ratio)
+                else:
+                    touched = candle.high >= level - tolerance
+                    held = candle.close <= level + tolerance
+                    confirmed = self._bearish_pa(candles, retest, config.rejection_wick_ratio)
+                if not config.require_pa_confirmation:
+                    confirmed = True
+                if touched and held and confirmed:
+                    return breakout, retest
+            break
+        return None
+
+    def _direct_rejection(
+        self,
+        candles: list[Candle],
+        highs: list[tuple[int, float]],
+        lows: list[tuple[int, float]],
+        tolerance: float,
+        half_width: float,
+        config: VideoEaConfig,
+    ) -> tuple[VideoEaBias, VideoEaZone | None, list[str]]:
         last_index = len(candles) - 1
         last = candles[last_index]
-        if pivots_low:
-            pivot_index, level = pivots_low[-1]
-            if (
-                last.low <= level + retest_tolerance
-                and last.close >= level
-                and self._bullish_pa(candles, last_index, config.rejection_wick_ratio)
-            ):
-                return (
-                    VideoEaBias.LONG,
-                    VideoEaZone(
-                        kind="support",
-                        level=level,
-                        low=max(config.tick_size, level - zone_half),
-                        high=level + zone_half,
-                        source_index=pivot_index,
-                        retest_index=last_index,
-                    ),
-                    ["bullish PA rejection from a recent support/demand zone detected"],
+        if lows:
+            index, level = lows[-1]
+            bullish = self._bullish_pa(candles, last_index, config.rejection_wick_ratio)
+            if last.low <= level + tolerance and last.close >= level and bullish:
+                zone = self._zone(
+                    "support", level, half_width, index, None, last_index, config
                 )
-        if pivots_high:
-            pivot_index, level = pivots_high[-1]
-            if (
-                last.high >= level - retest_tolerance
-                and last.close <= level
-                and self._bearish_pa(candles, last_index, config.rejection_wick_ratio)
-            ):
-                return (
-                    VideoEaBias.SHORT,
-                    VideoEaZone(
-                        kind="resistance",
-                        level=level,
-                        low=max(config.tick_size, level - zone_half),
-                        high=level + zone_half,
-                        source_index=pivot_index,
-                        retest_index=last_index,
-                    ),
-                    ["bearish PA rejection from a recent resistance/supply zone detected"],
+                return VideoEaBias.LONG, zone, ["bullish PA rejection at support/demand"]
+        if highs:
+            index, level = highs[-1]
+            bearish = self._bearish_pa(candles, last_index, config.rejection_wick_ratio)
+            if last.high >= level - tolerance and last.close <= level and bearish:
+                zone = self._zone(
+                    "resistance", level, half_width, index, None, last_index, config
                 )
+                return VideoEaBias.SHORT, zone, ["bearish PA rejection at resistance/supply"]
+        return VideoEaBias.NEUTRAL, None, ["no confirmed PA rejection or breakout-retest"]
 
-        return VideoEaBias.NEUTRAL, None, ["no confirmed PA rejection or breakout-retest structure"]
+    @staticmethod
+    def _zone(
+        kind: str,
+        level: float,
+        half_width: float,
+        source_index: int,
+        breakout_index: int | None,
+        retest_index: int,
+        config: VideoEaConfig,
+    ) -> VideoEaZone:
+        return VideoEaZone(
+            kind=kind,
+            level=level,
+            low=max(config.tick_size, level - half_width),
+            high=level + half_width,
+            source_index=source_index,
+            breakout_index=breakout_index,
+            retest_index=retest_index,
+        )
 
     @staticmethod
     def _pivot_highs(candles: list[Candle], window: int) -> list[tuple[int, float]]:
-        rows: list[tuple[int, float]] = []
+        result: list[tuple[int, float]] = []
         for index in range(window, len(candles) - window):
             value = candles[index].high
             before = candles[index - window : index]
             after = candles[index + 1 : index + window + 1]
-            if all(value >= item.high for item in before) and all(value > item.high for item in after):
-                rows.append((index, value))
-        return rows
+            if all(value >= item.high for item in before) and all(
+                value > item.high for item in after
+            ):
+                result.append((index, value))
+        return result
 
     @staticmethod
     def _pivot_lows(candles: list[Candle], window: int) -> list[tuple[int, float]]:
-        rows: list[tuple[int, float]] = []
+        result: list[tuple[int, float]] = []
         for index in range(window, len(candles) - window):
             value = candles[index].low
             before = candles[index - window : index]
             after = candles[index + 1 : index + window + 1]
-            if all(value <= item.low for item in before) and all(value < item.low for item in after):
-                rows.append((index, value))
-        return rows
+            if all(value <= item.low for item in before) and all(
+                value < item.low for item in after
+            ):
+                result.append((index, value))
+        return result
 
     @staticmethod
-    def _bullish_pa(candles: list[Candle], index: int, wick_ratio: float) -> bool:
+    def _bullish_pa(candles: list[Candle], index: int, ratio: float) -> bool:
         candle = candles[index]
         body = max(abs(candle.close - candle.open), 1e-12)
-        lower_wick = min(candle.open, candle.close) - candle.low
-        bullish_rejection = candle.close >= candle.open and lower_wick >= body * wick_ratio
-        bullish_engulfing = False
-        if index > 0:
-            previous = candles[index - 1]
-            bullish_engulfing = (
-                previous.close < previous.open
-                and candle.close > candle.open
-                and candle.close >= previous.open
-                and candle.open <= previous.close
-            )
-        return bullish_rejection or bullish_engulfing
+        wick = min(candle.open, candle.close) - candle.low
+        rejection = candle.close >= candle.open and wick >= body * ratio
+        if index == 0:
+            return rejection
+        previous = candles[index - 1]
+        engulfing = (
+            previous.close < previous.open
+            and candle.close > candle.open
+            and candle.close >= previous.open
+            and candle.open <= previous.close
+        )
+        return rejection or engulfing
 
     @staticmethod
-    def _bearish_pa(candles: list[Candle], index: int, wick_ratio: float) -> bool:
+    def _bearish_pa(candles: list[Candle], index: int, ratio: float) -> bool:
         candle = candles[index]
         body = max(abs(candle.close - candle.open), 1e-12)
-        upper_wick = candle.high - max(candle.open, candle.close)
-        bearish_rejection = candle.close <= candle.open and upper_wick >= body * wick_ratio
-        bearish_engulfing = False
-        if index > 0:
-            previous = candles[index - 1]
-            bearish_engulfing = (
-                previous.close > previous.open
-                and candle.close < candle.open
-                and candle.open >= previous.close
-                and candle.close <= previous.open
-            )
-        return bearish_rejection or bearish_engulfing
+        wick = candle.high - max(candle.open, candle.close)
+        rejection = candle.close <= candle.open and wick >= body * ratio
+        if index == 0:
+            return rejection
+        previous = candles[index - 1]
+        engulfing = (
+            previous.close > previous.open
+            and candle.close < candle.open
+            and candle.open >= previous.close
+            and candle.close <= previous.open
+        )
+        return rejection or engulfing
+
+    def _invalidation(
+        self,
+        anchor: float,
+        atr_value: float,
+        step: float,
+        bias: VideoEaBias,
+        zone: VideoEaZone | None,
+        config: VideoEaConfig,
+    ) -> float | None:
+        if zone is None or bias == VideoEaBias.NEUTRAL:
+            return None
+        distance = max(atr_value * config.cycle_stop_r, step)
+        if bias == VideoEaBias.LONG:
+            value = min(zone.low - distance, anchor - distance)
+        else:
+            value = max(zone.high + distance, anchor + distance)
+        return self._round_to_tick(value, config.tick_size)
+
+    @staticmethod
+    def _empty_plan(
+        symbol: str,
+        anchor: float,
+        config: VideoEaConfig,
+        reason: str,
+    ) -> VideoEaPlan:
+        step = config.grid_step_abs or config.tick_size
+        return VideoEaPlan(
+            symbol=symbol,
+            bias=VideoEaBias.NEUTRAL,
+            anchor_price=anchor,
+            atr=0.0,
+            grid_step=step,
+            basket_take_profit_r=config.basket_take_profit_r,
+            cycle_stop_r=config.cycle_stop_r,
+            max_total_quantity=config.max_total_quantity,
+            reasons=[reason],
+        )
+
+    @staticmethod
+    def _base_plan(
+        symbol: str,
+        bias: VideoEaBias,
+        anchor: float,
+        atr_value: float,
+        step: float,
+        zone: VideoEaZone | None,
+        config: VideoEaConfig,
+        reasons: list[str],
+    ) -> VideoEaPlan:
+        return VideoEaPlan(
+            symbol=symbol,
+            bias=bias,
+            anchor_price=anchor,
+            atr=atr_value,
+            grid_step=step,
+            zone=zone,
+            basket_take_profit_r=config.basket_take_profit_r,
+            cycle_stop_r=config.cycle_stop_r,
+            max_total_quantity=config.max_total_quantity,
+            reasons=reasons,
+        )
 
     @staticmethod
     def _round_to_tick(value: float, tick_size: float) -> float:
