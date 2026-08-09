@@ -144,6 +144,48 @@ class StateStore:
         with self._lock:
             return list(reversed(self.fills))[:limit]
 
+    def filled_quantity_recorded(self, order_id: str) -> int:
+        with self._lock:
+            return sum(
+                item.quantity
+                for item in self.fills
+                if item.order_id is not None and str(item.order_id) == order_id
+            )
+
+    def record_order_fill(self, order: OrderRecord, *, source: str) -> FillRecord | None:
+        """Persist only the newly-filled delta for a cumulative broker/order snapshot."""
+
+        if order.filled_quantity <= 0 or not order.average_fill_price:
+            return None
+        with self._lock:
+            prior = [
+                item
+                for item in self.fills
+                if item.order_id is not None and item.order_id == order.id
+            ]
+            recorded_quantity = sum(item.quantity for item in prior)
+            delta_quantity = order.filled_quantity - recorded_quantity
+            if delta_quantity <= 0:
+                return None
+            cumulative_value = order.average_fill_price * order.filled_quantity
+            prior_value = sum(item.price * item.quantity for item in prior)
+            delta_value = cumulative_value - prior_value
+            delta_price = (
+                delta_value / delta_quantity if delta_value > 0 else order.average_fill_price
+            )
+            fill = FillRecord(
+                broker_fill_id=(
+                    f"{source}:{order.broker_order_id or order.id}:{order.filled_quantity}"
+                ),
+                order_id=order.id,
+                broker_order_id=order.broker_order_id,
+                symbol=order.symbol,
+                side=order.side,
+                quantity=delta_quantity,
+                price=delta_price,
+            )
+        return self.add_fill(fill)
+
     def add_risk_evaluation(self, evaluation: RiskEvaluation) -> RiskEvaluation:
         with self._lock:
             self.risk_evaluations.append(evaluation)

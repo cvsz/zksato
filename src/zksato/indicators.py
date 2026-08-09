@@ -28,6 +28,49 @@ def ema(values: list[float], period: int) -> float | None:
     return ema_series(values, period)[-1]
 
 
+def macd(
+    values: list[float],
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> tuple[float, float, float] | None:
+    if fast_period <= 0 or slow_period <= fast_period or signal_period <= 0:
+        return None
+    if len(values) < slow_period + signal_period:
+        return None
+    fast = ema_series(values, fast_period)
+    slow = ema_series(values, slow_period)
+    line = [fast[index] - slow[index] for index in range(slow_period - 1, len(values))]
+    signal = ema(line, signal_period)
+    if signal is None:
+        return None
+    value = line[-1]
+    return value, signal, value - signal
+
+
+def rate_of_change(values: list[float], period: int = 10) -> float | None:
+    if period <= 0 or len(values) <= period:
+        return None
+    previous = values[-period - 1]
+    if previous == 0:
+        return None
+    return (values[-1] - previous) / previous * 100
+
+
+def realized_volatility_pct(values: list[float], period: int = 20) -> float | None:
+    if period <= 1 or len(values) <= period:
+        return None
+    window = values[-(period + 1) :]
+    returns: list[float] = []
+    for previous, current in zip(window, window[1:], strict=False):
+        if previous <= 0 or current <= 0:
+            return None
+        returns.append(math.log(current / previous))
+    mean = sum(returns) / len(returns)
+    variance = sum((value - mean) ** 2 for value in returns) / len(returns)
+    return math.sqrt(variance) * 100
+
+
 def rsi(values: list[float], period: int = 14) -> float | None:
     if period <= 0 or len(values) <= period:
         return None

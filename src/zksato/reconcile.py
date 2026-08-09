@@ -5,13 +5,7 @@ from contextlib import suppress
 
 from zksato.broker.base import Broker
 from zksato.coordination import CoordinationBusyError, CoordinationManager
-from zksato.domain import (
-    FillRecord,
-    OrderEvent,
-    OrderRecord,
-    OrderStatus,
-    ReconciliationReport,
-)
+from zksato.domain import OrderEvent, OrderRecord, OrderStatus, ReconciliationReport
 from zksato.observability import RECONCILIATION_RUNS, RECONCILIATION_UNRESOLVED
 from zksato.store import StateStore
 
@@ -67,6 +61,11 @@ class ReconciliationService:
                 update={
                     "id": local.id,
                     "client_order_id": local.client_order_id or remote.client_order_id,
+                    "symbol": local.symbol,
+                    "side": local.side,
+                    "quantity": local.quantity,
+                    "order_type": local.order_type,
+                    "price": local.price,
                     "stop_loss": local.stop_loss,
                     "take_profit": local.take_profit,
                     "source": local.source,
@@ -126,26 +125,8 @@ class ReconciliationService:
         return report
 
     def _record_fill(self, order: OrderRecord, report: ReconciliationReport) -> None:
-        if order.filled_quantity <= 0 or not order.average_fill_price:
-            return
-        before = len(self.store.list_fills(limit=10_000))
-        self.store.add_fill(
-            FillRecord(
-                broker_fill_id=(
-                    f"{order.broker_order_id}:{order.filled_quantity}"
-                    if order.broker_order_id
-                    else f"reconciled:{order.id}:{order.filled_quantity}"
-                ),
-                order_id=order.id,
-                broker_order_id=order.broker_order_id,
-                symbol=order.symbol,
-                side=order.side,
-                quantity=order.filled_quantity,
-                price=order.average_fill_price,
-            )
-        )
-        after = len(self.store.list_fills(limit=10_000))
-        if after > before:
+        fill = self.store.record_order_fill(order, source="reconciled")
+        if fill is not None:
             report.fills_recorded += 1
 
     def _match(self, remote: OrderRecord) -> OrderRecord | None:

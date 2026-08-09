@@ -50,6 +50,20 @@ class AutomationEngine:
         self.store.add_audit("bot.stopped", "automation stopped")
         return self.status
 
+    def pause(self) -> BotStatus:
+        if self.status.state == BotState.RUNNING:
+            self.status.state = BotState.PAUSED
+            self.store.add_audit("bot.paused", "automation paused")
+        return self.status
+
+    def resume(self) -> BotStatus:
+        if self.status.config is None:
+            raise ValueError("automation has no configuration to resume")
+        if self.status.state == BotState.PAUSED:
+            self.status.state = BotState.RUNNING
+            self.store.add_audit("bot.resumed", "automation resumed")
+        return self.status
+
     async def on_quote(self, quote: Quote) -> None:
         stored = self.store.update_quote(quote)
         if stored.timestamp != quote.timestamp:
@@ -58,13 +72,16 @@ class AutomationEngine:
                 f"ignored out-of-order quote for {quote.symbol}",
             )
             return
-        await self._check_alerts(quote)
-        await self._check_protective_exits(quote)
+        process_quote = getattr(self.service.broker, "process_quote", None)
+        if process_quote is not None:
+            await process_quote(stored)
+        await self._check_alerts(stored)
+        await self._check_protective_exits(stored)
         if self.status.state != BotState.RUNNING or not self.status.config:
             return
-        if quote.symbol not in self.status.config.symbols:
+        if stored.symbol not in self.status.config.symbols:
             return
-        await self._evaluate_symbol(quote.symbol)
+        await self._evaluate_symbol(stored.symbol)
 
     async def tick(self) -> BotStatus:
         self.status.last_tick_at = datetime.now(UTC)

@@ -8,7 +8,6 @@ from zksato.broker.base import Broker, BrokerAmbiguousError
 from zksato.config import Settings
 from zksato.domain import (
     AccountSnapshot,
-    FillRecord,
     OrderEvent,
     OrderIntent,
     OrderRecord,
@@ -30,6 +29,11 @@ OPEN_ORDER_STATUSES = {
     OrderStatus.ACCEPTED,
     OrderStatus.PARTIALLY_FILLED,
     OrderStatus.NEEDS_RECONCILIATION,
+}
+CANCELLABLE_ORDER_STATUSES = {
+    OrderStatus.PENDING,
+    OrderStatus.ACCEPTED,
+    OrderStatus.PARTIALLY_FILLED,
 }
 
 
@@ -60,6 +64,8 @@ class TradingService:
         self.market_sessions = MarketSessionPolicy(
             settings.market_timezone,
             settings.equity_sessions,
+            settings.equity_holidays,
+            settings.equity_special_sessions_json,
         )
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
@@ -268,22 +274,7 @@ class TradingService:
                 },
             )
         )
-        if order.filled_quantity > 0 and order.average_fill_price:
-            self.store.add_fill(
-                FillRecord(
-                    broker_fill_id=(
-                        f"{order.broker_order_id}:{order.filled_quantity}"
-                        if order.broker_order_id
-                        else f"paper:{order.id}:{order.filled_quantity}"
-                    ),
-                    order_id=order.id,
-                    broker_order_id=order.broker_order_id,
-                    symbol=order.symbol,
-                    side=order.side,
-                    quantity=order.filled_quantity,
-                    price=order.average_fill_price,
-                )
-            )
+        self.store.record_order_fill(order, source="submission")
         self.store.add_audit(
             "order.submitted",
             f"submitted {submission.intent.side.value} {submission.intent.symbol}",
@@ -359,10 +350,14 @@ class TradingService:
                 return
         raise TradingModeError("one-time intent-bound live approval is required")
 
-    async def cancel_order(self, order_id: str) -> OrderRecord:
-        target = self.store.find_order(order_id)
-        if target is None:
+    async def get_order(self, order_id: str) -> OrderRecord:
+        order = self.store.find_order(order_id)
+        if order is None:
             raise ValueError("order not found")
+        return order
+
+    async def cancel_order(self, order_id: str) -> OrderRecord:
+        target = await self.get_order(order_id)
         broker_order_id = order_id
         if self.settings.trading_mode != "paper":
             if not target.broker_order_id:
@@ -397,14 +392,22 @@ class TradingService:
         merged = remote.model_copy(
             update={
                 "id": target.id,
+                "broker_order_id": remote.broker_order_id or target.broker_order_id,
                 "client_order_id": target.client_order_id or remote.client_order_id,
+                "symbol": target.symbol,
+                "side": target.side,
+                "quantity": target.quantity,
+                "order_type": target.order_type,
+                "price": target.price,
                 "stop_loss": target.stop_loss,
                 "take_profit": target.take_profit,
                 "source": target.source,
+                "correlation_id": target.correlation_id or remote.correlation_id,
                 "created_at": target.created_at,
             }
         )
         self.store.upsert_order(merged)
+        self.store.record_order_fill(merged, source="cancel")
         self.store.add_order_event(
             OrderEvent(
                 order_id=merged.id,
@@ -420,8 +423,38 @@ class TradingService:
         )
         return merged
 
-    async def list_orders(self) -> list[OrderRecord]:
-        return self.store.list_orders()
+    async def cancel_open_orders(self, symbol: str | None = None) -> list[OrderRecord]:
+        normalized = symbol.upper() if symbol else None
+        targets = [
+            item
+            for item in self.store.list_orders()
+            if item.status in CANCELLABLE_ORDER_STATUSES
+            and (normalized is None or item.symbol == normalized)
+        ]
+        cancelled: list[OrderRecord] = []
+        for target in targets:
+            cancelled.append(await self.cancel_order(str(target.id)))
+        return cancelled
+
+    async def list_orders(
+        self,
+        *,
+        symbol: str | None = None,
+        status: OrderStatus | None = None,
+        side: Side | None = None,
+        limit: int | None = None,
+    ) -> list[OrderRecord]:
+        rows = self.store.list_orders()
+        if symbol:
+            normalized = symbol.upper()
+            rows = [item for item in rows if item.symbol == normalized]
+        if status is not None:
+            rows = [item for item in rows if item.status == status]
+        if side is not None:
+            rows = [item for item in rows if item.side == side]
+        if limit is not None:
+            rows = rows[: max(0, limit)]
+        return rows
 
     async def portfolio(self, *, record_snapshot: bool = True) -> PortfolioSnapshot:
         snapshot = await self.broker.portfolio()
