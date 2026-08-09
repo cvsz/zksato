@@ -25,13 +25,21 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Strategy | EMA/SMA cross | Implemented | deterministic |
 | Strategy | RSI/Bollinger reversion | Implemented | deterministic |
 | Strategy | Momentum/MACD/breakout | Implemented | deterministic |
+| Strategy | Video-derived PA breakout/retest planner | Implemented | OHLC/ATR planner; research-only and non-executing |
+| Strategy | Bounded virtual stop ladder | Implemented | hard trigger/quantity caps, fixed size, dedupe keys, no martingale |
+| Strategy | Symmetric video-grid reproduction | Implemented | generic/TFEX research only; rejected for SET-equity profile |
+| Strategy | Video-EA virtual cycle runtime | Implemented | durable snapshot/recovery, arm/trigger/dedupe/pause/invalidate/basket-boundary/reset; no broker calls |
+| Strategy | MQL5 video-derived reference EA | Implemented | Strategy Tester/demo only; volume/tick/stops/freeze/session/expiry/retcode/restart hardening; real-account initialization is blocked |
 | Indicators | SMA/EMA/RSI/ATR/ADX/Bollinger/VWAP | Implemented | deterministic |
 | Indicators | MACD/rate-of-change/realized volatility | Implemented | deterministic |
 | Research | Cost/slippage backtest | Implemented | fees/slippage modeled |
 | Research | Backtest analytics | Implemented | closed trades, gross P/L, profit factor, fees, exposure, buy/hold |
-| Research | Walk-forward/OOS | Implemented | session-aware single train/OOS split |
-| Research | Strategy/version registry and run history | Implemented | durable with SQL store |
+| Research | Walk-forward/OOS | Implemented | session-aware split plus rolling windows |
+| Research | Parameter sweep and seeded stress analysis | Implemented | bounded combinations, Monte Carlo trade ordering, grid-whipsaw/gap replay |
+| Research | Cost sensitivity and maximum-exposure heatmap | Implemented | spread/slippage/commission matrix and bounded basket exposure |
+| Research | Strategy/version registry and run history | Implemented | durable with SQL store and immutable evidence hash |
 | Research | Drift/promotion evidence gates | Implemented | no broker authority |
+| Research | Trading-video evidence extractor | Implemented | ffprobe metadata + deterministic timestamped frames; no media committed |
 | Risk | Deterministic trusted pre-trade RiskEngine | Implemented | stale feed/exposure/inventory/loss/session/reference controls |
 | Risk | Property-based fail-closed invariants | Implemented | safety properties in CI |
 | Security | RBAC/session/CSRF/browser hardening | Implemented | server-side authorization |
@@ -53,7 +61,7 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | CI | Python 3.11-3.14 + Postgres/Redis | Implemented | migrations/dependencies/tests |
 | CI | Branch coverage ratchet | Implemented | floor 65% |
 | Quality | Ruff format/lint and mypy | Implemented | source/scripts |
-| Quality | OpenAPI safety contract | Implemented | critical control paths required; live TFEX rejected |
+| Quality | OpenAPI safety contract | Implemented | critical control paths required; research EA controls paper-only; live TFEX rejected |
 | Quality | Package/twine/version identity | Implemented | clean installation verified |
 | Quality | Runtime dependency license policy | Implemented | isolated inventory |
 | Security automation | pip-audit/Bandit/Gitleaks | Implemented | plus secret-pattern scanning |

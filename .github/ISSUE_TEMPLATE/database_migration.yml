@@ -1,0 +1,32 @@
+name: Database migration proposal
+description: Propose a schema/data migration affecting durable state
+title: "db: "
+labels: ["persistence", "operations"]
+body:
+  - type: textarea
+    id: purpose
+    attributes:
+      label: Purpose and affected data
+    validations:
+      required: true
+  - type: textarea
+    id: forward
+    attributes:
+      label: Forward migration and compatibility
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback/restore plan
+    validations:
+      required: true
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Durable-state review
+      options:
+        - label: Order/fill/risk/audit/idempotency/reconciliation impact is documented.
+          required: true
+        - label: Backup/restore and restart behavior will be tested.
+          required: true

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "api_version": "2026-03-10",
+  "repository": "cvsz/zksato",
+  "environments": {
+    "uat": {
+      "purpose": "Non-mutating Settrade sandbox/UAT certification evidence.",
+      "deployment": false,
+      "workflow_references": [
+        ".github/workflows/uat-certification.yml"
+      ],
+      "deployment_branch_policy": {
+        "protected_branches": false,
+        "custom_branch_policies": true
+      },
+      "branch_policies": [
+        {
+          "name": "main",
+          "type": "branch"
+        }
+      ],
+      "required_secrets": [
+        "ZKSATO_UAT_API_KEY"
+      ],
+      "required_variables": [
+        "ZKSATO_UAT_BASE_URL"
+      ],
+      "recommended_protection": {
+        "required_reviewers": true,
+        "prevent_self_review": true,
+        "plan_gated_for_private_repository": true
+      }
+    },
+    "production": {
+      "purpose": "Non-executing production-readiness evidence and one-order manual-canary planning only.",
+      "deployment": false,
+      "workflow_references": [
+        ".github/workflows/production-readiness.yml"
+      ],
+      "deployment_branch_policy": {
+        "protected_branches": false,
+        "custom_branch_policies": true
+      },
+      "branch_policies": [
+        {
+          "name": "main",
+          "type": "branch"
+        }
+      ],
+      "required_secrets": [
+        "ZKSATO_PRODUCTION_RISK_API_KEY"
+      ],
+      "required_variables": [
+        "ZKSATO_PRODUCTION_BASE_URL"
+      ],
+      "recommended_protection": {
+        "required_reviewers": true,
+        "prevent_self_review": true,
+        "plan_gated_for_private_repository": true
+      }
+    },
+    "release": {
+      "purpose": "Publishing versioned Python artifacts, GHCR images, SBOMs, attestations and GitHub Releases.",
+      "deployment": true,
+      "workflow_references": [
+        ".github/workflows/release.yml"
+      ],
+      "deployment_branch_policy": {
+        "protected_branches": false,
+        "custom_branch_policies": true
+      },
+      "branch_policies": [
+        {
+          "name": "v*",
+          "type": "tag"
+        }
+      ],
+      "required_secrets": [],
+      "required_variables": [],
+      "managed_variables": {
+        "ENABLE_ATTESTATIONS": "false"
+      },
+      "recommended_protection": {
+        "required_reviewers": true,
+        "prevent_self_review": true,
+        "plan_gated_for_private_repository": true
+      }
+    }
+  },
+  "repository_variables": {
+    "ENABLE_CODEQL": "false",
+    "ENABLE_DEPENDENCY_REVIEW": "false",
+    "ENABLE_ATTESTATIONS": "false"
+  },
+  "runtime_secret_boundary": {
+    "policy": "GitHub Actions environments contain only credentials required by the GitHub workflow itself. Broker and service runtime credentials stay in the deployment secret manager or ZKSATO_SECRET_DIR and are never copied into GitHub merely for convenience.",
+    "do_not_install_as_actions_environment_secrets": [
+      "ZKSATO_DATABASE_URL",
+      "ZKSATO_REDIS_URL",
+      "ZKSATO_SETTRADE_APP_ID",
+      "ZKSATO_SETTRADE_APP_SECRET",
+      "ZKSATO_SETTRADE_BROKER_ID",
+      "ZKSATO_SETTRADE_ACCOUNT_NO",
+      "ZKSATO_SETTRADE_DERIVATIVES_ACCOUNT_NO",
+      "ZKSATO_SETTRADE_PIN",
+      "ZKSATO_SESSION_SECRET",
+      "ZKSATO_API_KEYS",
+      "ZKSATO_LIVE_CONFIRMATION_TOKEN",
+      "ZKSATO_NOTIFICATION_WEBHOOK_URL"
+    ]
+  }
+}

@@ -11,6 +11,7 @@ from typing import Any
 
 API = "https://api.github.com"
 CORE_WORKFLOWS = {"CI", "Governance", "Security", "Container"}
+ENVIRONMENT_MANIFEST = Path(".github/environments/requirements.json")
 
 
 def _get(path: str, token: str) -> dict[str, Any]:
@@ -19,7 +20,7 @@ def _get(path: str, token: str) -> dict[str, Any]:
         headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
+            "X-GitHub-Api-Version": "2026-03-10",
             "User-Agent": "zksato-repository-health",
         },
     )
@@ -32,6 +33,16 @@ def _get(path: str, token: str) -> dict[str, Any]:
         return {"available": False, "status": exc.code, "error": detail}
     except (urllib.error.URLError, TimeoutError) as exc:
         return {"available": False, "status": None, "error": str(exc)}
+
+
+def _required_environments() -> set[str]:
+    if not ENVIRONMENT_MANIFEST.exists():
+        return set()
+    payload = json.loads(ENVIRONMENT_MANIFEST.read_text(encoding="utf-8"))
+    environments = payload.get("environments", {})
+    if not isinstance(environments, dict):
+        raise ValueError("GitHub environment manifest environments must be an object")
+    return {str(name) for name in environments}
 
 
 def build_report(repository: str, token: str) -> tuple[dict[str, Any], list[str]]:
@@ -73,11 +84,28 @@ def build_report(repository: str, token: str) -> tuple[dict[str, Any], list[str]
     else:
         blocking.append("workflow inventory is not readable")
 
+    required_environments = _required_environments()
+    observed_environments: set[str] = set()
+    environment_probe = probes["environments"]
+    if environment_probe["available"]:
+        observed_environments = {
+            str(item.get("name", ""))
+            for item in environment_probe["data"].get("environments", [])
+            if isinstance(item, dict)
+        }
+        missing_environments = sorted(required_environments - observed_environments)
+        if missing_environments:
+            blocking.append(
+                "required GitHub environments are missing: " + ", ".join(missing_environments)
+            )
+
     report = {
         "repository": repository,
         "source_controlled_checks": {
             "core_workflows_required": sorted(CORE_WORKFLOWS),
             "active_workflows": sorted(active),
+            "required_environments": sorted(required_environments),
+            "observed_environments": sorted(observed_environments),
             "blocking": blocking,
         },
         "capability_probes": probes,
