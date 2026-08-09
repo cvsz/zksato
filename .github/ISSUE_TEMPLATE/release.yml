@@ -1,7 +1,7 @@
 name: Release preparation
 description: Track a package/container release and its evidence
 title: "release: v"
-labels: ["release"]
+labels: ["operations"]
 body:
   - type: input
     id: version
