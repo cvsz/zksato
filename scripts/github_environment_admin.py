@@ -34,9 +34,7 @@ class GitHubApi:
         path: str,
         payload: dict[str, Any] | None = None,
     ) -> ApiResult:
-        body = None
-        if payload is not None:
-            body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(payload).encode("utf-8") if payload is not None else None
         request = urllib.request.Request(
             f"{API}{path}",
             method=method,
@@ -52,8 +50,11 @@ class GitHubApi:
         try:
             with urllib.request.urlopen(request, timeout=20) as response:
                 raw = response.read().decode("utf-8")
-                data = json.loads(raw) if raw else None
-                return ApiResult(True, response.status, data=data)
+                return ApiResult(
+                    True,
+                    response.status,
+                    data=json.loads(raw) if raw else None,
+                )
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:4000]
             return ApiResult(False, exc.code, error=detail)
@@ -77,7 +78,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != 1:
         raise ValueError("unsupported environment-requirements schema")
-    if not isinstance(payload.get("environments"), dict) or not payload["environments"]:
+    environments = payload.get("environments")
+    if not isinstance(environments, dict) or not environments:
         raise ValueError("manifest requires at least one environment")
     return payload
 
@@ -86,7 +88,7 @@ def repo_base(repository: str) -> str:
     owner, sep, repo = repository.partition("/")
     if not sep or not owner or not repo or "/" in repo:
         raise ValueError("repository must use owner/name form")
-    return f"/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}"
+    return f"/repos/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}"
 
 
 def environment_path(base: str, name: str) -> str:
@@ -99,7 +101,11 @@ def names_from(result: ApiResult, key: str) -> set[str] | None:
     rows = result.data.get(key, [])
     if not isinstance(rows, list):
         return None
-    return {str(item.get("name", "")) for item in rows if isinstance(item, dict)}
+    return {
+        str(item.get("name", ""))
+        for item in rows
+        if isinstance(item, dict) and item.get("name")
+    }
 
 
 def audit_environment(
@@ -129,28 +135,28 @@ def audit_environment(
             f"deployment branch policy mismatch: expected {expected_policy}, got {actual_policy}"
         )
 
+    # GitHub documents `name` in the list response but does not guarantee that
+    # branch/tag `type` is echoed. Keep type in desired state for create, and
+    # audit the returned policy names to avoid false failures for tag policies.
     policies_result = api.get(f"{path}/deployment-branch-policies?per_page=100")
     report["branch_policy_status"] = policies_result.status
-    if policies_result.ok and isinstance(policies_result.data, dict):
-        actual = {
-            (str(row.get("name", "")), str(row.get("type", "branch")))
-            for row in policies_result.data.get("branch_policies", [])
-            if isinstance(row, dict)
-        }
-        expected = {
-            (str(row["name"]), str(row.get("type", "branch")))
-            for row in spec.get("branch_policies", [])
-        }
-        missing = sorted(expected - actual)
-        if missing:
-            report["blocking"].append(f"missing deployment branch/tag policies: {missing}")
-        extras = sorted(actual - expected)
-        if extras:
-            report["warnings"].append(f"extra deployment branch/tag policies: {extras}")
-    else:
+    actual_policy_names = names_from(policies_result, "branch_policies")
+    if actual_policy_names is None:
         report["warnings"].append(
             f"branch policies could not be audited (status={policies_result.status})"
         )
+    else:
+        expected_policy_names = {
+            str(item["name"]) for item in spec.get("branch_policies", [])
+        }
+        missing = sorted(expected_policy_names - actual_policy_names)
+        if missing:
+            report["blocking"].append(
+                f"missing deployment branch/tag policy names: {missing}"
+            )
+        extras = sorted(actual_policy_names - expected_policy_names)
+        if extras:
+            report["warnings"].append(f"extra deployment policy names: {extras}")
 
     secrets_result = api.get(f"{path}/secrets?per_page=100")
     report["secret_inventory_status"] = secrets_result.status
@@ -160,8 +166,8 @@ def audit_environment(
             f"environment secret names could not be audited (status={secrets_result.status})"
         )
     else:
-        required = set(spec.get("required_secrets", []))
-        missing = sorted(required - secret_names)
+        required_secrets = set(spec.get("required_secrets", []))
+        missing = sorted(required_secrets - secret_names)
         if missing:
             report["blocking"].append(f"missing required environment secrets: {missing}")
         report["present_secret_names"] = sorted(secret_names)
@@ -174,16 +180,16 @@ def audit_environment(
             f"environment variables could not be audited (status={variables_result.status})"
         )
     else:
-        required = set(spec.get("required_variables", []))
-        missing = sorted(required - variable_names)
+        required_variables = set(spec.get("required_variables", []))
+        missing = sorted(required_variables - variable_names)
         if missing:
             report["blocking"].append(f"missing required environment variables: {missing}")
-        managed = spec.get("managed_variables", {})
         values = {
             str(row.get("name", "")): str(row.get("value", ""))
             for row in variables_result.data.get("variables", [])
             if isinstance(row, dict)
         }
+        managed = spec.get("managed_variables", {})
         wrong = {
             key: {"expected": value, "actual": values.get(key)}
             for key, value in managed.items()
@@ -193,15 +199,19 @@ def audit_environment(
             report["blocking"].append(f"managed environment variable mismatch: {wrong}")
 
     protection_rules = env_data.get("protection_rules", [])
-    has_reviewer_rule = any(
-        isinstance(rule, dict) and rule.get("type") == "required_reviewers"
+    reviewer_rules = [
+        rule
         for rule in protection_rules
-    )
+        if isinstance(rule, dict) and rule.get("type") == "required_reviewers"
+    ]
     recommended = spec.get("recommended_protection", {})
-    if recommended.get("required_reviewers") and not has_reviewer_rule:
+    if recommended.get("required_reviewers") and not reviewer_rules:
         report["warnings"].append(
-            "required-reviewer protection is not configured; for this private repository it may be plan-gated"
+            "required-reviewer protection is not configured; on this private repository it may be plan-gated"
         )
+    elif reviewer_rules and recommended.get("prevent_self_review"):
+        if not any(rule.get("prevent_self_review") is True for rule in reviewer_rules):
+            report["warnings"].append("required reviewers exist but prevent_self_review is not enabled")
 
     return report
 
@@ -240,7 +250,9 @@ def audit(
         repo_var_report["warnings"].append(
             "repository variables are not readable with this token; cannot certify them"
         )
-    blocking.extend(f"repository variable: {item}" for item in repo_var_report["blocking"])
+    blocking.extend(
+        f"repository variable: {item}" for item in repo_var_report["blocking"]
+    )
 
     report = {
         "repository": repository,
@@ -253,6 +265,20 @@ def audit(
     return report, blocking
 
 
+def resolve_reviewers(api: GitHubApi, logins: list[str]) -> list[dict[str, Any]]:
+    reviewers: list[dict[str, Any]] = []
+    for login in logins:
+        result = api.get(f"/users/{urllib.parse.quote(login, safe='')}")
+        if not result.ok or not isinstance(result.data, dict):
+            raise RuntimeError(
+                f"unable to resolve reviewer {login!r}: {result.status} {result.error}"
+            )
+        reviewers.append({"type": "User", "id": int(result.data["id"])})
+    if len(reviewers) > 6:
+        raise ValueError("GitHub supports at most six required environment reviewers")
+    return reviewers
+
+
 def ensure_environment(
     api: GitHubApi,
     base: str,
@@ -263,78 +289,76 @@ def ensure_environment(
     warnings: list[str] = []
     path = environment_path(base, name)
     payload: dict[str, Any] = {
-        "deployment_branch_policy": spec["deployment_branch_policy"],
+        "deployment_branch_policy": spec["deployment_branch_policy"]
     }
     if reviewers:
         payload["reviewers"] = reviewers
         payload["prevent_self_review"] = True
+
     result = api.put(path, payload)
     if not result.ok and reviewers and result.status in {403, 422}:
-        # Private repositories on non-Enterprise plans may not expose reviewer/wait rules.
         warnings.append(
-            f"{name}: reviewer protection unavailable (status={result.status}); applying branch policy without reviewer rule"
+            f"{name}: required-reviewer protection unavailable (status={result.status}); "
+            "applying branch policy without reviewer rule"
         )
-        result = api.put(path, {"deployment_branch_policy": spec["deployment_branch_policy"]})
+        result = api.put(
+            path,
+            {"deployment_branch_policy": spec["deployment_branch_policy"]},
+        )
     if not result.ok:
-        raise RuntimeError(f"failed to create/update environment {name}: {result.status} {result.error}")
+        raise RuntimeError(
+            f"failed to create/update environment {name}: {result.status} {result.error}"
+        )
 
     policies_result = api.get(f"{path}/deployment-branch-policies?per_page=100")
-    if not policies_result.ok:
+    existing_names = names_from(policies_result, "branch_policies")
+    if existing_names is None:
         raise RuntimeError(
-            f"failed to list deployment policies for {name}: {policies_result.status} {policies_result.error}"
+            f"failed to list deployment policies for {name}: "
+            f"{policies_result.status} {policies_result.error}"
         )
-    existing = {
-        (str(row.get("name", "")), str(row.get("type", "branch")))
-        for row in policies_result.data.get("branch_policies", [])
-        if isinstance(row, dict)
-    }
     for policy in spec.get("branch_policies", []):
-        item = (str(policy["name"]), str(policy.get("type", "branch")))
-        if item in existing:
+        policy_name = str(policy["name"])
+        if policy_name in existing_names:
             continue
         created = api.post(
             f"{path}/deployment-branch-policies",
-            {"name": item[0], "type": item[1]},
+            {"name": policy_name, "type": str(policy.get("type", "branch"))},
         )
         if not created.ok and created.status != 303:
             raise RuntimeError(
-                f"failed to create deployment policy {name}:{item}: {created.status} {created.error}"
+                f"failed to create deployment policy {name}:{policy_name}: "
+                f"{created.status} {created.error}"
             )
 
     for variable, value in spec.get("managed_variables", {}).items():
-        existing_var = api.get(f"{path}/variables/{urllib.parse.quote(variable, safe='')}")
-        if existing_var.ok:
+        encoded = urllib.parse.quote(variable, safe="")
+        existing = api.get(f"{path}/variables/{encoded}")
+        if existing.ok:
             updated = api.patch(
-                f"{path}/variables/{urllib.parse.quote(variable, safe='')}",
+                f"{path}/variables/{encoded}",
                 {"name": variable, "value": value},
             )
             if not updated.ok:
                 warnings.append(
-                    f"{name}: could not update environment variable {variable} (status={updated.status})"
+                    f"{name}: could not update environment variable {variable} "
+                    f"(status={updated.status})"
                 )
-        elif existing_var.status == 404:
-            created = api.post(f"{path}/variables", {"name": variable, "value": value})
+        elif existing.status == 404:
+            created = api.post(
+                f"{path}/variables",
+                {"name": variable, "value": value},
+            )
             if not created.ok:
                 warnings.append(
-                    f"{name}: could not create environment variable {variable} (status={created.status})"
+                    f"{name}: could not create environment variable {variable} "
+                    f"(status={created.status})"
                 )
         else:
             warnings.append(
-                f"{name}: environment variables are inaccessible (status={existing_var.status})"
+                f"{name}: environment variables are inaccessible (status={existing.status})"
             )
     return warnings
-
-
-def resolve_reviewers(api: GitHubApi, logins: list[str]) -> list[dict[str, Any]]:
-    reviewers: list[dict[str, Any]] = []
-    for login in logins:
-        result = api.get(f"/users/{urllib.parse.quote(login)}")
-        if not result.ok or not isinstance(result.data, dict):
-            raise RuntimeError(f"unable to resolve reviewer {login!r}: {result.status} {result.error}")
-        reviewers.append({"type": "User", "id": int(result.data["id"])})
-    if len(reviewers) > 6:
-        raise ValueError("GitHub supports at most six required environment reviewers")
-    return reviewers
 
 
 def ensure_repository_variables(
@@ -344,23 +368,31 @@ def ensure_repository_variables(
 ) -> list[str]:
     warnings: list[str] = []
     for name, value in variables.items():
-        item = api.get(f"{base}/actions/variables/{urllib.parse.quote(name, safe='')}")
-        if item.ok:
+        encoded = urllib.parse.quote(name, safe="")
+        existing = api.get(f"{base}/actions/variables/{encoded}")
+        if existing.ok:
             result = api.patch(
-                f"{base}/actions/variables/{urllib.parse.quote(name, safe='')}",
+                f"{base}/actions/variables/{encoded}",
                 {"name": name, "value": value},
             )
-        elif item.status == 404:
-            result = api.post(f"{base}/actions/variables", {"name": name, "value": value})
+        elif existing.status == 404:
+            result = api.post(
+                f"{base}/actions/variables",
+                {"name": name, "value": value},
+            )
         else:
-            warnings.append(f"repository variable {name} is inaccessible (status={item.status})")
+            warnings.append(
+                f"repository variable {name} is inaccessible (status={existing.status})"
+            )
             continue
         if not result.ok:
-            warnings.append(f"could not set repository variable {name} (status={result.status})")
+            warnings.append(
+                f"could not set repository variable {name} (status={result.status})"
+            )
     return warnings
 
 
-def apply(
+def apply_contract(
     api: GitHubApi,
     repository: str,
     manifest: dict[str, Any],
@@ -378,7 +410,10 @@ def apply(
 
 
 def write_report(path: Path, report: dict[str, Any]) -> None:
-    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def main() -> int:
@@ -399,7 +434,11 @@ def main() -> int:
         default=[],
         help="GitHub login to configure as a required reviewer when the plan supports it",
     )
-    parser.add_argument("--output", type=Path, default=Path("github-environments.json"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("github-environments.json"),
+    )
     args = parser.parse_args()
 
     manifest = load_manifest(args.manifest)
@@ -414,7 +453,7 @@ def main() -> int:
 
     api = GitHubApi(token, str(manifest["api_version"]))
     if args.command == "apply":
-        warnings = apply(api, repository, manifest, args.reviewer)
+        warnings = apply_contract(api, repository, manifest, args.reviewer)
         for warning in warnings:
             print(f"WARNING: {warning}", file=sys.stderr)
 
