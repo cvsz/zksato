@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import deque
+from dataclasses import replace
 from datetime import UTC, datetime
 from threading import RLock
 
@@ -21,6 +22,7 @@ from zksato.domain import (
     StrategyRun,
     StrategyVersion,
 )
+from zksato.outbox_delivery import OutboxDeliveryState, ensure_utc
 
 
 class StateStore:
@@ -42,6 +44,7 @@ class StateStore:
         self.audit: deque[AuditEvent] = deque(maxlen=history_size)
         self.alerts: dict[str, AlertRule] = {}
         self.outbox: dict[str, OutboxMessage] = {}
+        self.outbox_delivery: dict[str, OutboxDeliveryState] = {}
         self.paper_account: dict[str, object] | None = None
         self._client_order_ids: set[str] = set()
         self._history_size = history_size
@@ -207,6 +210,11 @@ class StateStore:
     def add_strategy_version(self, version: StrategyVersion) -> StrategyVersion:
         key = f"{version.name}:{version.version}"
         with self._lock:
+            existing = self.strategy_versions.get(key)
+            if existing is not None:
+                if existing.code_hash == version.code_hash and existing.config == version.config:
+                    return existing
+                raise ValueError(f"strategy version {key} is immutable")
             self.strategy_versions[key] = version
         return version
 
@@ -347,20 +355,130 @@ class StateStore:
 
     def enqueue_outbox(self, topic: str, payload: dict[str, object]) -> OutboxMessage:
         message = OutboxMessage(topic=topic, payload=payload)
+        message_id = str(message.id)
         with self._lock:
-            self.outbox[str(message.id)] = message
+            self.outbox[message_id] = message
+            self.outbox_delivery[message_id] = OutboxDeliveryState(message_id=message_id)
         return message
 
-    def pending_outbox(self, limit: int = 100) -> list[OutboxMessage]:
+    def get_outbox_delivery_state(self, message_id: str) -> OutboxDeliveryState | None:
         with self._lock:
-            pending = [item for item in self.outbox.values() if item.sent_at is None]
-            return sorted(pending, key=lambda item: item.created_at)[:limit]
+            state = self.outbox_delivery.get(message_id)
+            return replace(state) if state is not None else None
+
+    def pending_outbox(
+        self,
+        limit: int = 100,
+        *,
+        now: datetime | None = None,
+    ) -> list[OutboxMessage]:
+        current = ensure_utc(now or datetime.now(UTC))
+        with self._lock:
+            pending: list[OutboxMessage] = []
+            for message_id, message in self.outbox.items():
+                state = self.outbox_delivery.setdefault(
+                    message_id,
+                    OutboxDeliveryState(message_id=message_id),
+                )
+                retry_at = ensure_utc(state.next_attempt_at) if state.next_attempt_at else None
+                if message.sent_at is not None or state.dead_lettered_at is not None:
+                    continue
+                if retry_at is not None and retry_at > current:
+                    continue
+                pending.append(message)
+            pending.sort(
+                key=lambda item: (
+                    ensure_utc(self.outbox_delivery[str(item.id)].next_attempt_at)
+                    if self.outbox_delivery[str(item.id)].next_attempt_at
+                    else ensure_utc(item.created_at)
+                )
+            )
+            return pending[:limit]
+
+    def dead_lettered_outbox(self, limit: int = 100) -> list[OutboxMessage]:
+        with self._lock:
+            rows = [
+                message
+                for message_id, message in self.outbox.items()
+                if self.outbox_delivery.get(message_id) is not None
+                and self.outbox_delivery[message_id].dead_lettered_at is not None
+                and message.sent_at is None
+            ]
+            rows.sort(
+                key=lambda item: ensure_utc(
+                    self.outbox_delivery[str(item.id)].dead_lettered_at or item.created_at
+                ),
+                reverse=True,
+            )
+            return rows[:limit]
+
+    def mark_outbox_attempt(
+        self,
+        message_id: str,
+        *,
+        attempted_at: datetime | None = None,
+    ) -> OutboxDeliveryState | None:
+        with self._lock:
+            if message_id not in self.outbox:
+                return None
+            state = self.outbox_delivery.setdefault(
+                message_id,
+                OutboxDeliveryState(message_id=message_id),
+            )
+            state.attempt_count += 1
+            state.last_attempt_at = ensure_utc(attempted_at or datetime.now(UTC))
+            state.next_attempt_at = None
+            return replace(state)
+
+    def mark_outbox_failed(
+        self,
+        message_id: str,
+        *,
+        error: str,
+        next_attempt_at: datetime | None,
+        dead_lettered_at: datetime | None = None,
+    ) -> OutboxDeliveryState | None:
+        with self._lock:
+            if message_id not in self.outbox:
+                return None
+            state = self.outbox_delivery.setdefault(
+                message_id,
+                OutboxDeliveryState(message_id=message_id),
+            )
+            state.last_error = error
+            state.next_attempt_at = ensure_utc(next_attempt_at) if next_attempt_at else None
+            state.dead_lettered_at = (
+                ensure_utc(dead_lettered_at) if dead_lettered_at is not None else None
+            )
+            return replace(state)
+
+    def requeue_outbox(self, message_id: str) -> bool:
+        with self._lock:
+            message = self.outbox.get(message_id)
+            if message is None or message.sent_at is not None:
+                return False
+            state = self.outbox_delivery.setdefault(
+                message_id,
+                OutboxDeliveryState(message_id=message_id),
+            )
+            state.attempt_count = 0
+            state.last_attempt_at = None
+            state.next_attempt_at = datetime.now(UTC)
+            state.last_error = None
+            state.dead_lettered_at = None
+            return True
 
     def mark_outbox_sent(self, message_id: str) -> None:
         with self._lock:
             message = self.outbox.get(message_id)
             if message is not None:
                 message.sent_at = datetime.now(UTC)
+                state = self.outbox_delivery.setdefault(
+                    message_id,
+                    OutboxDeliveryState(message_id=message_id),
+                )
+                state.next_attempt_at = None
+                state.dead_lettered_at = None
 
     def health(self) -> bool:
         return True
