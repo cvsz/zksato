@@ -1,0 +1,1 @@
+Status: research evidence extracted; source-controlled planner/runtime implemented; broker/UAT and profitability evidence remain external.
