@@ -620,7 +620,8 @@ class SqlStateStore(StateStore):
     def mark_outbox_sent(self, message_id: str) -> None:
         super().mark_outbox_sent(message_id)
         state = self.get_outbox_delivery_state(message_id)
-        sent_at = self.outbox.get(message_id).sent_at if message_id in self.outbox else None
+        message = self.outbox.get(message_id)
+        sent_at = message.sent_at if message is not None else None
         with self.engine.begin() as conn:
             conn.execute(
                 update(outbox_table)
