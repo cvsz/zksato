@@ -261,13 +261,10 @@ class SqlStateStore(StateStore):
             ).scalar_one_or_none()
             if isinstance(paper_state, dict):
                 self.paper_account = paper_state
-            reconciliation_state = conn.execute(
-                select(runtime_state_table.c.payload).where(
-                    runtime_state_table.c.key == "broker_reconciliation_ready"
-                )
-            ).scalar_one_or_none()
-            if isinstance(reconciliation_state, dict):
-                self._broker_reconciliation_ready = bool(reconciliation_state.get("ready", False))
+            # Broker reconciliation readiness is deliberately NOT restored. It is a
+            # freshness assertion about this process/session and must be established
+            # by a successful broker snapshot after every restart.
+            self._broker_reconciliation_ready = False
 
     def _upsert_payload(
         self,
@@ -451,17 +448,9 @@ class SqlStateStore(StateStore):
         super().release_client_order_id(client_order_id)
 
     def set_broker_reconciliation_ready(self, ready: bool) -> None:
+        # Freshness state is intentionally process-local. Persisting/restoring `true`
+        # would allow a later process to inherit a stale broker snapshot assertion.
         super().set_broker_reconciliation_ready(ready)
-        self._upsert_payload(
-            runtime_state_table,
-            runtime_state_table.c.key,
-            "broker_reconciliation_ready",
-            {
-                "key": "broker_reconciliation_ready",
-                "payload": {"ready": ready},
-                "updated_at": datetime.now(UTC),
-            },
-        )
 
     def save_paper_account(self, payload: dict[str, object]) -> None:
         super().save_paper_account(payload)

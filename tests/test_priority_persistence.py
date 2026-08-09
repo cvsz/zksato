@@ -13,7 +13,7 @@ from zksato.domain import (
 from zksato.persistence import SqlStateStore
 
 
-def test_priority_state_survives_restart(tmp_path) -> None:
+def test_priority_durable_state_survives_restart_but_freshness_does_not(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'state.db'}"
     store = SqlStateStore(database_url)
     order = OrderRecord(
@@ -72,5 +72,5 @@ def test_priority_state_survives_restart(tmp_path) -> None:
     assert len(recovered.list_fills()) == 1
     assert len(recovered.list_risk_evaluations()) == 1
     assert len(recovered.list_bars("AOT")) == 1
-    assert recovered.broker_reconciliation_ready() is True
+    assert recovered.broker_reconciliation_ready() is False
     recovered.close()
