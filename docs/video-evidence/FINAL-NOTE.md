@@ -1,0 +1,1 @@
+The three source videos are evidence for strategy reconstruction only; they are not committed and are not profitability evidence.
