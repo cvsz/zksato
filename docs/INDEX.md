@@ -40,6 +40,7 @@
 - `DR-RUNBOOK.md` — executable backup/restore recovery flow
 - `SECRETS-RUNBOOK.md` — secret handling and rotation
 - `ACTIONS-OPERATIONS.md` — protected Actions readiness, release-container, and dependency-maintenance controls
+- `GITHUB-ENVIRONMENTS.md` — source-of-truth contract, bootstrap/audit, secrets/variables and environment protection
 - `DASHBOARD.md`
 - `OBSERVABILITY.md`
 - `DEPLOYMENT.md`
