@@ -27,6 +27,8 @@
 - `PORTFOLIO-ACCOUNTING.md`
 - `ORDER-LIFECYCLE.md`
 - `VIDEO-EA-ANALYSIS.md` — frame-derived PA-zone + bounded stop-grid EA hypothesis, SET adaptation and safety differences
+- `VIDEO-EA-VALIDATION.md` — deterministic, replay, adverse-path, OOS, MetaTrader and Settrade UAT validation protocol
+- `video-evidence/` — exact-media hashes and observation-vs-inference evidence manifests
 - `../ea/README.md` — demo/Strategy-Tester MQL5 reference EA
 
 ## Platform contracts
