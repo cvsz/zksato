@@ -1,0 +1,30 @@
+name: Documentation improvement
+description: Report missing, stale, unclear, or conflicting documentation
+title: "docs: "
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Documentation problem
+      description: What is missing, stale, unclear, or contradictory?
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: File or topic
+      placeholder: docs/..., README, API, runbook
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected correction
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: I removed credentials/account-sensitive information from this report.
+          required: true

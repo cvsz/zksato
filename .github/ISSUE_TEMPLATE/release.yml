@@ -1,0 +1,31 @@
+name: Release preparation
+description: Track a package/container release and its evidence
+title: "release: v"
+labels: ["release"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: vX.Y.Z
+    validations:
+      required: true
+  - type: textarea
+    id: contents
+    attributes:
+      label: Release scope / breaking changes
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Required checks/artifacts/migrations
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Boundary
+      options:
+        - label: A GitHub release/tag is not production/live authorization.
+          required: true

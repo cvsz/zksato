@@ -1,12 +1,15 @@
-# Performance and capacity
+# Performance engineering
 
-Correctness dominates latency optimization.
+Performance work is subordinate to correctness and risk safety.
 
-## Measure
-Quote ingest throughput/lag, strategy evaluation latency, risk decision latency, broker round-trip latency, API p95/p99, reconciliation cycle duration/lag, DB query/lock latency, queue depth, dashboard update delay.
+## Objectives
+Track API latency/throughput, quote processing, reconciliation duration, database query latency, background backlog, and resource utilization against `SLO.md`.
 
-## Tests
-Burst quotes, large watchlists, many open orders/fills, reconnect storms, DB contention, slow broker, backtest workloads.
+## Testing
+Normal CI uses bounded deterministic tests. Scheduled/manual performance workflows run against isolated local/container targets. Record warm-up, duration, concurrency, dataset, hardware/runner, revision, and p50/p95/p99.
 
-## Guardrails
-Backpressure/bounded queues, per-provider rate limits, no unbounded task creation, efficient indexes, pagination, and isolation of heavy backtests from execution-critical paths.
+## Regression policy
+A material regression requires explanation or remediation before release. Never remove risk/reconciliation/audit checks merely to improve benchmark numbers.
+
+## Optimization order
+Measure first; remove unnecessary work; batch safe reads/writes; improve indexes/query patterns; tune pools; isolate optional I/O; scale components only after correctness is preserved.

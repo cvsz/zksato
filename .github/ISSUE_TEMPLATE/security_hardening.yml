@@ -1,0 +1,24 @@
+name: Security hardening (non-vulnerability)
+description: Propose preventive hardening without disclosing an exploitable vulnerability
+title: "security: "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: "For an exploitable vulnerability, use private reporting per SECURITY.md instead of this form."
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Hardening proposal
+    validations:
+      required: true
+  - type: textarea
+    id: threat
+    attributes:
+      label: Threat/risk reduced
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan

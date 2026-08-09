@@ -1,0 +1,25 @@
+name: Question / support
+description: Ask a usage or architecture question after checking the docs
+title: "question: "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Revision, paper/UAT environment, command/endpoint, sanitized output.
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked docs/INDEX.md, FAQ, and Troubleshooting.
+          required: true
+        - label: I removed secrets, PINs, tokens, cookies, and account-sensitive data.
+          required: true

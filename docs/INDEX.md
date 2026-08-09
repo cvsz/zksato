@@ -3,19 +3,31 @@
 ## Start here
 - `../README.md` — product overview and quick start
 - `../AGENTS.md` — engineering/agent operating contract
-- `../ROADMAP.md` — P0-P6 source completion and external gates
+- `../ROADMAP.md` — implementation roadmap and external gates
 - `FEATURE-MATRIX.md` — capability truth table
-- `EXECUTION-PLAN.md` — P0-P6 completion/evidence plan
-- `ASSURANCE.md` — engineering assurance, CI/security gates, and external-evidence boundaries
+- `EXECUTION-PLAN.md` — staged completion/evidence plan
+- `ASSURANCE.md` — engineering assurance model
+- `GLOSSARY.md` — domain terminology
+- `FAQ.md` — common questions and boundaries
+- `TROUBLESHOOTING.md` — diagnostic entry point
 
-## Product and architecture
+## Requirements and product
+- `BUSINESS-REQUIREMENTS.md`
 - `PRODUCT-REQUIREMENTS.md`
+- `FUNCTIONAL-REQUIREMENTS.md`
+- `NON-FUNCTIONAL-REQUIREMENTS.md`
+- `USER-STORIES.md`
+- `ACCEPTANCE-CRITERIA.md`
+- `TRACEABILITY-MATRIX.md`
+
+## Architecture and design
 - `ARCHITECTURE.md`
 - `SYSTEM-DESIGN.md`
 - `DOMAIN-MODEL.md`
 - `PROJECT-STRUCTURE.md`
 - `EVENT-CATALOG.md`
 - `adr/` — architecture decision records
+- `RFC-PROCESS.md`
 
 ## Trading domains
 - `MARKET-DATA.md`
@@ -27,34 +39,80 @@
 - `PORTFOLIO-ACCOUNTING.md`
 - `ORDER-LIFECYCLE.md`
 
-## Platform contracts
+## Platform contracts and data
 - `API-SPEC.md`
 - `DATABASE.md`
 - `AUTHORIZATION.md`
+- `ACCESS-CONTROL.md`
 - `DATA-GOVERNANCE.md`
+- `DATA-RETENTION.md`
+- `PRIVACY.md`
+- `CONFIGURATION.md`
+- `ENVIRONMENTS.md`
 
-## Production readiness and operations
-- `PRODUCTION-READINESS.md` — runtime/external evidence gates
-- `UAT-CERTIFICATION.md` — Settrade UAT evidence checklist/probe
-- `SLO.md` — service objectives and failure actions
-- `DR-RUNBOOK.md` — executable backup/restore recovery flow
-- `SECRETS-RUNBOOK.md` — secret handling and rotation
-- `ACTIONS-OPERATIONS.md` — protected Actions readiness, release-container, and dependency-maintenance controls
-- `DASHBOARD.md`
+## Security and supply chain
+- `../SECURITY.md`
+- `THREAT-MODEL.md`
+- `SECURE-DEVELOPMENT-LIFECYCLE.md`
+- `VULNERABILITY-MANAGEMENT.md`
+- `SUPPLY-CHAIN.md`
+- `DEPENDENCY-MANAGEMENT.md`
+- `SECRETS-RUNBOOK.md`
+- `SECRETS-AND-VARIABLES.md`
+
+## Reliability and operations
+- `RELIABILITY.md`
+- `SLO.md`
+- `PERFORMANCE.md`
+- `CAPACITY-PLANNING.md`
 - `OBSERVABILITY.md`
-- `DEPLOYMENT.md`
 - `OPERATIONS.md`
+- `ONCALL.md`
+- `MAINTENANCE.md`
 - `DISASTER-RECOVERY.md`
+- `DR-RUNBOOK.md`
 - `INCIDENT-RESPONSE.md`
-- `RELEASE.md`
+- `DASHBOARD.md`
 
-## Engineering
+## Delivery and production readiness
+- `DEPLOYMENT.md`
+- `PRODUCTION-READINESS.md`
+- `PRODUCTION-CHECKLIST.md`
+- `UAT-CERTIFICATION.md`
+- `RELEASE.md`
+- `RELEASE-CHECKLIST.md`
+- `CHANGE-MANAGEMENT.md`
+- `DEPRECATION-POLICY.md`
+- `ACTIONS-OPERATIONS.md`
+
+## Engineering and GitHub
 - `DEVELOPMENT.md`
 - `TESTING.md`
+- `CODING-STANDARDS.md`
+- `BRANCHING-STRATEGY.md`
+- `VERSIONING.md`
+- `REVIEW-GUIDE.md`
+- `ISSUE-TRIAGE.md`
+- `LABELS.md`
 - `GITHUB.md`
-- `ASSURANCE.md`
-- `THREAT-MODEL.md`
-- `../SECURITY.md`
+- `GITHUB-REPOSITORY-SETTINGS.md`
+- `BRANCH-PROTECTION.md`
+- `GITHUB-ENVIRONMENTS.md`
+- `DEPENDABOT.md`
+- `DOCUMENTATION-STANDARD.md`
+- `AI-ASSISTANCE.md`
+
+## Reusable templates
+- `templates/README.md` — template catalog and usage
+- ADR, RFC, change, migration, test, security, incident, postmortem, runbook, UAT, DR, performance, release, rollout/rollback, broker-certification and production-readiness evidence templates.
+
+## Repository/community
+- `../CONTRIBUTING.md`
+- `../GOVERNANCE.md`
+- `../MAINTAINERS.md`
+- `../SUPPORT.md`
+- `../CODE_OF_CONDUCT.md`
+- `.github/` issue/PR/discussion templates, CODEOWNERS, Dependabot, instructions, release configuration, and workflows.
 
 ## Agent system
 - `../agents/README.md`
