@@ -257,10 +257,15 @@ class StrategyConfig(BaseModel):
     name: str = "ema_cross"
     fast_period: int = Field(default=5, ge=2, le=200)
     slow_period: int = Field(default=20, ge=3, le=500)
+    signal_period: int = Field(default=9, ge=2, le=200)
     rsi_period: int = Field(default=14, ge=2, le=100)
     rsi_buy: float = Field(default=30, ge=1, le=50)
     rsi_sell: float = Field(default=70, ge=50, le=99)
     breakout_period: int = Field(default=20, ge=2, le=500)
+    bollinger_period: int = Field(default=20, ge=2, le=500)
+    bollinger_deviations: float = Field(default=2.0, gt=0, le=10)
+    momentum_period: int = Field(default=10, ge=1, le=500)
+    momentum_threshold_pct: float = Field(default=1.0, ge=0, le=100)
     min_history: int = Field(default=25, ge=3, le=1000)
 
 
@@ -336,6 +341,7 @@ class BacktestTrade(BaseModel):
     price: float
     quantity: int
     pnl: float = 0.0
+    fee: float = Field(default=0.0, ge=0)
 
 
 class BacktestResult(BaseModel):
@@ -346,6 +352,14 @@ class BacktestResult(BaseModel):
     max_drawdown_pct: float
     total_trades: int
     win_rate_pct: float
+    closed_trades: int = 0
+    gross_profit: float = 0.0
+    gross_loss: float = 0.0
+    profit_factor: float | None = None
+    average_closed_trade_pnl: float = 0.0
+    fees_paid: float = 0.0
+    exposure_pct: float = 0.0
+    buy_and_hold_return_pct: float = 0.0
     trades: list[BacktestTrade] = Field(default_factory=list)
     equity_curve: list[float] = Field(default_factory=list)
 

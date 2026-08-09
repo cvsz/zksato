@@ -2,7 +2,7 @@ import pytest
 
 from zksato.broker.paper import PaperBroker
 from zksato.config import Settings
-from zksato.domain import OrderIntent, OrderSubmission, RiskContext, Side
+from zksato.domain import OrderIntent, OrderSubmission, Quote, RiskContext, Side
 from zksato.service import RiskRejectedError, TradingModeError, TradingService
 from zksato.store import StateStore
 
@@ -17,6 +17,7 @@ def make_service(settings: Settings | None = None) -> TradingService:
 @pytest.mark.asyncio
 async def test_paper_order_is_filled() -> None:
     service = make_service()
+    service.store.update_quote(Quote(symbol="AOT", last=39.8, bid=39.7, offer=39.9))
     submission = OrderSubmission(
         intent=OrderIntent(
             symbol="AOT",

@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     dashboard_enabled: bool = True
     poll_interval_seconds: float = Field(default=2.0, ge=0.25, le=60)
     initial_cash: float = Field(default=500_000.0, gt=0)
+    paper_match_resting_limits: bool = True
+    paper_max_fill_quantity_per_quote: int = Field(default=0, ge=0, le=10_000_000)
+    paper_price_improvement: bool = True
 
     database_url: str | None = None
     redis_url: str | None = None
@@ -52,6 +55,8 @@ class Settings(BaseSettings):
     market_data_stale_seconds: float = Field(default=10.0, gt=0, le=300)
     market_timezone: str = "Asia/Bangkok"
     equity_sessions: str = "09:30-12:30,14:00-16:30"
+    equity_holidays: str = ""
+    equity_special_sessions_json: str = ""
     enforce_market_sessions: bool = False
     instrument_metadata_json: str = ""
     strict_reference_data: bool = False
@@ -80,7 +85,15 @@ class Settings(BaseSettings):
     tfex_contract_metadata_json: str = ""
     strict_tfex_reference_data: bool = False
 
-    default_strategy: Literal["ema_cross", "rsi_reversion", "breakout"] = "ema_cross"
+    default_strategy: Literal[
+        "ema_cross",
+        "sma_cross",
+        "rsi_reversion",
+        "bollinger_reversion",
+        "momentum",
+        "macd_cross",
+        "breakout",
+    ] = "ema_cross"
     default_order_size: int = Field(default=100, ge=1)
     default_stop_loss_pct: float = Field(default=2.0, gt=0, le=50)
     default_take_profit_pct: float = Field(default=4.0, gt=0, le=100)

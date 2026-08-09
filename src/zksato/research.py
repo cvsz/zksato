@@ -76,6 +76,12 @@ class PromotionDecision(BaseModel):
     requires_manual_live_confirmation: bool = True
 
 
+class DriftRequest(BaseModel):
+    expected_return_pct: float
+    observed_return_pct: float
+    tolerance_pct_points: float = Field(default=2.0, ge=0, le=100)
+
+
 class DriftReport(BaseModel):
     expected_return_pct: float
     observed_return_pct: float
@@ -94,6 +100,8 @@ class ResearchService:
         self.market_sessions = MarketSessionPolicy(
             settings.market_timezone,
             settings.equity_sessions,
+            settings.equity_holidays,
+            settings.equity_special_sessions_json,
         )
 
     def register_strategy(

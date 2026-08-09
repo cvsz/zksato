@@ -20,6 +20,7 @@ from zksato.config import get_settings
 from zksato.coordination import CoordinationManager
 from zksato.dashboard import DASHBOARD_HTML
 from zksato.domain import (
+    AccountSnapshot,
     AlertRule,
     BacktestRequest,
     BacktestResult,
@@ -29,14 +30,18 @@ from zksato.domain import (
     DashboardSnapshot,
     OrderIntent,
     OrderRecord,
+    OrderStatus,
     OrderSubmission,
     PortfolioSnapshot,
     Quote,
     ReconciliationReport,
     RiskDecision,
     ScannerResult,
+    Side,
     Signal,
     StrategyConfig,
+    StrategyRun,
+    StrategyVersion,
 )
 from zksato.market import DemoMarketFeed
 from zksato.market_settrade import SettradeRealtimeFeed
@@ -49,6 +54,7 @@ from zksato.observability import (
     OUTBOX_BACKLOG,
     bind_correlation_id,
     configure_logging,
+    current_correlation_id,
     init_tracing,
     metrics_response,
     reset_correlation_id,
@@ -62,6 +68,8 @@ from zksato.production import (
 )
 from zksato.reconcile import ReconciliationService, ReconciliationWorker
 from zksato.research import (
+    DriftReport,
+    DriftRequest,
     PromotionDecision,
     PromotionEvidence,
     ReplayResult,
@@ -92,7 +100,13 @@ coordination = CoordinationManager(
 )
 broker: Broker
 if settings.trading_mode == "paper":
-    broker = PaperBroker(store=store, initial_cash=settings.initial_cash)
+    broker = PaperBroker(
+        store=store,
+        initial_cash=settings.initial_cash,
+        match_resting_limits=settings.paper_match_resting_limits,
+        max_fill_quantity_per_quote=settings.paper_max_fill_quantity_per_quote,
+        price_improvement=settings.paper_price_improvement,
+    )
 else:
     broker = SettradeBroker(settings=settings)
 service = TradingService(
@@ -151,7 +165,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="zksato",
-    version="0.4.0",
+    version="0.5.0",
     description="Risk-first automated trading control plane with dashboard",
     lifespan=lifespan,
 )
@@ -188,7 +202,7 @@ async def observe_http(request: Request, call_next):
     started = monotonic()
     try:
         response = await call_next(request)
-        response.headers["X-Request-ID"] = correlation_id or "generated"
+        response.headers["X-Request-ID"] = current_correlation_id()
         route = request.scope.get("route")
         route_name = getattr(route, "path", request.url.path)
         HTTP_REQUESTS.labels(
@@ -216,15 +230,7 @@ def _tfex_gateway() -> SettradeTfexGateway:
     return tfex_gateway
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def dashboard_page() -> str:
-    if not settings.dashboard_enabled:
-        raise HTTPException(status_code=404, detail="dashboard disabled")
-    return DASHBOARD_HTML
-
-
-@app.get("/health")
-async def health() -> dict[str, object]:
+async def _health_payload() -> dict[str, object]:
     database_healthy = store.health()
     coordination_healthy = await coordination.health()
     COORDINATION_HEALTH.set(1 if coordination_healthy else 0)
@@ -238,7 +244,10 @@ async def health() -> dict[str, object]:
     if usable_ages:
         MARKET_FEED_AGE.set(min(usable_ages))
     OUTBOX_BACKLOG.set(len(store.pending_outbox(10_000)))
-    healthy = database_healthy and coordination_healthy and reconciliation_ready
+    audit_chain_valid = store.verify_audit_chain()
+    healthy = (
+        database_healthy and coordination_healthy and reconciliation_ready and audit_chain_valid
+    )
     return {
         "status": "ok" if healthy else "degraded",
         "mode": settings.trading_mode,
@@ -250,8 +259,33 @@ async def health() -> dict[str, object]:
         "coordination": "redis" if settings.redis_url else "local",
         "coordination_healthy": coordination_healthy,
         "reconciliation_ready": reconciliation_ready,
-        "audit_chain_valid": store.verify_audit_chain(),
+        "audit_chain_valid": audit_chain_valid,
     }
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def dashboard_page() -> str:
+    if not settings.dashboard_enabled:
+        raise HTTPException(status_code=404, detail="dashboard disabled")
+    return DASHBOARD_HTML
+
+
+@app.get("/livez", include_in_schema=False)
+async def liveness() -> dict[str, str]:
+    return {"status": "alive"}
+
+
+@app.get("/health")
+async def health() -> dict[str, object]:
+    return await _health_payload()
+
+
+@app.get("/readyz", include_in_schema=False)
+async def readiness() -> dict[str, object]:
+    payload = await _health_payload()
+    if payload["status"] != "ok":
+        raise HTTPException(status_code=503, detail=payload)
+    return payload
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -325,6 +359,18 @@ async def config(_principal: ReadPrincipal) -> dict[str, object]:
         "settrade_tfex_configured": settings.settrade_tfex_configured,
         "reconciliation_ready": store.broker_reconciliation_ready(),
         "watchlist": settings.watchlist,
+        "paper": {
+            "match_resting_limits": settings.paper_match_resting_limits,
+            "max_fill_quantity_per_quote": settings.paper_max_fill_quantity_per_quote,
+            "price_improvement": settings.paper_price_improvement,
+        },
+        "market": {
+            "timezone": settings.market_timezone,
+            "sessions": settings.equity_sessions,
+            "session_enforcement": settings.enforce_market_sessions,
+            "configured_holidays": len(service.market_sessions.holidays),
+            "special_session_dates": len(service.market_sessions.special_sessions),
+        },
         "risk": {
             "kill_switch": settings.kill_switch,
             "max_positions": settings.max_positions,
@@ -368,6 +414,11 @@ async def dashboard_snapshot(_principal: ReadPrincipal) -> DashboardSnapshot:
 @app.get("/v1/reference/instruments")
 async def reference_instruments(_principal: ReadPrincipal) -> list[dict[str, object]]:
     return [item.model_dump(mode="json") for item in service.instruments.list()]
+
+
+@app.get("/v1/market/session")
+async def market_session(_principal: ReadPrincipal) -> dict[str, object]:
+    return service.market_sessions.explain()
 
 
 @app.post("/v1/market/quote", response_model=Quote)
@@ -466,6 +517,19 @@ async def start_bot(bot_config: BotConfig, _principal: StrategyPrincipal) -> Bot
     return automation.start(bot_config)
 
 
+@app.post("/v1/bot/pause", response_model=BotStatus)
+async def pause_bot(_principal: StrategyPrincipal) -> BotStatus:
+    return automation.pause()
+
+
+@app.post("/v1/bot/resume", response_model=BotStatus)
+async def resume_bot(_principal: StrategyPrincipal) -> BotStatus:
+    try:
+        return automation.resume()
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @app.post("/v1/bot/stop", response_model=BotStatus)
 async def stop_bot(_principal: StrategyPrincipal) -> BotStatus:
     return automation.stop()
@@ -545,8 +609,38 @@ async def place_order(
 
 
 @app.get("/v1/orders", response_model=list[OrderRecord])
-async def list_orders(_principal: ReadPrincipal) -> list[OrderRecord]:
-    return await service.list_orders()
+async def list_orders(
+    _principal: ReadPrincipal,
+    symbol: str | None = None,
+    status: OrderStatus | None = None,
+    side: Side | None = None,
+    limit: int = 500,
+) -> list[OrderRecord]:
+    return await service.list_orders(
+        symbol=symbol,
+        status=status,
+        side=side,
+        limit=min(max(limit, 1), 5000),
+    )
+
+
+@app.post("/v1/orders/cancel-open", response_model=list[OrderRecord])
+async def cancel_open_orders(
+    _principal: OrderPrincipal,
+    symbol: str | None = None,
+) -> list[OrderRecord]:
+    try:
+        return await service.cancel_open_orders(symbol)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/v1/orders/{order_id}", response_model=OrderRecord)
+async def get_order(order_id: str, _principal: ReadPrincipal) -> OrderRecord:
+    try:
+        return await service.get_order(order_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.delete("/v1/orders/{order_id}", response_model=OrderRecord)
@@ -592,6 +686,14 @@ async def reconcile_orders(_principal: OrderPrincipal) -> ReconciliationReport:
 @app.get("/v1/portfolio", response_model=PortfolioSnapshot)
 async def portfolio(_principal: ReadPrincipal) -> PortfolioSnapshot:
     return await service.portfolio()
+
+
+@app.get("/v1/account-snapshots", response_model=list[AccountSnapshot])
+async def account_snapshots(
+    _principal: AuditorPrincipal,
+    limit: int = 200,
+) -> list[AccountSnapshot]:
+    return store.list_account_snapshots(min(max(limit, 1), 2000))
 
 
 @app.get("/v1/signals", response_model=list[Signal])
@@ -645,6 +747,42 @@ async def research_bars(bars: list[Bar], _principal: StrategyPrincipal) -> dict[
     return {"stored": research.ingest_bars(bars)}
 
 
+@app.get("/v1/research/bars/{symbol}", response_model=list[Bar])
+async def research_list_bars(
+    symbol: str,
+    _principal: ReadPrincipal,
+    timeframe: str = "1m",
+    limit: int = 5000,
+) -> list[Bar]:
+    return store.list_bars(symbol, timeframe=timeframe, limit=min(max(limit, 1), 100_000))
+
+
+@app.post("/v1/research/strategies/{name}/{version}", response_model=StrategyVersion)
+async def register_strategy(
+    name: str,
+    version: str,
+    config: StrategyConfig,
+    _principal: StrategyPrincipal,
+) -> StrategyVersion:
+    record = research.register_strategy(name, version, config)
+    store.add_audit(
+        "research.strategy_registered",
+        f"registered strategy {name}:{version}",
+        {"code_hash": record.code_hash},
+    )
+    return record
+
+
+@app.get("/v1/research/strategies", response_model=list[StrategyVersion])
+async def research_strategies(_principal: ReadPrincipal) -> list[StrategyVersion]:
+    return store.list_strategy_versions()
+
+
+@app.get("/v1/research/runs", response_model=list[StrategyRun])
+async def research_runs(_principal: ReadPrincipal, limit: int = 200) -> list[StrategyRun]:
+    return store.list_strategy_runs(min(max(limit, 1), 2000))
+
+
 @app.post("/v1/research/replay/{symbol}", response_model=ReplayResult)
 async def research_replay(
     symbol: str,
@@ -660,7 +798,19 @@ async def research_walk_forward(
     request: WalkForwardRequest,
     _principal: ReadPrincipal,
 ) -> WalkForwardResult:
-    return research.walk_forward(request)
+    try:
+        return research.walk_forward(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/v1/research/drift", response_model=DriftReport)
+async def research_drift(request: DriftRequest, _principal: ReadPrincipal) -> DriftReport:
+    return research.drift_report(
+        request.expected_return_pct,
+        request.observed_return_pct,
+        tolerance_pct_points=request.tolerance_pct_points,
+    )
 
 
 @app.post("/v1/research/promotion", response_model=PromotionDecision)

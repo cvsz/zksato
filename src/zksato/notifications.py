@@ -46,7 +46,10 @@ class OutboxDispatcher:
                         str(exc),
                         {"outbox_id": str(message.id)},
                     )
-                    break
+                    # A single poison or temporarily failing message must not head-of-line block
+                    # unrelated notifications in the same batch. It remains unsent and durable
+                    # for the next retry pass.
+                    continue
                 self.store.mark_outbox_sent(str(message.id))
                 sent += 1
         return sent

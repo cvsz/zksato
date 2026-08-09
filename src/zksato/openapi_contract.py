@@ -2,10 +2,14 @@ from __future__ import annotations
 
 CRITICAL_OPERATIONS: dict[str, set[str]] = {
     "/health": {"get"},
+    "/v1/market/session": {"get"},
     "/v1/risk/preflight": {"post"},
     "/v1/live-approvals": {"get", "post"},
     "/v1/orders": {"get", "post"},
+    "/v1/orders/cancel-open": {"post"},
     "/v1/reconcile": {"post"},
+    "/v1/research/strategies": {"get"},
+    "/v1/research/drift": {"post"},
     "/v1/production/readiness": {"post"},
     "/v1/production/canary-plan": {"post"},
     "/v1/tfex/risk/preflight": {"post"},

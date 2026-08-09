@@ -1,73 +1,79 @@
 # zksato Roadmap
 
-## Current release — v0.4 P0-P7 repository/source completion
+## Current release — v0.5 P0-P8 repository/source completion
 
-All repository-controlled P0-P7 work is implemented or represented by fail-closed control/evidence gates. Items requiring a broker account, legal/operational approval, GitHub-plan features, production infrastructure, or measured external deployment evidence remain explicitly external and cannot be self-certified by source code.
+Repository-controlled P0-P8 work is implemented or represented by fail-closed evidence gates. Broker/account certification, legal/operational approval, GitHub-plan features, production infrastructure, and measured deployment evidence remain external and cannot be self-certified by source code.
 
 ### P0 — Durable correctness
-- [x] PostgreSQL/SQLAlchemy system of record for trading state, risk/audit, idempotency, outbox and historical bars
+- [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars
 - [x] versioned migrations and restart-safe `client_order_id` uniqueness
-- [x] persistent paper state, durable fills/events, reconciliation readiness and ambiguous-outcome handling
-- [x] optional Redis distributed coordination with local safe fallback
-- [x] PostgreSQL + Redis CI integration, migration/restart/idempotency/reconciliation tests
+- [x] persistent paper cash/holdings/P&L, durable lifecycle events and reconciliation readiness
+- [x] optional Redis coordination with PostgreSQL correctness boundary
 
 ### P1 — Trusted market data and deterministic risk
-- [x] supervised Settrade realtime subscriptions with reconnect backoff
-- [x] quote freshness, gap/out-of-order diagnostics and stale-feed execution guard
-- [x] trusted portfolio/account-derived risk context
+- [x] supervised Settrade realtime subscriptions with reconnect/freshness/gap diagnostics
+- [x] trusted portfolio/account/quote/reference-derived risk context
 - [x] gross/net/symbol/sector/open-order/daily-order/loss/drawdown/notional/spread controls
-- [x] explicit account allow-list, market-session enforcement, tick/price-band reference data
+- [x] account allow-list, tick/price-band and market-session enforcement
 - [x] one-time intent-bound approvals downstream of deterministic risk
 
 ### P2 — Security and operator controls
 - [x] API-key RBAC, signed HttpOnly sessions and CSRF
 - [x] CORS/trusted-host/CSP/HSTS/security headers and coordinated rate limits
-- [x] secret-file loading/rotation, tamper-evident audit chain and redacted audit API
-- [x] optional four-eyes live approval; legacy reusable live token disabled by readiness policy
+- [x] secret-file loading, redaction and tamper-evident audit chain
+- [x] optional four-eyes live approval
 
 ### P3 — TFEX isolation and semantics
 - [x] dedicated LONG/SHORT and OPEN/CLOSE/AUTO domain
-- [x] TFEX account/portfolio/order read gateway and contract metadata registry
-- [x] contract/margin/stale/tick/expiry risk controls and settlement P&L helper
+- [x] TFEX account/portfolio/order reads, contract registry and deterministic risk
 - [x] sandbox/UAT-only TFEX mutation boundary
-- [ ] installed-SDK and broker-account TFEX behavior certified in Settrade UAT — **external evidence required**
+- [ ] installed-SDK and broker-account behavior certified in Settrade UAT — **external**
 
 ### P4 — Observability, resilience and recovery
-- [x] Prometheus metrics, correlation/JSON logging and optional OpenTelemetry exporter
-- [x] Prometheus scrape/alert config and SLO definition
-- [x] PostgreSQL backup/restore scripts, DR runbook and automated checksum/corruption/restore evidence workflow
-- [x] bounded performance probe with explicit failure/p95 limits and JSON evidence
-- [x] deterministic reconciliation/failure-path suite across multiple hash seeds
-- [ ] production alert delivery, restore drill, measured production RPO/RTO and sustained production load evidence — **external deployment evidence required**
+- [x] Prometheus, correlation/JSON logging and optional OpenTelemetry
+- [x] SLO/alert configuration, load probe and resilience matrix
+- [x] backup/checksum/corruption/restore automation and DR runbook
+- [ ] production alert delivery, restore/RPO/RTO and sustained-load evidence — **external**
 
 ### P5 — Strategy research and promotion
-- [x] durable OHLCV, deterministic replay and cost-aware backtesting
-- [x] session-aware walk-forward/OOS reporting
-- [x] strategy/version registry, code/config hash, promotion gates and drift primitive
-- [x] broad deterministic indicator tests
-- [ ] strategy-specific performance evidence — **research evidence, not a code-completion claim**
+- [x] durable OHLCV, replay, cost/slippage backtesting and session-aware walk-forward/OOS
+- [x] strategy/version registry, run history, config hash, drift and promotion gates
+- [x] deterministic indicator/strategy test coverage
+- [ ] strategy-specific investment-performance evidence — **research evidence, not source completion**
 
 ### P6 — Controlled production rollout
-- [x] machine-readable production-readiness report and one-order non-autonomous canary plan
-- [x] runtime gates for prod/live mode, durable services, auth, trusted hosts, confirmations, allow-list/reference/session controls, Settrade config, kill switch, reconciliation and audit integrity
-- [x] external evidence model for broker/legal/UAT/TLS/secrets/DR/monitoring/incident/rollback/capacity/time-sync/market-data-failover/data-retention/release/manual-canary approval
-- [x] protected non-mutating UAT and production-readiness workflows
-- [ ] broker permission/legal sign-off, Settrade UAT certification, production TLS/secrets/monitoring/backup evidence and authorized minimal live canary — **external**
+- [x] machine-readable readiness report and one-order non-autonomous canary plan
+- [x] fail-closed runtime/external evidence requirements
+- [x] protected non-mutating UAT/readiness workflows
+- [ ] broker/legal/UAT/TLS/secrets/monitoring/backup and authorized manual canary — **external**
 
 ### P7 — Repository assurance and software supply chain
-- [x] Python 3.11-3.14 matrix, PostgreSQL/Redis integration and branch coverage ratchet
-- [x] Ruff lint/format, full mypy, Hypothesis risk properties and safety-critical OpenAPI contract
-- [x] package build/twine/version identity and runtime dependency license inventory/policy
-- [x] runtime pip-audit, Bandit, Gitleaks and secret-pattern scanning
-- [x] full-SHA external Actions, least-privilege permissions, actionlint/yamllint/zizmor/ShellCheck/Hadolint
-- [x] minimal multi-stage non-root Docker build, hardened runtime checks, Trivy CVE gate and image SBOM
-- [x] multi-architecture GHCR release, dependency/image SBOMs, immutable digest, checksums, provenance and independent release verification
-- [x] repository-health capability evidence, PR policy, safe path labeler and Dependabot for Python/Actions/Docker
-- [x] documented developer parity through Make/pre-commit/editor/linter policies
-- [ ] protected `uat`/`production` GitHub environments — **external repository setting**
-- [ ] main branch protection/ruleset/merge queue — **GitHub plan/settings dependent**
-- [ ] GitHub native Code Security/Secret Protection/Dependency Review/attestations — **plan/settings dependent**
+- [x] Python 3.11-3.14, PostgreSQL/Redis integration and branch coverage ratchet
+- [x] Ruff/format/mypy/Hypothesis/OpenAPI contract/package/license gates
+- [x] pip-audit/Bandit/Gitleaks/workflow-security checks
+- [x] hardened non-root container, Trivy CVE gate and SBOM
+- [x] multi-arch GHCR release, digest/checksums/provenance and release verification
+- [x] repository health, PR policy, safe labeler and Dependabot
+- [ ] protected environments/ruleset/merge queue/native code-security capabilities — **GitHub plan/settings dependent**
+
+### P8 — Execution simulator, calendar, research and operator API completion
+- [x] resting paper limits match on later quotes
+- [x] deterministic per-quote partial fills, weighted average fills and quote-side price improvement
+- [x] restart-safe paper client IDs and cancellation of partially-filled remainders
+- [x] cumulative broker snapshots converted to incremental durable fill records
+- [x] reconciliation/cancellation preserve local order economic identity
+- [x] configurable holiday/special-session overrides with explainable session state
+- [x] EMA/SMA cross, RSI/Bollinger reversion, momentum, MACD and breakout strategies
+- [x] MACD, rate-of-change and realized-volatility indicators
+- [x] backtest fee/exposure/profit-factor/benchmark analytics
+- [x] bot pause/resume and quote-driven paper matching
+- [x] liveness/readiness and request correlation IDs
+- [x] order detail/filtering and safe bulk cancellation of open orders
+- [x] account snapshot history and market-session diagnostics APIs
+- [x] strategy registry/run history, historical-bar read and drift APIs
+- [x] notification outbox poison-message isolation
+- [x] OpenAPI safety contract extended for the new control surface
 
 ## Non-negotiable invariant
 
-**Autonomous live-money execution remains forbidden by design.** AI, agents, workflows and strategies may research, rank, explain, paper-trade and operate in broker UAT, but a live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains UAT-only until its external certification gate is completed.
+**Autonomous live-money execution remains forbidden by design.** AI, agents, workflows and strategies may research, rank, explain, paper-trade and operate in broker UAT, but live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains UAT-only until external certification is complete.
