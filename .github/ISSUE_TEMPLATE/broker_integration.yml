@@ -1,7 +1,7 @@
 name: Broker / Settrade integration change
 description: Track a broker API, SDK, account-permission, or reconciliation integration change
 title: "broker: "
-labels: ["broker", "uat"]
+labels: ["broker", "operations"]
 body:
   - type: textarea
     id: operation
