@@ -34,10 +34,14 @@ def ensure_utc(value: datetime) -> datetime:
 
 
 def truncate_error(value: object, limit: int = MAX_ERROR_LENGTH) -> str:
+    if limit < 0:
+        raise ValueError("limit cannot be negative")
     text = str(value).replace("\x00", "").strip()
     if len(text) <= limit:
         return text
-    return text[: max(0, limit - 3)] + "..."
+    if limit <= 3:
+        return text[:limit]
+    return text[: limit - 3] + "..."
 
 
 def plan_retry(
