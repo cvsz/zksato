@@ -1,0 +1,53 @@
+name: P10 Apply
+
+on:
+  push:
+    branches:
+      - agent/p10-durable-operations-reliability
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p10-apply-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[p10-applied]') }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Apply deterministic P10 blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh repo clone "$GITHUB_REPOSITORY" repo -- --branch "$GITHUB_REF_NAME" --single-branch
+          cd repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          fetch_blob() {
+            local path="$1"
+            local sha="$2"
+            mkdir -p "$(dirname "$path")"
+            gh api "repos/$GITHUB_REPOSITORY/git/blobs/$sha" --jq '.content' \
+              | tr -d '\n' | base64 --decode > "$path"
+          }
+
+          fetch_blob migrations/0003_outbox_delivery.sql 225a5f09ba0f1ec137714bd58bd0033a3fa810b5
+          fetch_blob src/zksato/config.py c66da29f56783b61335286466636b8772980bca4
+          fetch_blob src/zksato/outbox_delivery.py d931e3426f34d4e78d8fcba2c9c80a61ef506640
+          fetch_blob src/zksato/store.py ea71ddbe63e8d56692dac77fc53987e386483091
+          fetch_blob src/zksato/persistence.py a4591ac75960f074c0967b43787ac79aec6c9bfc
+          fetch_blob src/zksato/notifications.py 92dc1528374683c2d44fb9de0dac966cd9157fc0
+          fetch_blob tests/test_outbox_delivery.py ce4636786236266098632ce199ed457c79200302
+          fetch_blob tests/test_strategy_version_immutability.py b78a6629b1cf5f0b3133fff7f068e01a9b559776
+          fetch_blob .env.example 4b80d93169da89f469bd82a6d7738d5c440893fa
+          fetch_blob migrations/README.md b128fb3f26680a8bce07af974e6e2870df50c8d5
+
+          rm -f .github/workflows/p10-apply.yml
+          git add -A
+          git commit -m "feat: harden durable outbox and strategy versions [p10-applied]"
+          git push origin HEAD:"$GITHUB_REF_NAME"
