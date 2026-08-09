@@ -1,0 +1,1 @@
+Scope: three-video evidence extraction, bounded PA/grid research planner, non-executing virtual cycle runtime, demo-only MQL5 reference EA, tests and validation docs. No live execution authority is added.
