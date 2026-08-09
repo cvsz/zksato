@@ -1,0 +1,38 @@
+name: P10 Format
+
+on:
+  push:
+    branches:
+      - agent/p10-durable-operations-reliability
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p10-format-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[p10-formatted]') }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Format and lint-fix branch deterministically
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh repo clone "$GITHUB_REPOSITORY" repo -- --branch "$GITHUB_REF_NAME" --single-branch
+          cd repo
+          python -m pip install --disable-pip-version-check -e '.[dev]'
+          ruff format .
+          ruff check --fix .
+          rm -f .github/workflows/p10-format.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "style: format P10 durability changes [p10-formatted]"
+            git push origin HEAD:"$GITHUB_REF_NAME"
+          fi
