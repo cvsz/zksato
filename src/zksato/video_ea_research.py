@@ -125,7 +125,7 @@ class ParameterSweepRequest(BaseModel):
 
 
 class ParameterSweepRow(BaseModel):
-    parameters: dict[str, object]
+    parameters: dict[str, int | float]
     result: BacktestResult
 
 
@@ -133,7 +133,7 @@ class ParameterSweepResult(BaseModel):
     symbol: str
     combinations: int = Field(ge=0)
     rows: list[ParameterSweepRow] = Field(default_factory=list)
-    best_parameters: dict[str, object] = Field(default_factory=dict)
+    best_parameters: dict[str, int | float] = Field(default_factory=dict)
     best_total_return_pct: float = 0.0
 
 

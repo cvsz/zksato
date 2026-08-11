@@ -97,7 +97,7 @@ class VideoEaConfig(BaseModel):
             values.setdefault("lower_price_band", metadata.lower_price_band)
         if metadata.upper_price_band is not None:
             values.setdefault("upper_price_band", metadata.upper_price_band)
-        return cls(**values)
+        return cls.model_validate(values)
 
 
 class VideoEaPlanRequest(BaseModel):
