@@ -6,7 +6,7 @@
 - Data/fixtures:
 
 ## Steps
-1. 
+1.
 
 ## Expected result
 

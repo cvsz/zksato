@@ -10,10 +10,10 @@
 ## Problem
 
 ## Goals
-- 
+-
 
 ## Non-goals
-- 
+-
 
 ## Proposal
 Architecture, APIs, data model, control flow, and operator experience.

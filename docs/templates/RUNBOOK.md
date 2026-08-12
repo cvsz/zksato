@@ -9,7 +9,7 @@
 ## Inputs
 
 ## Procedure
-1. 
+1.
 
 ## Verification
 

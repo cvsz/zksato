@@ -1,0 +1,60 @@
+{
+  "api_version": "2026-03-10",
+  "blocking": [
+    "uat: missing required environment secrets: ['ZKSATO_UAT_API_KEY']",
+    "uat: missing required environment variables: ['ZKSATO_UAT_BASE_URL']",
+    "production: missing required environment secrets: ['ZKSATO_PRODUCTION_RISK_API_KEY']",
+    "production: missing required environment variables: ['ZKSATO_PRODUCTION_BASE_URL']"
+  ],
+  "environments": {
+    "production": {
+      "blocking": [
+        "missing required environment secrets: ['ZKSATO_PRODUCTION_RISK_API_KEY']",
+        "missing required environment variables: ['ZKSATO_PRODUCTION_BASE_URL']"
+      ],
+      "branch_policy_status": 200,
+      "environment_status": 200,
+      "exists": true,
+      "present_secret_names": [],
+      "secret_inventory_status": 200,
+      "variable_inventory_status": 200,
+      "warnings": [
+        "required-reviewer protection is not configured; on this private repository it may be plan-gated"
+      ]
+    },
+    "release": {
+      "blocking": [],
+      "branch_policy_status": 200,
+      "environment_status": 200,
+      "exists": true,
+      "present_secret_names": [],
+      "secret_inventory_status": 200,
+      "variable_inventory_status": 200,
+      "warnings": [
+        "required-reviewer protection is not configured; on this private repository it may be plan-gated"
+      ]
+    },
+    "uat": {
+      "blocking": [
+        "missing required environment secrets: ['ZKSATO_UAT_API_KEY']",
+        "missing required environment variables: ['ZKSATO_UAT_BASE_URL']"
+      ],
+      "branch_policy_status": 200,
+      "environment_status": 200,
+      "exists": true,
+      "present_secret_names": [],
+      "secret_inventory_status": 200,
+      "variable_inventory_status": 200,
+      "warnings": [
+        "required-reviewer protection is not configured; on this private repository it may be plan-gated"
+      ]
+    }
+  },
+  "ready": false,
+  "repository": "cvsz/zksato",
+  "repository_variables": {
+    "blocking": [],
+    "status": 200,
+    "warnings": []
+  }
+}

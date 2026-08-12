@@ -7,7 +7,7 @@ from zksato.strategy import StrategyEngine
 
 def test_ema_strategy_generates_signal_object() -> None:
     engine = StrategyEngine()
-    prices = [10, 10, 10, 9, 9, 9, 12]
+    prices: list[float] = [10.0, 10.0, 10.0, 9.0, 9.0, 9.0, 12.0]
     signal = engine.evaluate(
         "AOT",
         prices,

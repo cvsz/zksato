@@ -24,7 +24,7 @@
 ## Monitoring
 
 ## Rollout steps
-1. 
+1.
 
 ## Rollback trigger and steps
 

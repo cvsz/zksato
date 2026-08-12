@@ -14,6 +14,8 @@ def test_health_and_dashboard() -> None:
     dashboard = client.get("/")
     assert dashboard.status_code == 200
     assert "zksato Trading Control" in dashboard.text
+    assert "Video EA Research / Paper Cycle" in dashboard.text
+    assert "/v1/research/video-ea/pause/" in dashboard.text
 
 
 def test_quote_ingestion_updates_dashboard() -> None:

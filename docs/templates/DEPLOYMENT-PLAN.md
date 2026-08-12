@@ -15,7 +15,7 @@
 - [ ] rollback artifacts available
 
 ## Steps
-1. 
+1.
 
 ## Verification
 Health, readiness, metrics, logs, audit, migrations, reconciliation, synthetic/paper checks.

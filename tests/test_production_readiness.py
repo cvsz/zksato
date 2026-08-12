@@ -28,7 +28,7 @@ def ready_settings(**overrides: object) -> Settings:
         "kill_switch": False,
     }
     values.update(overrides)
-    return Settings(**values)
+    return Settings(**values)  # type: ignore[arg-type]
 
 
 def ready_evidence(**overrides: object) -> ExternalReadinessEvidence:
@@ -52,7 +52,7 @@ def ready_evidence(**overrides: object) -> ExternalReadinessEvidence:
         "evidence_reference": "change-ticket-1",
     }
     values.update(overrides)
-    return ExternalReadinessEvidence(**values)
+    return ExternalReadinessEvidence(**values)  # type: ignore[arg-type]
 
 
 def ready_store() -> StateStore:

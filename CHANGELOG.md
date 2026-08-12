@@ -2,7 +2,17 @@
 
 All notable changes to zksato are documented here.
 
-## Unreleased
+## [0.5.0] - 2026-08-12
+
+### Durable operations and research identity
+- Added durable webhook delivery attempt state with bounded exponential retry scheduling, terminal dead-letter state, and explicit requeue support.
+- Persisted outbox retry/dead-letter evidence across SQL-backed restarts with PostgreSQL migration `0003_outbox_delivery.sql`.
+- Added stable `X-ZKSATO-Outbox-Id` delivery identity so at-least-once webhook consumers can deduplicate safely.
+- Prevented webhook URLs, query tokens, and payload details from being persisted in notification failure diagnostics.
+- Added bounded handling for poison/serialization failures so one invalid notification cannot terminate the dispatcher loop.
+- Made strategy `(name, version)` identity immutable and idempotent across memory and SQL stores, aligned with the PostgreSQL uniqueness constraint.
+- Added regression coverage for retry timing, dead-lettering, restart recovery, error redaction, poison payloads, and strategy-version conflicts.
+
 
 ### v0.5 execution/research/operator completion
 - Added restart-safe paper resting-limit matching against later quotes instead of leaving non-marketable limits permanently accepted.

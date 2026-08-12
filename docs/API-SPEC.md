@@ -93,10 +93,24 @@ Approvals are single-use and can require a distinct creator/executor. Approval n
 - `GET /v1/research/runs`
 - `POST /v1/research/replay/{symbol}`
 - `POST /v1/research/walk-forward`
+- `POST /v1/research/video-ea/plan`
+- `POST /v1/research/video-ea/replay`
+- `POST /v1/research/video-ea/parameter-sweep`
+- `POST /v1/research/video-ea/rolling-walk-forward`
+- `POST /v1/research/video-ea/monte-carlo`
+- `POST /v1/research/video-ea/sensitivity`
+- `POST /v1/research/video-ea/exposure-heatmap`
+- `POST /v1/research/video-ea/lifecycle-metrics`
+- `GET /v1/research/video-ea/state/{symbol}`
+- `POST /v1/research/video-ea/arm`
+- `POST /v1/research/video-ea/price/{symbol}`
+- `POST /v1/research/video-ea/pause/{symbol}`
+- `POST /v1/research/video-ea/resume/{symbol}`
+- `POST /v1/research/video-ea/reset/{symbol}`
 - `POST /v1/research/drift`
 - `POST /v1/research/promotion`
 
-Research endpoints have no broker submission authority. Backtests model configured commission/slippage and expose closed-trade P&L, profit factor, fees, exposure, and buy-and-hold benchmark metrics.
+Research endpoints have no broker submission authority. Video-EA operator controls require `paper` mode, persist only non-executable cycle snapshots, and are restricted to the strategy-operator role for mutations. Backtests model configured commission/slippage and expose closed-trade P&L, profit factor, fees, exposure, and buy-and-hold benchmark metrics. Sweep, rolling walk-forward, Monte Carlo, adverse-grid, cost-sensitivity, exposure-heatmap and lifecycle endpoints are deterministic research evidence only.
 
 ## Production readiness
 
