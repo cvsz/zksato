@@ -7,7 +7,13 @@ from zksato.indicators import bollinger_bands, ema, highest, macd, rate_of_chang
 class StrategyEngine:
     """Deterministic signal generation shared by automation, replay and backtests."""
 
-    def evaluate(self, symbol: str, prices: list[float], config: StrategyConfig, sentiment_score: float | None = None) -> Signal:
+    def evaluate(
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        sentiment_score: float | None = None,
+    ) -> Signal:
         price = prices[-1] if prices else 0.0
         if price <= 0:
             raise ValueError("strategy requires at least one positive price")
@@ -36,6 +42,8 @@ class StrategyEngine:
             return self._breakout(symbol, prices, config)
         if config.name == "llm_sentiment":
             return self._llm_sentiment(symbol, prices, config, sentiment_score)
+        if config.name == "multi_factor":
+            return self._multi_factor(symbol, prices, config, sentiment_score)
 
         raise ValueError(f"unknown strategy: {config.name}")
 
@@ -85,7 +93,65 @@ class StrategyEngine:
                 abs(fast - slow) / price * 20,
                 f"EMA{config.fast_period} crossed below EMA{config.slow_period}",
             )
-        return self._signal(symbol, config, price, SignalAction.HOLD, 0.25, "no EMA crossover")
+        return self._signal(
+            symbol, config, price, SignalAction.HOLD, 0.25, "no EMA crossover"
+        )
+
+    def _multi_factor(
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        sentiment_score: float | None,
+    ) -> Signal:
+        ema_sig = self._ema_cross(symbol, prices, config)
+        rsi_sig = self._rsi_reversion(symbol, prices, config)
+        llm_sig = (
+            self._llm_sentiment(symbol, prices, config, sentiment_score)
+            if sentiment_score
+            else None
+        )
+        
+        score = 0.0
+        if ema_sig.action == SignalAction.BUY:
+            score += 1
+        elif ema_sig.action == SignalAction.SELL:
+            score -= 1
+        
+        if rsi_sig.action == SignalAction.BUY:
+            score += 1
+        elif rsi_sig.action == SignalAction.SELL:
+            score -= 1
+        
+        if llm_sig:
+            if llm_sig.action == SignalAction.BUY:
+                score += 1.5
+            elif llm_sig.action == SignalAction.SELL:
+                score -= 1.5
+
+        price = prices[-1]
+        if score >= 2.0:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                min(score / 3.5, 1.0),
+                f"Bullish (score: {score})",
+            )
+        if score <= -2.0:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                min(abs(score) / 3.5, 1.0),
+                f"Bearish (score: {score})",
+            )
+            
+        return self._signal(
+            symbol, config, price, SignalAction.HOLD, 0.0, f"Mixed (score: {score})"
+        )
 
     def _sma_cross(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
         fast = sma(prices, config.fast_period)
@@ -298,7 +364,11 @@ class StrategyEngine:
 
 
     def _llm_sentiment(
-        self, symbol: str, prices: list[float], config: StrategyConfig, sentiment_score: float | None
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        sentiment_score: float | None,
     ) -> Signal:
         price = prices[-1]
         score = sentiment_score if sentiment_score is not None else 0.5

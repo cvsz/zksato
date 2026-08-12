@@ -132,7 +132,9 @@ class TfexRiskEngine:
         projected_contracts = context.current_contracts + (intent.volume if opening else 0)
         if projected_contracts > self.settings.max_tfex_contracts:
             reasons.append("maximum TFEX contract exposure exceeded")
-        adjusted_margin_usage = context.margin_usage_pct_after_trade * context.dynamic_margin_multiplier
+        adjusted_margin_usage = (
+            context.margin_usage_pct_after_trade * context.dynamic_margin_multiplier
+        )
         if adjusted_margin_usage > self.settings.max_tfex_margin_usage_pct:
             reasons.append("TFEX margin usage exceeds configured maximum")
         if (

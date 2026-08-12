@@ -177,6 +177,26 @@ def adx(candles: list[Candle], period: int = 14) -> float | None:
     return value
 
 
+def ichimoku(
+    candles: list[Candle],
+    tenkan_period: int = 9,
+    kijun_period: int = 26,
+    senkou_b_period: int = 52,
+) -> tuple[float, float, float, float] | None:
+    if len(candles) < senkou_b_period:
+        return None
+        
+    def _highest_lowest(window: list[Candle]) -> float:
+        return (max(c.high for c in window) + min(c.low for c in window)) / 2
+        
+    tenkan_sen = _highest_lowest(candles[-tenkan_period:])
+    kijun_sen = _highest_lowest(candles[-kijun_period:])
+    senkou_span_a = (tenkan_sen + kijun_sen) / 2
+    senkou_span_b = _highest_lowest(candles[-senkou_b_period:])
+    
+    return tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b
+
+
 def max_drawdown_pct(equity_curve: list[float]) -> float:
     if not equity_curve:
         return 0.0
