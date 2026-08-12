@@ -5,21 +5,21 @@
 Now that v0.5 has perfected the local runtime and tests, v0.6.0 focuses on real-world broker certification, production deployment, and advanced intelligence.
 
 ### P9 — Infrastructure and Production Deployments (External)
-- [ ] Infrastructure as Code (Terraform) for AWS/GCP with KMS encryption
-- [ ] OpenTelemetry collector + Grafana/Prometheus deployment
-- [ ] RPO/RTO disaster recovery drills
+- [x] Infrastructure as Code (Terraform) for AWS/GCP with KMS encryption
+- [x] OpenTelemetry collector + Grafana/Prometheus deployment
+- [x] RPO/RTO disaster recovery drills
 
 ### P10 — TFEX Broker Certification
-- [ ] Migrate Settrade simulator to Settrade UAT sandbox
-- [ ] Contract rollover and dynamic margin management
+- [x] Migrate Settrade simulator to Settrade UAT sandbox
+- [x] Contract rollover and dynamic margin management
 
 ### P11 — Secure Operator Dashboard
-- [ ] Frontend dashboard built for operator interaction
-- [ ] One-time manual risk approval via webhook pagers
+- [x] Frontend dashboard built for operator interaction
+- [x] One-time manual risk approval via webhook pagers
 
 ### P12 — AI-Augmented Research
-- [ ] LLM Sentiment signals integrated into `strategy.py`
-- [ ] Agentic parameter sweep exploration inside `video_ea_research.py`
+- [x] LLM Sentiment signals integrated into `strategy.py`
+- [x] Agentic parameter sweep exploration inside `video_ea_research.py`
 
 ## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars
