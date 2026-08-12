@@ -2,9 +2,28 @@
 
 All notable changes to zksato are documented here.
 
-## [0.5.0] - 2026-08-12
+## [0.6.0] - 2026-08-12
 
-### Durable operations and research identity
+### Infrastructure & Deployment
+- Set `localhost` (Docker Compose) as the primary execution environment.
+- Added OpenTelemetry collector, Prometheus, and Grafana for local monitoring.
+- Created Terraform AWS/GCP templates for backup/cloud deployment.
+- Wrote full `DR-DRILL.md` runbook for Disaster Recovery scenarios.
+
+### Trading & TFEX
+- Integrated Settrade UAT Sandbox for TFEX certification testing.
+- Added dynamic margin management and contract rollover evaluation to `TfexRiskEngine`.
+
+### Dashboard & UI
+- Built a modern, premium React/Vite dashboard (`dashboard/`) for the operator control plane.
+- Implemented real-time portfolio risk visualizations.
+- Added the interactive "One-Time Manual Risk Approval" workflow for autonomous live-money intents.
+
+### AI & Quant Research
+- Added `_llm_sentiment` analyzer to `strategy.py` to evaluate natural language sentiment scores against strict risk thresholds.
+- Created `agentic_parameter_sweep` in `video_ea_research.py` to allow AI agents to autonomously explore parameter distributions and optimize backtest performance.
+
+## [0.5.0] - 2026-08-12
 - Added durable webhook delivery attempt state with bounded exponential retry scheduling, terminal dead-letter state, and explicit requeue support.
 - Persisted outbox retry/dead-letter evidence across SQL-backed restarts with PostgreSQL migration `0003_outbox_delivery.sql`.
 - Added stable `X-ZKSATO-Outbox-Id` delivery identity so at-least-once webhook consumers can deduplicate safely.
