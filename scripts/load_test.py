@@ -9,12 +9,26 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import random
+from datetime import datetime, timezone
 
 def hit(url: str, api_key: str | None) -> tuple[int, float]:
-    headers = {"X-API-Key": api_key} if api_key else {}
-    request = Request(url, headers=headers)
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
+
+    quote = {
+        "symbol": f"MOCK{random.randint(1, 100)}",
+        "last": round(random.uniform(10, 100), 2),
+        "bid": round(random.uniform(9, 100), 2),
+        "offer": round(random.uniform(10, 101), 2),
+        "volume": random.randint(100, 10000),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    data = json.dumps(quote).encode("utf-8")
+    request = Request(url, data=data, headers=headers, method="POST")
     started = time.perf_counter()
-    with urlopen(request, timeout=10) as response:  # noqa: S310 - operator-selected bounded endpoint
+    with urlopen(request, timeout=10) as response:  # noqa: S310
         response.read()
         status = response.status
     return status, (time.perf_counter() - started) * 1000
@@ -29,7 +43,7 @@ def percentile(samples: list[float], fraction: float) -> float:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Bounded zksato HTTP load probe")
-    parser.add_argument("--url", default="http://127.0.0.1:9569/health")
+    parser.add_argument("--url", default="http://127.0.0.1:9569/v1/market/quote")
     parser.add_argument("--requests", type=int, default=100)
     parser.add_argument("--concurrency", type=int, default=10)
     parser.add_argument("--api-key")
