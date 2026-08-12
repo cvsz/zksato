@@ -53,7 +53,7 @@ A feature is done only when it has: implementation, validation, failure behavior
 
 ## Repository ownership map
 - Market data: `src/zksato/market.py` → `agents/market-data-agent.md`
-- Strategy/indicators: `strategy.py`, `indicators.py` → `agents/strategy-agent.md`
+- Strategy/indicators: `strategy.py`, `indicators.py` → `agents/strategy-agent.md`, `agents/ai-research-agent.md`
 - Risk: `risk.py` → `agents/risk-agent.md`
 - Execution/broker: `service.py`, `broker/` → `agents/execution-agent.md`, `agents/broker-integration-agent.md`
 - Portfolio: `portfolio.py` → `agents/portfolio-agent.md`
@@ -63,6 +63,10 @@ A feature is done only when it has: implementation, validation, failure behavior
 - Security: auth/secrets/threat model → `agents/security-agent.md`
 - Operations: Docker/CI/deploy/observability → `agents/devops-agent.md`, `agents/observability-agent.md`
 - Documentation/releases → `agents/docs-agent.md`, `agents/release-agent.md`
+- Architecture/design: `docs/ARCHITECTURE.md`, `docs/SYSTEM-DESIGN.md` → `agents/architecture-agent.md`
+- Incident response: runbooks, dr drills → `agents/incident-agent.md`
+- Testing: `tests/` → `agents/testing-agent.md`
+- TFEX domain: `src/zksato/tfex/` → `agents/tfex-agent.md`
 
 ## Change classes requiring explicit review
 - Risk formulas/limits

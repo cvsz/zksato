@@ -101,7 +101,9 @@ def test_sql_outbox_delivery_state_survives_restart(tmp_path) -> None:
         state = restarted.get_outbox_delivery_state(message_id)
         assert state is not None
         assert state.attempt_count == 1
+        assert state.last_attempt_at is not None
         assert ensure_utc(state.last_attempt_at) == attempted_at
+        assert state.next_attempt_at is not None
         assert ensure_utc(state.next_attempt_at) == retry_at
         assert state.last_error == "endpoint unavailable"
         assert restarted.pending_outbox(now=attempted_at + timedelta(seconds=1)) == []

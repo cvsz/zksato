@@ -2,7 +2,7 @@
 
 All notable changes to zksato are documented here.
 
-## Unreleased
+## [0.5.0] - 2026-08-12
 
 ### Durable operations and research identity
 - Added durable webhook delivery attempt state with bounded exponential retry scheduling, terminal dead-letter state, and explicit requeue support.

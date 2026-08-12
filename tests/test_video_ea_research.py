@@ -74,8 +74,8 @@ def test_historical_replay_and_whipsaw_keep_gap_crossings_deterministic() -> Non
         symbol="AOT",
         candles=_candles(),
         config=VideoEaConfig(
-            market_profile="generic_research",
-            grid_mode="symmetric_research",
+            market_profile="generic_research",  # type: ignore[arg-type]
+            grid_mode="symmetric_research",  # type: ignore[arg-type]
             lookback_bars=30,
             levels_per_side=2,
             max_total_quantity=4,
@@ -121,7 +121,7 @@ def test_parameter_sweep_and_rolling_walk_forward_are_repeatable() -> None:
     )
     sweep = parameter_sweep(
         ParameterSweepRequest(
-            **base,
+            **base,  # type: ignore[arg-type]
             parameter_grid={"fast_period": [2, 3], "slow_period": [4]},
         )
     )
@@ -133,7 +133,7 @@ def test_parameter_sweep_and_rolling_walk_forward_are_repeatable() -> None:
     ]
 
     rolling_request = RollingWalkForwardRequest(
-        **base,
+        **base,  # type: ignore[arg-type]
         train_size=20,
         test_size=10,
         step_size=10,

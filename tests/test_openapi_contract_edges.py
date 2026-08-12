@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 from zksato.openapi_contract import CRITICAL_OPERATIONS, validate_schema
 
 
@@ -19,7 +21,7 @@ def test_validator_reports_missing_critical_paths_and_methods() -> None:
 
 
 def test_validator_rejects_forbidden_live_tfex_path_and_duplicate_operation_ids() -> None:
-    paths = complete_paths()
+    paths = cast(dict[str, Any], complete_paths())
     paths["/v1/tfex/orders/live"] = {"post": {"operationId": "forbidden_live"}}
     paths["/extra-one"] = {"get": {"operationId": "duplicate"}}
     paths["/extra-two"] = {"get": {"operationId": "duplicate"}}
@@ -29,7 +31,7 @@ def test_validator_rejects_forbidden_live_tfex_path_and_duplicate_operation_ids(
 
 
 def test_validator_rejects_missing_and_invalid_operations() -> None:
-    paths = complete_paths()
+    paths = cast(dict[str, Any], complete_paths())
     paths["/no-id"] = {"get": {}}
     paths["/not-object"] = {"post": "invalid"}
     errors = validate_schema({"paths": paths})

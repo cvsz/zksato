@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".github" / "environments" / "requirements.json"
@@ -19,7 +20,7 @@ def test_environment_manifest_has_expected_protected_domains() -> None:
     manifest = _manifest()
     assert manifest["schema_version"] == 1
     assert manifest["repository"] == "cvsz/zksato"
-    environments = manifest["environments"]
+    environments = cast(dict[str, Any], manifest["environments"])
     assert set(environments) == {"uat", "production", "release"}
 
     assert environments["uat"]["deployment"] is False
@@ -33,7 +34,7 @@ def test_environment_manifest_has_expected_protected_domains() -> None:
 
 def test_only_workflow_scoped_application_keys_are_required_in_github() -> None:
     manifest = _manifest()
-    environments = manifest["environments"]
+    environments = cast(dict[str, Any], manifest["environments"])
     required = {
         secret
         for environment in environments.values()
@@ -44,9 +45,8 @@ def test_only_workflow_scoped_application_keys_are_required_in_github() -> None:
         "ZKSATO_PRODUCTION_RISK_API_KEY",
     }
 
-    forbidden = set(
-        manifest["runtime_secret_boundary"]["do_not_install_as_actions_environment_secrets"]
-    )
+    boundary = cast(dict[str, Any], manifest["runtime_secret_boundary"])
+    forbidden = set(boundary["do_not_install_as_actions_environment_secrets"])
     assert required.isdisjoint(forbidden)
     assert "ZKSATO_SETTRADE_APP_SECRET" in forbidden
     assert "ZKSATO_SETTRADE_PIN" in forbidden
@@ -56,7 +56,7 @@ def test_only_workflow_scoped_application_keys_are_required_in_github() -> None:
 
 def test_environment_url_variables_are_explicit_and_non_secret() -> None:
     manifest = _manifest()
-    environments = manifest["environments"]
+    environments = cast(dict[str, Any], manifest["environments"])
     assert environments["uat"]["required_variables"] == ["ZKSATO_UAT_BASE_URL"]
     assert environments["production"]["required_variables"] == ["ZKSATO_PRODUCTION_BASE_URL"]
     assert environments["release"]["required_variables"] == []
@@ -103,6 +103,5 @@ def test_safe_capability_defaults_are_disabled_until_verified() -> None:
         "ENABLE_DEPENDENCY_REVIEW": "false",
         "ENABLE_ATTESTATIONS": "false",
     }
-    assert manifest["environments"]["release"]["managed_variables"] == {
-        "ENABLE_ATTESTATIONS": "false"
-    }
+    environments = cast(dict[str, Any], manifest["environments"])
+    assert environments["release"]["managed_variables"] == {"ENABLE_ATTESTATIONS": "false"}
