@@ -202,6 +202,20 @@ class RollingWalkForwardResult(BaseModel):
     worst_oos_drawdown_pct: float = 0.0
 
 
+class AgenticWalkForwardRequest(RollingWalkForwardRequest):
+    parameter_grid: dict[str, list[int | float]] = Field(min_length=1)
+    prompt: str = Field(default="Find robust parameters.", min_length=1)
+
+
+class AgenticWalkForwardResult(BaseModel):
+    symbol: str
+    windows_analyzed: int
+    best_parameters_over_time: list[dict[str, int | float]] = Field(default_factory=list)
+    average_oos_return_pct: float = 0.0
+    agent_summary: str
+
+
+
 class MonteCarloTradeStressRequest(BaseModel):
     trade_pnls: list[float] = Field(min_length=1, max_length=10_000)
     initial_equity: float = Field(default=100_000, gt=0)
@@ -505,15 +519,76 @@ def rolling_walk_forward(request: RollingWalkForwardRequest) -> RollingWalkForwa
         start += request.step_size
     if not windows:
         raise ValueError("candle history is too short for one rolling walk-forward window")
-    return RollingWalkForwardResult(
+    result = RollingWalkForwardResult(
         symbol=request.symbol.upper(),
         windows=windows,
-        average_oos_return_pct=round(
-            sum(window.out_of_sample.total_return_pct for window in windows) / len(windows),
-            10,
-        ),
-        worst_oos_drawdown_pct=max(window.out_of_sample.max_drawdown_pct for window in windows),
     )
+    if result.windows:
+        result.average_oos_return_pct = sum(
+            window.out_of_sample.total_return_pct for window in result.windows
+        ) / len(result.windows)
+        result.worst_oos_drawdown_pct = max(
+            window.out_of_sample.max_drawdown_pct for window in result.windows
+        )
+    return result
+
+
+def agentic_walk_forward(request: AgenticWalkForwardRequest) -> AgenticWalkForwardResult:
+    result = AgenticWalkForwardResult(
+        symbol=request.symbol,
+        windows_analyzed=0,
+        agent_summary="Agent dynamically adapted parameters across out-of-sample windows."
+    )
+    
+    total_candles = len(request.candles)
+    if total_candles < request.train_size + request.test_size:
+        return result
+
+    start = 0
+    oos_returns = []
+    
+    while start + request.train_size + request.test_size <= total_candles:
+        train_candles = request.candles[start : start + request.train_size]
+        
+        sweep_req = AgenticParameterSweepRequest(
+            symbol=request.symbol,
+            candles=train_candles,
+            base_strategy=request.base_strategy,
+            parameter_grid=request.parameter_grid,
+            prompt=request.prompt,
+            initial_cash=request.initial_cash,
+            order_size=request.order_size,
+            commission_pct=request.commission_pct,
+            slippage_pct=request.slippage_pct
+        )
+        sweep_res = agentic_parameter_sweep(sweep_req)
+        best_params = sweep_res.recommended_parameters
+        result.best_parameters_over_time.append(best_params)
+        
+        test_end = start + request.train_size + request.test_size
+        test_candles = request.candles[start + request.train_size : test_end]
+        test_config = request.base_strategy.model_copy(update=best_params)
+        
+        backtest_req = BacktestRequest(
+            symbol=request.symbol,
+            candles=test_candles,
+            strategy=test_config,
+            initial_cash=request.initial_cash,
+            order_size=request.order_size,
+            commission_pct=request.commission_pct,
+            slippage_pct=request.slippage_pct
+        )
+        backtester = Backtester()
+        test_res = backtester.run(backtest_req)
+        oos_returns.append(test_res.total_return_pct)
+        
+        result.windows_analyzed += 1
+        start += request.step_size
+
+    if oos_returns:
+        result.average_oos_return_pct = sum(oos_returns) / len(oos_returns)
+
+    return result
 
 
 def monte_carlo_trade_stress(
