@@ -15,6 +15,7 @@ from zksato.domain import (
     Side,
     SignalAction,
 )
+from zksato.news import MockNewsAdapter, NewsAdapter
 from zksato.service import RiskRejectedError, TradingModeError, TradingService
 from zksato.store import StateStore
 from zksato.strategy import StrategyEngine
@@ -26,11 +27,13 @@ class AutomationEngine:
         settings: Settings,
         store: StateStore,
         service: TradingService,
+        news_adapter: NewsAdapter | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
         self.service = service
         self.strategy = StrategyEngine()
+        self.news_adapter = news_adapter or MockNewsAdapter()
         self.status = BotStatus()
         self._last_action: dict[str, datetime] = {}
 
@@ -99,7 +102,14 @@ class AutomationEngine:
         prices = self.store.get_prices(symbol)
         if not prices:
             return
-        signal = self.strategy.evaluate(symbol, prices, config.strategy)
+            
+        sentiment_score = None
+        if config.strategy.name in ("llm_sentiment", "multi_factor"):
+            sentiment_score = await self.news_adapter.get_aggregate_sentiment(symbol)
+            
+        signal = self.strategy.evaluate(
+            symbol, prices, config.strategy, sentiment_score=sentiment_score
+        )
         if signal.action == SignalAction.HOLD:
             return
         if self._in_cooldown(symbol, config.cooldown_seconds):
