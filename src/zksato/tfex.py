@@ -92,6 +92,7 @@ class TfexRiskContext(BaseModel):
     quote_age_seconds: float | None = Field(default=None, ge=0)
     current_contracts: int = Field(default=0, ge=0)
     margin_usage_pct_after_trade: float = Field(default=0, ge=0)
+    dynamic_margin_multiplier: float = Field(default=1.0, ge=1.0)
     market_session_known: bool = True
     market_data_available: bool = True
     contract_metadata_available: bool = True
@@ -131,7 +132,8 @@ class TfexRiskEngine:
         projected_contracts = context.current_contracts + (intent.volume if opening else 0)
         if projected_contracts > self.settings.max_tfex_contracts:
             reasons.append("maximum TFEX contract exposure exceeded")
-        if context.margin_usage_pct_after_trade > self.settings.max_tfex_margin_usage_pct:
+        adjusted_margin_usage = context.margin_usage_pct_after_trade * context.dynamic_margin_multiplier
+        if adjusted_margin_usage > self.settings.max_tfex_margin_usage_pct:
             reasons.append("TFEX margin usage exceeds configured maximum")
         if (
             opening
@@ -158,6 +160,35 @@ def settlement_pnl(
     return (current_settlement - previous_settlement) * net_contracts * multiplier
 
 
+def generate_rollover_intents(
+    symbol_from: str,
+    symbol_to: str,
+    current_volume: int,
+    position_type: TfexSide,
+    close_price: float,
+    open_price: float,
+) -> list[TfexOrderIntent]:
+    if current_volume <= 0:
+        return []
+    close_side = TfexSide.SHORT if position_type == TfexSide.LONG else TfexSide.LONG
+    return [
+        TfexOrderIntent(
+            symbol=symbol_from,
+            side=close_side,
+            position=TfexPosition.CLOSE,
+            volume=current_volume,
+            price=close_price,
+        ),
+        TfexOrderIntent(
+            symbol=symbol_to,
+            side=position_type,
+            position=TfexPosition.OPEN,
+            volume=current_volume,
+            price=open_price,
+        ),
+    ]
+
+
 class SettradeTfexGateway:
     """Dedicated derivatives gateway; never reused as an equity Broker implementation."""
 
@@ -170,11 +201,15 @@ class SettradeTfexGateway:
             from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use TFEX") from exc
+            
+        broker_id = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_broker_id
+        app_code = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_app_code
+        
         investor = Investor(
             app_id=settings.settrade_app_id,
             app_secret=settings.settrade_app_secret,
-            broker_id=settings.settrade_broker_id,
-            app_code=settings.settrade_app_code,
+            broker_id=broker_id,
+            app_code=app_code,
             is_auto_queue=False,
         )
         self.derivatives = investor.Derivatives(account_no=settings.settrade_derivatives_account_no)

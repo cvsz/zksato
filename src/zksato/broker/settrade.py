@@ -29,11 +29,14 @@ class SettradeBroker:
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use Settrade mode") from exc
 
+        broker_id = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_broker_id
+        app_code = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_app_code
+
         self._investor = Investor(
             app_id=settings.settrade_app_id,
             app_secret=settings.settrade_app_secret,
-            broker_id=settings.settrade_broker_id,
-            app_code=settings.settrade_app_code,
+            broker_id=broker_id,
+            app_code=app_code,
             is_auto_queue=False,
         )
         self._equity = self._investor.Equity(account_no=settings.settrade_account_no)
