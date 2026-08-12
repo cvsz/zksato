@@ -7,7 +7,7 @@ from zksato.indicators import bollinger_bands, ema, highest, macd, rate_of_chang
 class StrategyEngine:
     """Deterministic signal generation shared by automation, replay and backtests."""
 
-    def evaluate(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
+    def evaluate(self, symbol: str, prices: list[float], config: StrategyConfig, sentiment_score: float | None = None) -> Signal:
         price = prices[-1] if prices else 0.0
         if price <= 0:
             raise ValueError("strategy requires at least one positive price")
@@ -34,6 +34,9 @@ class StrategyEngine:
             return self._macd_cross(symbol, prices, config)
         if config.name == "breakout":
             return self._breakout(symbol, prices, config)
+        if config.name == "llm_sentiment":
+            return self._llm_sentiment(symbol, prices, config, sentiment_score)
+
         raise ValueError(f"unknown strategy: {config.name}")
 
     @staticmethod
@@ -291,4 +294,32 @@ class StrategyEngine:
             SignalAction.HOLD,
             0.25,
             f"below breakout level {upper:.2f}",
+        )
+
+
+    def _llm_sentiment(
+        self, symbol: str, prices: list[float], config: StrategyConfig, sentiment_score: float | None
+    ) -> Signal:
+        price = prices[-1]
+        score = sentiment_score if sentiment_score is not None else 0.5
+        if score >= config.sentiment_buy_threshold:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                score,
+                f"LLM sentiment {score:.2f} >= {config.sentiment_buy_threshold:.2f}",
+            )
+        if score <= config.sentiment_sell_threshold:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                1.0 - score,
+                f"LLM sentiment {score:.2f} <= {config.sentiment_sell_threshold:.2f}",
+            )
+        return self._signal(
+            symbol, config, price, SignalAction.HOLD, 0.5, f"LLM sentiment neutral at {score:.2f}"
         )

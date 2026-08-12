@@ -266,6 +266,8 @@ class StrategyConfig(BaseModel):
     bollinger_deviations: float = Field(default=2.0, gt=0, le=10)
     momentum_period: int = Field(default=10, ge=1, le=500)
     momentum_threshold_pct: float = Field(default=1.0, ge=0, le=100)
+    sentiment_buy_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
+    sentiment_sell_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
     min_history: int = Field(default=25, ge=3, le=1000)
 
 

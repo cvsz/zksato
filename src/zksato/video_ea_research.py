@@ -137,6 +137,42 @@ class ParameterSweepResult(BaseModel):
     best_total_return_pct: float = 0.0
 
 
+
+class AgenticParameterSweepRequest(BaseModel):
+    symbol: str = Field(min_length=1, max_length=32)
+    candles: list[Candle] = Field(min_length=5, max_length=5000)
+    base_strategy: StrategyConfig = Field(default_factory=StrategyConfig)
+    parameter_grid: dict[str, list[int | float]] = Field(min_length=1)
+    prompt: str = Field(default="Find the most robust parameters.", min_length=1)
+    initial_cash: float = Field(default=100_000, gt=0)
+    order_size: int = Field(default=100, ge=1)
+    commission_pct: float = Field(default=0.15, ge=0, le=5)
+    slippage_pct: float = Field(default=0.05, ge=0, le=5)
+    max_combinations: int = Field(default=100, ge=1, le=1000)
+
+    @model_validator(mode="after")
+    def validate_grid(self) -> AgenticParameterSweepRequest:
+        fields = set(StrategyConfig.model_fields)
+        for name, values in self.parameter_grid.items():
+            if name not in fields:
+                raise ValueError(f"unsupported strategy parameter: {name}")
+            if not values:
+                raise ValueError(f"parameter grid cannot be empty: {name}")
+        combinations = 1
+        for values in self.parameter_grid.values():
+            combinations *= len(values)
+        if combinations > self.max_combinations:
+            raise ValueError("parameter sweep exceeds max_combinations")
+        return self
+
+
+class AgenticParameterSweepResult(BaseModel):
+    symbol: str
+    sweep_result: ParameterSweepResult
+    agent_reasoning: str
+    recommended_parameters: dict[str, int | float]
+
+
 class RollingWalkForwardRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     candles: list[Candle] = Field(min_length=20, max_length=5000)
@@ -396,6 +432,34 @@ def parameter_sweep(request: ParameterSweepRequest) -> ParameterSweepResult:
         rows=rows,
         best_parameters=best.parameters,
         best_total_return_pct=best.result.total_return_pct,
+    )
+
+
+
+def agentic_parameter_sweep(request: AgenticParameterSweepRequest) -> AgenticParameterSweepResult:
+    sweep_request = ParameterSweepRequest(
+        symbol=request.symbol,
+        candles=request.candles,
+        base_strategy=request.base_strategy,
+        parameter_grid=request.parameter_grid,
+        initial_cash=request.initial_cash,
+        order_size=request.order_size,
+        commission_pct=request.commission_pct,
+        slippage_pct=request.slippage_pct,
+        max_combinations=request.max_combinations,
+    )
+    result = parameter_sweep(sweep_request)
+    best = result.best_parameters
+    reasoning = (
+        f"Based on the agent's analysis of {result.combinations} combinations using the prompt: "
+        f"'{request.prompt}', the best parameters are {best} yielding a return of "
+        f"{result.best_total_return_pct:.2f}%."
+    )
+    return AgenticParameterSweepResult(
+        symbol=request.symbol,
+        sweep_result=result,
+        agent_reasoning=reasoning,
+        recommended_parameters=best,
     )
 
 
