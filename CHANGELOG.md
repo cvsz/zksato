@@ -2,6 +2,15 @@
 
 All notable changes to zksato are documented here.
 
+## [1.0.0] - 2026-08-12
+
+### Final Production Release
+- **Strategy & AI:** Added Agentic Walk-Forward Optimization, Multi-Factor strategy, Ichimoku Clouds, and a News Ingestion Adapter for real-time external sentiment.
+- **Security:** Integrated AWS Secrets Manager for secure, centralized credential handling.
+- **Infrastructure:** Added Nginx configuration for TLS/SSL support via certbot and completed sustained load testing scripts for Database/Store robustness.
+- **Operations & Compliance:** Authored Broker Certification architecture docs, TFEX UAT scripts, and the Operator Agreement legal template.
+- Reached official full completion of all Roadmap objectives for production readiness.
+
 ## [0.6.0] - 2026-08-12
 
 ### Infrastructure & Deployment
