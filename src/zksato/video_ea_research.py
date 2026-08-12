@@ -381,7 +381,7 @@ def parameter_sweep(request: ParameterSweepRequest) -> ParameterSweepResult:
                 slippage_pct=request.slippage_pct,
             )
         )
-        rows.append(ParameterSweepRow(parameters=parameters, result=result))  # type: ignore[arg-type]
+        rows.append(ParameterSweepRow(parameters=parameters, result=result))
     best = max(
         rows,
         key=lambda row: (
