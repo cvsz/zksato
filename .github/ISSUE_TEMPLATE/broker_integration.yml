@@ -1,0 +1,30 @@
+name: Broker / Settrade integration change
+description: Track a broker API, SDK, account-permission, or reconciliation integration change
+title: "broker: "
+labels: ["broker", "operations"]
+body:
+  - type: textarea
+    id: operation
+    attributes:
+      label: Operation / SDK behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Existing documentation/UAT evidence
+      description: Do not include credentials or raw account-sensitive data.
+  - type: textarea
+    id: cases
+    attributes:
+      label: Required lifecycle cases
+      description: accepted, rejected, partial/full fill, cancel, timeout/ambiguous, reconciliation, reconnect as applicable.
+    validations:
+      required: true
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Execution boundary
+      options:
+        - label: This issue does not request autonomous live-money execution.
+          required: true

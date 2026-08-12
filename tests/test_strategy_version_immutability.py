@@ -37,13 +37,9 @@ def test_sql_strategy_version_identity_survives_restart(tmp_path) -> None:
 
     restarted = SqlStateStore(database_url)
     try:
-        equivalent = restarted.add_strategy_version(
-            _version(code_hash="aaaaaaaa", fast_period=5)
-        )
+        equivalent = restarted.add_strategy_version(_version(code_hash="aaaaaaaa", fast_period=5))
         assert equivalent.id == original.id
         with pytest.raises(ValueError, match="immutable"):
-            restarted.add_strategy_version(
-                _version(code_hash="cccccccc", fast_period=13)
-            )
+            restarted.add_strategy_version(_version(code_hash="cccccccc", fast_period=13))
     finally:
         restarted.close()

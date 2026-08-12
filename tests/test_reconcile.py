@@ -36,4 +36,6 @@ async def test_reconciliation_updates_local_order() -> None:
     )
     report = await ReconciliationService(FakeBroker([remote]), store).run()  # type: ignore[arg-type]
     assert report.updated == 1
-    assert store.find_order_by_broker_order_id("123").status == OrderStatus.FILLED
+    order = store.find_order_by_broker_order_id("123")
+    assert order is not None
+    assert order.status == OrderStatus.FILLED

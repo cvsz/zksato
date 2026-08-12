@@ -21,7 +21,7 @@ def context(price: float, **updates: object) -> RiskContext:
         "account_allowed": True,
     }
     values.update(updates)
-    return RiskContext(**values)
+    return RiskContext(**values)  # type: ignore[arg-type]
 
 
 @given(

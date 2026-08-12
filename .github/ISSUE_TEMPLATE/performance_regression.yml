@@ -1,0 +1,32 @@
+name: Performance regression
+description: Report measurable latency, throughput, resource, or backlog regression
+title: "perf: "
+labels: ["operations", "tests"]
+body:
+  - type: input
+    id: revision
+    attributes:
+      label: Revision
+    validations:
+      required: true
+  - type: textarea
+    id: workload
+    attributes:
+      label: Workload/environment
+      description: Synthetic or isolated environment only; include concurrency/duration/data size.
+    validations:
+      required: true
+  - type: textarea
+    id: before_after
+    attributes:
+      label: Before / after measurements
+      description: Include p50/p95/p99, throughput/errors, CPU/memory/DB/Redis when available.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safe
+    attributes:
+      label: Safety
+      options:
+        - label: The benchmark did not use production broker mutation.
+          required: true

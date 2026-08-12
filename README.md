@@ -6,7 +6,7 @@ zksato separates **market data → deterministic strategy/research → determini
 
 > **Permanent boundary:** autonomous live-money execution is forbidden. Live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains sandbox/UAT-only until broker certification.
 
-## v0.5 — P0-P8 source completion
+## v0.5 — P0-P9 source completion
 
 ### Execution and market behavior
 
@@ -20,6 +20,7 @@ zksato separates **market data → deterministic strategy/research → determini
 - cumulative broker snapshots converted to incremental durable fills without double counting
 - ambiguous broker outcomes fail closed and require reconciliation
 - reconciliation preserves local economic order identity and blocks non-paper execution while unresolved
+- broker reconciliation readiness is restart-local freshness state and must be re-established after each non-paper process restart
 - supervised Settrade realtime feed with reconnect/freshness/gap/out-of-order diagnostics
 - Asia/Bangkok recurring sessions plus operator-provided holiday/special-session overrides
 - trusted reference metadata for sector, tick-size, and price-band checks
@@ -27,7 +28,6 @@ zksato separates **market data → deterministic strategy/research → determini
 ### Strategy and research
 
 Deterministic strategy catalog:
-
 - EMA cross
 - SMA cross
 - RSI reversion
@@ -123,6 +123,20 @@ Machine clients can use `X-API-Key` or Bearer credentials. Browsers can exchange
 - TFEX: `/v1/tfex/*`
 
 `/openapi.json` is authoritative for the running revision.
+
+## Documentation map
+
+Start with [`docs/INDEX.md`](docs/INDEX.md). The repository now maintains structured documentation for requirements, architecture/design, trading domains, API/data contracts, security/privacy/supply chain, reliability/SLO/capacity, deployment/production readiness, GitHub governance, contributor workflows, and reusable evidence templates under [`docs/templates/`](docs/templates/README.md).
+
+Key governance files:
+- [`AGENTS.md`](AGENTS.md) — engineering and agent operating contract
+- [`SECURITY.md`](SECURITY.md) — security model and vulnerability handling
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution and validation workflow
+- [`GOVERNANCE.md`](GOVERNANCE.md) — decision/approval model
+- [`MAINTAINERS.md`](MAINTAINERS.md) — maintainer responsibilities
+- [`SUPPORT.md`](SUPPORT.md) — support and reporting routes
+
+GitHub-specific issue/PR forms, CODEOWNERS, Dependabot, instructions, and workflow controls live in `.github/`.
 
 ## External completion gates
 

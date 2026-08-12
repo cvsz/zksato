@@ -21,6 +21,8 @@ jobs:
     name: Build, audit, scan, attest and publish release
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    environment:
+      name: release
     permissions:
       contents: write
       packages: write

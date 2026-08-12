@@ -279,6 +279,13 @@ class SqlStateStore(StateStore):
             ).scalar_one_or_none()
             if isinstance(paper_state, dict):
                 self.paper_account = paper_state
+            for row in conn.execute(
+                select(runtime_state_table.c.key, runtime_state_table.c.payload).where(
+                    runtime_state_table.c.key != "paper_account"
+                )
+            ).mappings():
+                if isinstance(row["payload"], dict):
+                    self.runtime_state[str(row["key"])] = row["payload"]
             # Broker reconciliation readiness is deliberately NOT restored. It is a
             # freshness assertion about this process/session and must be established
             # by a successful broker snapshot after every restart.
@@ -517,6 +524,27 @@ class SqlStateStore(StateStore):
                 "updated_at": datetime.now(UTC),
             },
         )
+
+    def save_runtime_state(self, key: str, payload: dict[str, object]) -> None:
+        normalized = self._normalize_runtime_state_key(key)
+        super().save_runtime_state(normalized, payload)
+        self._upsert_payload(
+            runtime_state_table,
+            runtime_state_table.c.key,
+            normalized,
+            {
+                "key": normalized,
+                "payload": self.get_runtime_state(normalized) or {},
+                "updated_at": datetime.now(UTC),
+            },
+        )
+
+    def delete_runtime_state(self, key: str) -> bool:
+        normalized = self._normalize_runtime_state_key(key)
+        deleted = super().delete_runtime_state(normalized)
+        with self.engine.begin() as conn:
+            conn.execute(delete(runtime_state_table).where(runtime_state_table.c.key == normalized))
+        return deleted
 
     def add_signal(self, signal: Signal) -> Signal:
         super().add_signal(signal)

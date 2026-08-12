@@ -77,3 +77,26 @@ def test_live_promotion_requires_uat_and_operator_evidence() -> None:
     )
     assert decision.approved is False
     assert decision.requires_manual_live_confirmation is True
+
+
+def test_walk_forward_run_records_immutable_version_evidence() -> None:
+    settings = Settings(research_min_trades=1, research_max_drawdown_pct=100)
+    store = StateStore()
+    service = ResearchService(settings, store)
+    strategy = StrategyConfig(min_history=5, fast_period=2, slow_period=3)
+    version = service.register_strategy("ema_cross", "v1", strategy)
+
+    service.walk_forward(
+        WalkForwardRequest(
+            symbol="AOT",
+            candles=candles(),
+            strategy=strategy,
+            strategy_version="v1",
+            train_fraction=0.7,
+        )
+    )
+
+    run = store.list_strategy_runs()[0]
+    assert run.strategy_version_id == version.id
+    assert run.evidence_hash is not None
+    assert len(run.evidence_hash) == 64

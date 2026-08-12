@@ -1,107 +1,58 @@
 # Security Policy
 
 ## Security model
+zksato treats broker mutation, credentials, approvals, account state, and production readiness evidence as privileged assets. Market analysis, strategy output, dashboard state, and AI/agent components cannot bypass deterministic server-side risk and execution policy.
 
-zksato treats broker mutation as a privileged operation. The system is designed so that market analysis, strategy output, dashboard state and future AI components cannot bypass deterministic server-side risk and execution policy.
+## Supported posture
+The repository supports local paper development and controlled broker UAT workflows. Production readiness is intentionally fail-closed and requires source controls plus external evidence defined in `docs/PRODUCTION-READINESS.md` and `docs/PRODUCTION-CHECKLIST.md`.
 
-## Supported security posture
+## Execution boundary
+- `paper` is the default mode.
+- Autonomous live-money execution is forbidden.
+- Live equity mutation requires trusted server-side risk, configured credentials, reconciliation readiness, and explicit one-time operator authorization.
+- Broker reconciliation freshness is process/session-local and must be re-established after restart.
+- TFEX production mutation remains disabled/UAT-only until separately certified.
+- Frontend, strategy, agent, or LLM state cannot override these controls.
 
-The current v0.2 release is intended for:
+## Authentication and authorization
+The application supports API-key RBAC and signed HttpOnly sessions with CSRF controls. Production deployments must configure authentication, strong session signing material, trusted hosts/origins, TLS termination, rate limiting, account allow-lists, and least-privilege operator roles.
 
-- local paper trading
-- isolated development environments
-- controlled Settrade UAT/sandbox validation
+## Secrets
+Never commit or persist in logs/UI/audit messages:
+- Settrade App Secret, PIN, access/session tokens;
+- reusable API keys or live confirmation material;
+- webhook credentials or signed callback secrets;
+- cloud/database credentials;
+- private account data not required for the evidence record.
 
-It is **not yet a hardened multi-user internet-facing production service**. Production deployment additionally requires authenticated RBAC, TLS, durable broker reconciliation, managed secrets, observability and disaster-recovery controls listed in `ROADMAP.md`.
-
-## Live execution boundary
-
-Live mode is fail-closed:
-
-- live trading is disabled by default
-- complete Settrade credentials are required server-side
-- deterministic risk checks run before broker execution
-- explicit live enablement is required
-- a server-configured confirmation token is required for an explicit live order
-- autonomous live execution is rejected even if a bot is configured for auto execution
-- frontend state cannot override these controls
-
-Do not weaken these conditions in a UI-only change.
-
-## Secret handling
-
-Never commit:
-
-- Settrade App ID/App Secret
-- account numbers
-- PIN values
-- live confirmation tokens
-- webhook credentials
-- broker session material
-
-Use environment injection or a managed secret store. Restrict secret access to the execution service identity. Do not expose secrets through `/v1/config`, dashboard payloads, logs or audit messages.
-
-## Network deployment
-
-If exposing the application outside a trusted workstation/network, place it behind an authenticated TLS reverse proxy. Until native RBAC is implemented, do not expose mutation endpoints directly to the public internet.
-
-Recommended production layers include:
-
-- TLS 1.2+
-- SSO/OIDC or equivalent operator authentication
-- role-based authorization
-- CSRF protection for cookie-authenticated deployments
-- network allow-lists where practical
-- request rate limits
-- managed firewall/WAF policy
+Use environment injection or mounted/managed secrets. Rotate exposed material and preserve only sanitized forensic evidence.
 
 ## Supply chain
-
-Before production release:
-
-- pin and review dependency versions
-- scan dependencies and container images
-- generate an SBOM
-- review GitHub Actions permissions
-- use protected production environments
-- keep production credentials out of pull-request workflows
+Required controls include immutable Action SHA pins, dependency auditing, SAST, secret scanning, container scanning, SBOM generation, least-privilege workflow permissions, and protected deployment environments where the GitHub plan supports them. See `docs/SUPPLY-CHAIN.md`.
 
 ## Vulnerability reporting
+Do not post exploitable details or credentials in a normal issue. Use GitHub private vulnerability reporting/security-advisory capability when available, or contact the repository owner through an agreed private channel. A useful report includes affected revision, reproduction in paper/UAT, impact, sanitized evidence, and whether execution/risk/auth boundaries can be crossed.
 
-Do not disclose live broker credentials, account information or exploitable production details in a public issue. Use a private security-reporting channel configured by the repository owner.
+## Priority vulnerability classes
+Treat as critical/high until triaged:
+- `RiskEngine`/`TradingService` bypass;
+- autonomous live execution path;
+- credential, PIN, session, approval, or account-data disclosure;
+- cross-account routing;
+- duplicate order execution or broken idempotency;
+- stale reconciliation readiness after restart;
+- order-state divergence that can create unintended exposure;
+- unauthenticated/unauthorized mutation;
+- migration or restore behavior that corrupts durable order/fill/risk/audit state.
 
-A useful report should include:
+## Response
+1. stop automation;
+2. activate the application kill switch;
+3. review/cancel open broker orders using the approved broker interface;
+4. isolate affected services and rotate exposed credentials;
+5. preserve sanitized logs/audit/database evidence;
+6. reproduce only in paper/UAT;
+7. patch, validate, and complete security review;
+8. restore service only through the approved rollout process.
 
-- affected commit/version
-- reproduction steps
-- expected and actual behavior
-- potential impact
-- whether the issue can cross the paper/UAT/live boundary
-- relevant sanitized logs
-
-## High-priority vulnerability classes
-
-Treat the following as critical or high severity:
-
-- any bypass of `RiskEngine` or `TradingService`
-- any path allowing autonomous live broker mutation
-- secret disclosure
-- confirmation-token bypass
-- cross-account order routing
-- duplicate order execution after retries/restarts
-- order-state desynchronization that can create unintended exposure
-- unauthenticated remote mutation in a production deployment
-
-## Operational response
-
-If an execution-boundary vulnerability is suspected:
-
-1. stop automation
-2. activate the application kill switch
-3. review/cancel open broker orders using the approved broker interface
-4. remove or rotate exposed credentials
-5. preserve logs and audit data
-6. reproduce only in paper/UAT
-7. patch and rerun CI/UAT before restoring service
-
-The application kill switch blocks new submissions; it does not guarantee cancellation of orders already accepted by the broker.
+The application kill switch blocks new submissions; it does not guarantee cancellation of broker-accepted orders.

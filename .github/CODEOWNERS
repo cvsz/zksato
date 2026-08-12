@@ -1,10 +1,29 @@
 * @cvsz
 
-# High-risk execution boundaries
+# Safety-critical execution boundaries
 /src/zksato/risk.py @cvsz
 /src/zksato/service.py @cvsz
-/src/zksato/broker/ @cvsz
+/src/zksato/reconcile.py @cvsz
+/src/zksato/session_reconcile.py @cvsz
 /src/zksato/portfolio.py @cvsz
+/src/zksato/approvals.py @cvsz
+/src/zksato/auth.py @cvsz
+/src/zksato/security.py @cvsz
+/src/zksato/tfex.py @cvsz
+/src/zksato/broker/ @cvsz
+
+# Durable state and migrations
+/src/zksato/store.py @cvsz
+/src/zksato/persistence.py @cvsz
+/migrations/ @cvsz
+
+# Production/security/governance
 /SECURITY.md @cvsz
+/GOVERNANCE.md @cvsz
+/AGENTS.md @cvsz
 /docs/adr/ @cvsz
+/docs/PRODUCTION-READINESS.md @cvsz
+/docs/templates/PRODUCTION-READINESS-EVIDENCE.md @cvsz
+/.github/CODEOWNERS @cvsz
 /.github/workflows/ @cvsz
+/.github/dependabot.yml @cvsz

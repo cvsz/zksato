@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import deque
+from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 from threading import RLock
@@ -45,6 +46,7 @@ class StateStore:
         self.alerts: dict[str, AlertRule] = {}
         self.outbox: dict[str, OutboxMessage] = {}
         self.outbox_delivery: dict[str, OutboxDeliveryState] = {}
+        self.runtime_state: dict[str, dict[str, object]] = {}
         self.paper_account: dict[str, object] | None = None
         self._client_order_ids: set[str] = set()
         self._history_size = history_size
@@ -281,6 +283,35 @@ class StateStore:
     def get_paper_account(self) -> dict[str, object] | None:
         with self._lock:
             return dict(self.paper_account) if self.paper_account is not None else None
+
+    @staticmethod
+    def _normalize_runtime_state_key(key: str) -> str:
+        if not isinstance(key, str):
+            raise TypeError("runtime state key must be a string")
+        normalized = key.strip()
+        if not normalized:
+            raise ValueError("runtime state key cannot be empty")
+        if len(normalized) > 128:
+            raise ValueError("runtime state key cannot exceed 128 characters")
+        return normalized
+
+    def save_runtime_state(self, key: str, payload: dict[str, object]) -> None:
+        normalized = self._normalize_runtime_state_key(key)
+        if not isinstance(payload, dict):
+            raise TypeError("runtime state payload must be a dictionary")
+        with self._lock:
+            self.runtime_state[normalized] = deepcopy(payload)
+
+    def get_runtime_state(self, key: str) -> dict[str, object] | None:
+        normalized = self._normalize_runtime_state_key(key)
+        with self._lock:
+            payload = self.runtime_state.get(normalized)
+            return deepcopy(payload) if payload is not None else None
+
+    def delete_runtime_state(self, key: str) -> bool:
+        normalized = self._normalize_runtime_state_key(key)
+        with self._lock:
+            return self.runtime_state.pop(normalized, None) is not None
 
     def add_signal(self, signal: Signal) -> Signal:
         with self._lock:

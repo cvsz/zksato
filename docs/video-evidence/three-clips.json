@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "analysis_scope": "visual/frame-based trading behavior extraction",
+  "audio_transcript_available": false,
+  "videos": [
+    {
+      "source_name": "20102(1)(1).mp4",
+      "sha256": "02babe28db5457282cdb2f874b38a48f795b314422485f2bb615642d3a21a919",
+      "duration_seconds": 11.86254,
+      "width": 588,
+      "height": 1276,
+      "fps": 30.0,
+      "observed": [
+        "MetaTrader mobile view, XAUUSDz M1",
+        "sharp upward expansion into roughly the 4168-4170 area",
+        "very dense repeated BUY 0.01 position labels",
+        "trade-list floating result around 100,202 USD in a sampled frame",
+        "sampled account values show balance around 76 USD, equity around 100,279 USD and margin around 35,873 USD"
+      ],
+      "inferred": [
+        "position accumulation is orders of magnitude larger than a normal bounded ladder",
+        "selected winning trend does not establish robustness against reversal, gap or margin stress"
+      ]
+    },
+    {
+      "source_name": "20109(1).mp4",
+      "sha256": "0124a79cf829f023b81995c81f2646d2e300fc2304e91f6f33bde5e4bffce0ba",
+      "duration_seconds": 22.893469,
+      "width": 720,
+      "height": 1280,
+      "fps": 30.0,
+      "observed": [
+        "chart teaching view with blue support/resistance zones and handwritten PA annotations",
+        "long-position examples place invalidation below the highlighted zone",
+        "visible risk/reward examples are approximately 1.21R and 1.88R",
+        "later sequence shows breakout followed by a return to the prior breakout area"
+      ],
+      "inferred": [
+        "PA is treated as price-action confirmation at a structural zone",
+        "the reusable rule is support/resistance identification, breakout, retest and rejection/engulfing confirmation",
+        "former resistance becoming support is a directional long filter"
+      ]
+    },
+    {
+      "source_name": "20110(1).mp4",
+      "sha256": "1d2e9e3d9247df703e1e845f7bfa1553e8cf4594d8615788afe7bcfc10a9a51b",
+      "duration_seconds": 17.214708,
+      "width": 720,
+      "height": 1280,
+      "fps": 30.0,
+      "observed": [
+        "MetaTrader mobile view, XAUUSD.ecn M5",
+        "Buy Stop ladder includes approximately 4010.21, 4010.51, 4010.81, 4011.11, 4011.41, 4011.71 and 4012.01",
+        "Sell Stop ladder includes approximately 4008.31, 4008.01, 4007.71, 4007.41, 4007.11, 4006.81 and 4006.51",
+        "adjacent visible ladder prices are approximately 0.30 price units apart",
+        "open BUY positions are visible near 4009.01, 4009.31, 4009.61 and 4009.91",
+        "a SELL position appears around 4008.31 after price moves down",
+        "position/order lines disappear after a positive basket phase and a fresh ladder later appears around the new price"
+      ],
+      "inferred": [
+        "two-sided breakout stop ladder centered around an anchor price",
+        "basket-level flatten/cancel followed by grid reseeding",
+        "oscillating markets can accumulate opposing exposure without explicit caps"
+      ]
+    }
+  ],
+  "derived_controls": [
+    "PA-filtered direction by default",
+    "fixed size only",
+    "hard total quantity and pending-trigger caps",
+    "one dedupe identity per level",
+    "basket target and cycle loss/invalidation boundary",
+    "no martingale",
+    "no unlimited duplicate stacking",
+    "SET-equity symmetric long/short ladder rejected",
+    "planner and virtual cycle runtime have no broker authority",
+    "MQL5 reference EA rejects real-account initialization"
+  ]
+}

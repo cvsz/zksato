@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: "HTTPS URL of the deployed UAT control plane"
-        required: true
+        description: "Optional HTTPS URL override; defaults to uat environment variable"
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -20,7 +21,9 @@ jobs:
     name: Non-mutating Settrade UAT evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    environment: uat
+    environment:
+      name: uat
+      deployment: false
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -32,10 +35,11 @@ jobs:
           python-version: "3.11"
       - name: Validate UAT inputs
         env:
-          BASE_URL: ${{ inputs.base_url }}
+          BASE_URL: ${{ inputs.base_url || vars.ZKSATO_UAT_BASE_URL }}
           ZKSATO_UAT_API_KEY: ${{ secrets.ZKSATO_UAT_API_KEY }}
         run: |
           set -euo pipefail
+          test -n "$BASE_URL" || { echo 'Missing UAT base URL: set environment variable ZKSATO_UAT_BASE_URL or provide base_url.'; exit 1; }
           test -n "$ZKSATO_UAT_API_KEY" || { echo 'Missing UAT environment secret ZKSATO_UAT_API_KEY'; exit 1; }
           case "$BASE_URL" in
             https://*) ;;
@@ -43,7 +47,7 @@ jobs:
           esac
       - name: Collect non-mutating certification evidence
         env:
-          BASE_URL: ${{ inputs.base_url }}
+          BASE_URL: ${{ inputs.base_url || vars.ZKSATO_UAT_BASE_URL }}
           ZKSATO_UAT_API_KEY: ${{ secrets.ZKSATO_UAT_API_KEY }}
         run: |
           set -euo pipefail

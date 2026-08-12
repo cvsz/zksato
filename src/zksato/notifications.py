@@ -14,9 +14,7 @@ def _safe_delivery_error(exc: Exception) -> str:
     """Return bounded diagnostic text without persisting webhook URLs or payload data."""
 
     if isinstance(exc, httpx.HTTPStatusError):
-        return truncate_error(
-            f"{type(exc).__name__}: status={exc.response.status_code}"
-        )
+        return truncate_error(f"{type(exc).__name__}: status={exc.response.status_code}")
     return truncate_error(type(exc).__name__)
 
 
@@ -39,18 +37,14 @@ class OutboxDispatcher:
         self.store = store
         self.webhook_url = webhook_url
         self.interval = (
-            interval
-            if interval is not None
-            else settings.notification_dispatch_interval_seconds
+            interval if interval is not None else settings.notification_dispatch_interval_seconds
         )
         self.timeout_seconds = (
             timeout_seconds
             if timeout_seconds is not None
             else settings.notification_timeout_seconds
         )
-        self.batch_size = (
-            batch_size if batch_size is not None else settings.notification_batch_size
-        )
+        self.batch_size = batch_size if batch_size is not None else settings.notification_batch_size
         self.retry_base_seconds = (
             retry_base_seconds
             if retry_base_seconds is not None

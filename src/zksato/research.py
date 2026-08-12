@@ -22,6 +22,10 @@ from zksato.domain import (
 from zksato.market_rules import MarketSessionPolicy
 from zksato.store import StateStore
 from zksato.strategy import StrategyEngine
+from zksato.video_ea_research import (
+    StrategyRunEvidenceRequest,
+    build_strategy_run_evidence,
+)
 
 
 class PromotionStage(StrEnum):
@@ -40,6 +44,7 @@ class WalkForwardRequest(BaseModel):
     commission_pct: float = Field(default=0.15, ge=0, le=5)
     slippage_pct: float = Field(default=0.05, ge=0, le=5)
     train_fraction: float = Field(default=0.7, gt=0.2, lt=0.9)
+    strategy_version: str | None = Field(default=None, max_length=64)
 
 
 class WalkForwardResult(BaseModel):
@@ -128,6 +133,28 @@ class ResearchService:
             self.store.upsert_bar(bar)
         return len(bars)
 
+    def _resolve_strategy_version(
+        self,
+        name: str,
+        requested_version: str | None = None,
+    ) -> StrategyVersion | None:
+        versions = [item for item in self.store.list_strategy_versions() if item.name == name]
+        if requested_version is not None:
+            return next(
+                (item for item in versions if item.version == requested_version),
+                None,
+            )
+        return versions[0] if versions else None
+
+    def _record_strategy_run(
+        self,
+        run: StrategyRun,
+        version: StrategyVersion | None,
+    ) -> None:
+        evidence = build_strategy_run_evidence(StrategyRunEvidenceRequest(run=run, version=version))
+        run.evidence_hash = evidence.evidence_hash
+        self.store.add_strategy_run(run)
+
     def replay(
         self,
         symbol: str,
@@ -146,7 +173,9 @@ class ResearchService:
             if signal.action.value != "hold":
                 signal.timestamp = bar.timestamp
                 signals.append(signal)
+        version = self._resolve_strategy_version(strategy.name)
         run = StrategyRun(
+            strategy_version_id=version.id if version else None,
             strategy=strategy.name,
             symbol=symbol.upper(),
             mode="replay",
@@ -158,7 +187,7 @@ class ResearchService:
             output={"signals": len(signals)},
             completed_at=datetime.now(UTC),
         )
-        self.store.add_strategy_run(run)
+        self._record_strategy_run(run, version)
         return ReplayResult(
             symbol=symbol.upper(),
             strategy=strategy.name,
@@ -202,7 +231,17 @@ class ResearchService:
             reasons.append("out-of-sample drawdown exceeds promotion maximum")
         if out_of_sample.total_return_pct < self.settings.research_min_oos_return_pct:
             reasons.append("out-of-sample return below promotion minimum")
+        version = self._resolve_strategy_version(
+            request.strategy.name,
+            request.strategy_version,
+        )
+        if request.strategy_version is not None and version is None:
+            raise ValueError(
+                f"strategy version {request.strategy.name}:{request.strategy_version} "
+                "is not registered"
+            )
         run = StrategyRun(
+            strategy_version_id=version.id if version else None,
             strategy=request.strategy.name,
             symbol=request.symbol.upper(),
             mode="walk_forward",
@@ -212,6 +251,7 @@ class ResearchService:
                 "commission_pct": request.commission_pct,
                 "slippage_pct": request.slippage_pct,
                 "session_filter": self.settings.enforce_market_sessions,
+                "strategy_version": version.version if version else None,
             },
             output={
                 "train_return_pct": train.total_return_pct,
@@ -221,7 +261,7 @@ class ResearchService:
             },
             completed_at=datetime.now(UTC),
         )
-        self.store.add_strategy_run(run)
+        self._record_strategy_run(run, version)
         return WalkForwardResult(
             symbol=request.symbol.upper(),
             train=train,
