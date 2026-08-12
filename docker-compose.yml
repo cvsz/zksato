@@ -25,6 +25,15 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
 
+  dashboard:
+    build: 
+      context: ./dashboard
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     environment:

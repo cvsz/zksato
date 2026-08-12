@@ -4,6 +4,8 @@ Risk-first automation, research, paper execution, and operations control plane f
 
 zksato separates **market data → deterministic strategy/research → deterministic risk → controlled execution → reconciliation → portfolio/audit**. Paper mode is the default. Settrade Open API v2 stays behind server-side adapters and credentials.
 
+> **Deployment Strategy:** `localhost` (via Docker Compose) is the primary target environment for running all features. Cloud configurations (AWS/GCP via Terraform) in the `deploy/terraform/` directory are intended for backup/failover only.
+
 > **Permanent boundary:** autonomous live-money execution is forbidden. Live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains sandbox/UAT-only until broker certification.
 
 ## v0.5 — P0-P9 source completion
