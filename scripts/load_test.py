@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-import random
-from datetime import datetime, timezone
 
 def hit(url: str, api_key: str | None) -> tuple[int, float]:
     headers = {"Content-Type": "application/json"}
@@ -23,7 +23,7 @@ def hit(url: str, api_key: str | None) -> tuple[int, float]:
         "bid": round(random.uniform(9, 100), 2),
         "offer": round(random.uniform(10, 101), 2),
         "volume": random.randint(100, 10000),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }
     data = json.dumps(quote).encode("utf-8")
     request = Request(url, data=data, headers=headers, method="POST")

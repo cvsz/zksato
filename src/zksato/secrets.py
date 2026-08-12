@@ -30,9 +30,13 @@ class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
             if "SecretString" in response:
                 self.secrets_cache = json.loads(response["SecretString"])
         except ClientError as e:
-            logger.warning(f"Failed to fetch from AWS Secrets Manager: {e}. Falling back to env vars.")
+            logger.warning(
+                f"Failed to fetch from AWS Secrets Manager: {e}. Falling back to env vars."
+            )
         except Exception as e:
-            logger.warning(f"Error fetching from AWS Secrets Manager: {e}. Falling back to env vars.")
+            logger.warning(
+                f"Error fetching from AWS Secrets Manager: {e}. Falling back to env vars."
+            )
 
     def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
         # Try AWS Secrets Manager first
@@ -46,7 +50,9 @@ class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
             
         return None, field_name, False
 
-    def prepare_field_value(self, field_name: str, field: FieldInfo, value: Any, value_is_complex: bool) -> Any:
+    def prepare_field_value(
+        self, field_name: str, field: FieldInfo, value: Any, value_is_complex: bool
+    ) -> Any:
         return value
 
     def __call__(self) -> dict[str, Any]:
