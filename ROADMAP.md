@@ -1,10 +1,27 @@
 # zksato Roadmap
 
-## Current release — v0.5 P0-P8 repository/source completion
+## Current release — v0.6.0 Infrastructure, TFEX, UI, and AI
 
-Repository-controlled P0-P8 work is implemented or represented by fail-closed evidence gates. Broker/account certification, legal/operational approval, GitHub-plan features, production infrastructure, and measured deployment evidence remain external and cannot be self-certified by source code.
+Now that v0.5 has perfected the local runtime and tests, v0.6.0 focuses on real-world broker certification, production deployment, and advanced intelligence.
 
-### P0 — Durable correctness
+### P9 — Infrastructure and Production Deployments (External)
+- [ ] Infrastructure as Code (Terraform) for AWS/GCP with KMS encryption
+- [ ] OpenTelemetry collector + Grafana/Prometheus deployment
+- [ ] RPO/RTO disaster recovery drills
+
+### P10 — TFEX Broker Certification
+- [ ] Migrate Settrade simulator to Settrade UAT sandbox
+- [ ] Contract rollover and dynamic margin management
+
+### P11 — Secure Operator Dashboard
+- [ ] Frontend dashboard built for operator interaction
+- [ ] One-time manual risk approval via webhook pagers
+
+### P12 — AI-Augmented Research
+- [ ] LLM Sentiment signals integrated into `strategy.py`
+- [ ] Agentic parameter sweep exploration inside `video_ea_research.py`
+
+## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars
 - [x] versioned migrations and restart-safe `client_order_id` uniqueness
 - [x] persistent paper cash/holdings/P&L, durable lifecycle events and reconciliation readiness
