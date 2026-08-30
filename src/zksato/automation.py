@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -37,6 +38,7 @@ class AutomationEngine:
         self.status = BotStatus()
         self._last_action: dict[str, datetime] = {}
         self._signals_this_tick: dict[str, int] = {}
+        self._quote_lock = asyncio.Lock()
 
     def start(self, config: BotConfig) -> BotStatus:
         if not config.symbols:
@@ -69,18 +71,19 @@ class AutomationEngine:
         return self.status
 
     async def on_quote(self, quote: Quote) -> None:
-        stored = self.store.update_quote(quote)
-        if stored.timestamp != quote.timestamp:
-            self.store.add_audit(
-                "market.out_of_order",
-                f"ignored out-of-order quote for {quote.symbol}",
-            )
-            return
-        process_quote = getattr(self.service.broker, "process_quote", None)
-        if process_quote is not None:
-            await process_quote(stored)
-        await self._check_alerts(stored)
-        await self._check_protective_exits(stored)
+        async with self._quote_lock:
+            stored = self.store.update_quote(quote)
+            if stored.timestamp != quote.timestamp:
+                self.store.add_audit(
+                    "market.out_of_order",
+                    f"ignored out-of-order quote for {quote.symbol}",
+                )
+                return
+            process_quote = getattr(self.service.broker, "process_quote", None)
+            if process_quote is not None:
+                await process_quote(stored)
+            await self._check_alerts(stored)
+            await self._check_protective_exits(stored)
         if self.status.state != BotState.RUNNING or not self.status.config:
             return
         if stored.symbol not in self.status.config.symbols:
@@ -189,7 +192,7 @@ class AutomationEngine:
     async def _check_protective_exits(self, quote: Quote) -> None:
         if self.settings.trading_mode != "paper":
             return
-        for order in list(self.store.orders):
+        for order in self.store.list_orders():
             if order.side != Side.BUY or order.filled_quantity <= 0:
                 continue
             account = getattr(self.service.broker, "account", None)

@@ -40,7 +40,7 @@ async def test_paper_order_is_filled() -> None:
 
 
 @pytest.mark.asyncio
-async def test_duplicate_client_order_id_is_rejected() -> None:
+async def test_duplicate_client_order_id_is_idempotent() -> None:
     service = make_service()
     submission = OrderSubmission(
         intent=OrderIntent(
@@ -57,9 +57,12 @@ async def test_duplicate_client_order_id_is_rejected() -> None:
             portfolio_value=500_000,
         ),
     )
-    await service.submit(submission)
-    with pytest.raises(ValueError, match="duplicate client_order_id"):
-        await service.submit(submission)
+    first = await service.submit(submission)
+    second = await service.submit(submission)
+    assert second.id == first.id
+    assert second.client_order_id == "same-id"
+    # No duplicate order created
+    assert len(service.store.list_orders()) == 1
 
 
 @pytest.mark.asyncio

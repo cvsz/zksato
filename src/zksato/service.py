@@ -211,6 +211,9 @@ class TradingService:
         if client_order_id:
             claimed = self.store.claim_client_order_id(client_order_id)
             if not claimed:
+                existing = self.store.find_order_by_client_order_id(client_order_id)
+                if existing is not None:
+                    return existing
                 raise ValueError("duplicate client_order_id")
 
         self.store.add_audit(
