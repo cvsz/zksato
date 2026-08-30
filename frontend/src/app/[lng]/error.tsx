@@ -64,12 +64,17 @@ export default function Error({
         style={{
           fontSize: '14px',
           color: 'var(--text-muted)',
-          marginBottom: '28px',
+          marginBottom: '16px',
           lineHeight: 1.6,
         }}
       >
-        An unexpected error occurred. Please try again.
+        {error.message || 'An unexpected error occurred. Please try again.'}
       </p>
+      {error.digest && (
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px', fontFamily: 'monospace' }}>
+          Digest: {error.digest}
+        </div>
+      )}
       <button
         onClick={reset}
         className="btn-base btn-primary"

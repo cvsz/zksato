@@ -497,24 +497,29 @@ export default function DashboardPage() {
               </span>
             </span>
           ) : (
-            [...tickerData, ...tickerData].map((item, idx) => (
-              <span key={`${item.symbol}-${idx}`} className="ticker-item">
-                <span className="ticker-symbol">{item.symbol}</span>
-                <span className="ticker-price">
-                  $
-                  {item.price.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+            [...tickerData, ...tickerData].map((item, idx) => {
+              if (!item || !item.symbol) return null;
+              const price = typeof item.price === 'number' && Number.isFinite(item.price) ? item.price : 0;
+              const changePct = typeof item.changePercent === 'number' && Number.isFinite(item.changePercent) ? item.changePercent : 0;
+              return (
+                <span key={`${item.symbol}-${idx}`} className="ticker-item">
+                  <span className="ticker-symbol">{item.symbol}</span>
+                  <span className="ticker-price">
+                    $
+                    {price.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span
+                    className={`ticker-change ${changePct >= 0 ? 'up' : 'down'}`}
+                  >
+                    {changePct >= 0 ? '+' : ''}
+                    {changePct.toFixed(2)}%
+                  </span>
                 </span>
-                <span
-                  className={`ticker-change ${item.changePercent >= 0 ? 'up' : 'down'}`}
-                >
-                  {item.changePercent >= 0 ? '+' : ''}
-                  {item.changePercent.toFixed(2)}%
-                </span>
-              </span>
-            ))
+              );
+            })
           )}
         </div>
       </div>
