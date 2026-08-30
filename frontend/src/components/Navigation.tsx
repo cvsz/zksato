@@ -76,8 +76,7 @@ const menuConfig = [
   {
     key: 'terminal',
     i18nKey: 'menu.terminal',
-    path: '/v1/market/terminal',
-    external: true,
+    path: 'terminal',
     icon: (
       <svg
         width="16"
@@ -441,9 +440,7 @@ export function Navigation({ lng }: NavigationProps) {
                 {menuConfig.map((item) => (
                   <Link
                     key={item.key}
-                    href={item.external ? item.path : `/${lng}/${item.path}`}
-                    target={item.external ? '_blank' : undefined}
-                    rel={item.external ? 'noopener noreferrer' : undefined}
+                    href={`/${lng}/${item.path}`}
                     className={`nav-link${isActive(item.path) ? ' active' : ''}`}
                     {...(isActive(item.path) ? { 'aria-current': 'page' as const } : {})}
                   >
@@ -530,9 +527,7 @@ export function Navigation({ lng }: NavigationProps) {
             {menuConfig.map((item) => (
               <Link
                 key={item.key}
-                href={item.external ? item.path : `/${lng}/${item.path}`}
-                target={item.external ? '_blank' : undefined}
-                rel={item.external ? 'noopener noreferrer' : undefined}
+                href={`/${lng}/${item.path}`}
                 className={`nav-mobile-link${isActive(item.path) ? ' active' : ''}`}
                 {...(isActive(item.path) ? { 'aria-current': 'page' as const } : {})}
               >

@@ -18,10 +18,11 @@ interface BotResponse {
 interface AuditLogResponse {
   id: string;
   event_type: string;
-  actor: string;
-  severity: string;
+  actor?: string;
+  severity?: string;
   message: string;
-  created_at: string;
+  created_at?: string;
+  timestamp?: string;
   details?: unknown;
 }
 
@@ -1281,41 +1282,46 @@ export default function DashboardPage() {
         </tr>
       </thead>
       <tbody>
-              {auditLogs.map((log) => (
-                <tr key={log.id} className="table-tr">
-                  <td
-                    className="table-td"
-                    style={{ color: 'var(--text-secondary)' }}
-                    data-label={t('dashboard.audit_timestamp')}
-                  >
-                    {new Date(log.created_at).toLocaleTimeString()}
-                  </td>
-                  <td className="table-td" style={{ fontWeight: '500' }} data-label={t('dashboard.audit_event_type')}>
-                    {log.event_type}
-                  </td>
-                  <td
-                    className="table-td"
-                    style={{ color: 'var(--text-secondary)' }}
-                    data-label={t('dashboard.audit_actor')}
-                  >
-                    {log.actor}
-                  </td>
-                  <td className="table-td" data-label={t('dashboard.audit_severity')}>
-                    <span
-                      className={`badge ${log.severity === 'critical' ? 'badge-danger' : log.severity === 'warning' ? 'badge-warning' : 'badge-info'}`}
+              {auditLogs.map((log) => {
+                const sev = (log.severity || 'info').toLowerCase();
+                const timeStr = log.created_at || log.timestamp;
+                const formattedTime = timeStr ? new Date(timeStr).toLocaleTimeString() : '—';
+                return (
+                  <tr key={log.id} className="table-tr">
+                    <td
+                      className="table-td"
+                      style={{ color: 'var(--text-secondary)' }}
+                      data-label={t('dashboard.audit_timestamp')}
                     >
-                      {log.severity.toUpperCase()}
-                    </span>
-                  </td>
-                  <td
-                    className="table-td"
-                    style={{ color: 'var(--text-muted)' }}
-                    data-label={t('dashboard.audit_message')}
-                  >
-                    {log.message}
-                  </td>
-                </tr>
-              ))}
+                      {formattedTime}
+                    </td>
+                    <td className="table-td" style={{ fontWeight: '500' }} data-label={t('dashboard.audit_event_type')}>
+                      {log.event_type}
+                    </td>
+                    <td
+                      className="table-td"
+                      style={{ color: 'var(--text-secondary)' }}
+                      data-label={t('dashboard.audit_actor')}
+                    >
+                      {log.actor || 'system'}
+                    </td>
+                    <td className="table-td" data-label={t('dashboard.audit_severity')}>
+                      <span
+                        className={`badge ${sev === 'critical' ? 'badge-danger' : sev === 'warning' ? 'badge-warning' : 'badge-info'}`}
+                      >
+                        {sev.toUpperCase()}
+                      </span>
+                    </td>
+                    <td
+                      className="table-td"
+                      style={{ color: 'var(--text-muted)' }}
+                      data-label={t('dashboard.audit_message')}
+                    >
+                      {log.message}
+                    </td>
+                  </tr>
+                );
+              })}
               {auditLogs.length === 0 && (
                 <tr>
                   <td
