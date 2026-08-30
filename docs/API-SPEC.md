@@ -48,6 +48,20 @@ Responses propagate a supplied `X-Request-ID` or return the generated correlatio
 
 Live mode rejects `auto_execute=true`; autonomous live execution is unavailable.
 
+## TradingView webhooks and alerts
+
+- `POST /v1/tradingview/webhook` — HMAC-SHA256 authenticated webhook endpoint supporting global and per-symbol secrets
+- `POST /v1/tradingview/config` — Configure per-symbol webhook secrets
+- `DELETE /v1/tradingview/config/{symbol}` — Delete per-symbol webhook secret
+- `POST /v1/telegram/test` — Test Telegram notification channel
+
+## Agent OS (Native Autonomous Intelligence)
+
+- `GET /v1/agent-os/skills` — Enumerate all registered financial intelligence skills and parameter schemas
+- `GET /v1/agent-os/subaccounts` — List active agent sub-accounts and collateral allocations
+- `POST /v1/agent-os/subaccounts` — Create an isolated, zero-withdrawal agent sub-account
+- `POST /v1/agent-os/execute` — Execute an Agent OS skill through the pre-trade `RiskEngine` boundary
+
 ## Equity risk and orders
 
 - `POST /v1/risk/check` — explicit-context what-if only
