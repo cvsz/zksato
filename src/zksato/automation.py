@@ -36,6 +36,7 @@ class AutomationEngine:
         self.news_adapter = news_adapter or MockNewsAdapter()
         self.status = BotStatus()
         self._last_action: dict[str, datetime] = {}
+        self._signals_this_tick: dict[str, int] = {}
 
     def start(self, config: BotConfig) -> BotStatus:
         if not config.symbols:
@@ -90,6 +91,7 @@ class AutomationEngine:
         self.status.last_tick_at = datetime.now(UTC)
         if self.status.state != BotState.RUNNING or not self.status.config:
             return self.status
+        self._signals_this_tick = {}
         for symbol in self.status.config.symbols:
             if self.store.get_quote(symbol):
                 await self._evaluate_symbol(symbol)
@@ -112,8 +114,15 @@ class AutomationEngine:
         )
         if signal.action == SignalAction.HOLD:
             return
+        if config.confidence_threshold > 0.0 and signal.confidence < config.confidence_threshold:
+            return
         if self._in_cooldown(symbol, config.cooldown_seconds):
             return
+        if config.max_signals_per_tick > 0:
+            tick_count = self._signals_this_tick.get("__total__", 0)
+            if tick_count >= config.max_signals_per_tick:
+                return
+            self._signals_this_tick["__total__"] = tick_count + 1
         self.store.add_signal(signal)
         self.status.signals_generated += 1
         self._last_action[symbol] = datetime.now(UTC)

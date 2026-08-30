@@ -207,3 +207,41 @@ def max_drawdown_pct(equity_curve: list[float]) -> float:
         if peak > 0:
             max_drawdown = max(max_drawdown, ((peak - value) / peak) * 100)
     return max_drawdown
+
+
+def stochastic_oscillator(
+    candles: list[Candle], k_period: int = 14, d_period: int = 3
+) -> tuple[float, float] | None:
+    """Stochastic oscillator: returns (%K, %D). Values 0–100."""
+    if k_period <= 0 or d_period <= 0 or len(candles) < k_period:
+        return None
+    window = candles[-k_period:]
+    high = max(c.high for c in window)
+    low = min(c.low for c in window)
+    if high == low:
+        return None
+    k_values: list[float] = []
+    for i in range(max(0, len(candles) - k_period - d_period + 1), len(candles) - k_period + 1):
+        w = candles[i : i + k_period]
+        h = max(c.high for c in w)
+        lo = min(c.low for c in w)
+        cl = w[-1].close
+        k_values.append(0.0 if h == lo else (cl - lo) / (h - lo) * 100)
+    if not k_values:
+        return None
+    k = k_values[-1]
+    d = sum(k_values[-d_period:]) / min(d_period, len(k_values))
+    return k, d
+
+
+def williams_r(candles: list[Candle], period: int = 14) -> float | None:
+    """Williams %R: values from -100 to 0. Oversold < -80, overbought > -20."""
+    if period <= 0 or len(candles) < period:
+        return None
+    window = candles[-period:]
+    high = max(c.high for c in window)
+    low = min(c.low for c in window)
+    close = candles[-1].close
+    if high == low:
+        return None
+    return (high - close) / (high - low) * -100

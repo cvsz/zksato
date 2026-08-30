@@ -57,8 +57,8 @@
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  --font-outfit: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-outfit: var(--font-outfit), 'Outfit', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-mono), 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -572,7 +572,7 @@ select.input-field {
 .ticker-content {
   display: inline-flex;
   gap: 48px;
-  animation: ticker-scroll 30s linear infinite;
+  animation: ticker-scroll 35s linear infinite;
 }
 .ticker-item {
   display: inline-flex;

@@ -1,7 +1,19 @@
 from __future__ import annotations
 
 from zksato.domain import Candle, Signal, SignalAction, StrategyConfig
-from zksato.indicators import bollinger_bands, ema, highest, macd, rate_of_change, rsi, sma, vwap
+from zksato.indicators import (
+    atr,
+    bollinger_bands,
+    ema,
+    highest,
+    macd,
+    rate_of_change,
+    rsi,
+    sma,
+    stochastic_oscillator,
+    vwap,
+    williams_r,
+)
 from zksato.prediction.strategy import ProbabilityEdgeStrategy
 
 
@@ -54,6 +66,12 @@ class StrategyEngine:
             return self._position(symbol, prices, config)
         if config.name == "vwap":
             return self._vwap(symbol, prices, config, candles)
+        if config.name == "stochastic":
+            return self._stochastic(symbol, prices, config, candles)
+        if config.name == "williams_r":
+            return self._williams_r_strategy(symbol, prices, config, candles)
+        if config.name == "atr_channel":
+            return self._atr_channel(symbol, prices, config, candles)
 
         raise ValueError(f"unknown strategy: {config.name}")
 
@@ -458,8 +476,7 @@ class StrategyEngine:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient Bollinger history"
             )
-        _, _, upper = bands
-        _, _, lower = bands
+        lower, _, upper = bands
         band_width = upper - lower
         near_upper = price >= upper - band_width * 0.1
         near_lower = price <= lower + band_width * 0.1
@@ -610,4 +627,164 @@ class StrategyEngine:
             SignalAction.HOLD,
             0.25,
             f"VWAP {vwap_value:.2f} neutral (distance {distance_pct:.2%})",
+        )
+
+    def _stochastic(
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        candles: list[Candle] | None,
+    ) -> Signal:
+        """Stochastic oscillator oversold/overbought signals."""
+        price = prices[-1]
+        if candles is None or len(candles) < config.stoch_k_period:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.HOLD,
+                0.0,
+                "insufficient candle history for stochastic",
+            )
+        result = stochastic_oscillator(candles, config.stoch_k_period, config.stoch_d_period)
+        if result is None:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "unable to compute stochastic"
+            )
+        k, d = result
+        if k <= config.stoch_oversold and d <= config.stoch_oversold and k > d:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                0.5 + (config.stoch_oversold - k) / config.stoch_oversold * 0.5,
+                f"stochastic K={k:.1f} D={d:.1f} oversold crossover",
+            )
+        if k >= config.stoch_overbought and d >= config.stoch_overbought and k < d:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                0.5 + (k - config.stoch_overbought) / (100 - config.stoch_overbought) * 0.5,
+                f"stochastic K={k:.1f} D={d:.1f} overbought crossover",
+            )
+        return self._signal(
+            symbol,
+            config,
+            price,
+            SignalAction.HOLD,
+            0.25,
+            f"stochastic neutral K={k:.1f} D={d:.1f}",
+        )
+
+    def _williams_r_strategy(
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        candles: list[Candle] | None,
+    ) -> Signal:
+        """Williams %R oversold/overbought reversal signals."""
+        price = prices[-1]
+        if candles is None or len(candles) < config.williams_r_period:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.HOLD,
+                0.0,
+                "insufficient candle history for Williams %R",
+            )
+        wr = williams_r(candles, config.williams_r_period)
+        if wr is None:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "unable to compute Williams %R"
+            )
+        if wr <= config.williams_r_oversold:
+            gap = abs(wr - config.williams_r_oversold)
+            confidence = 0.5 + (gap / abs(config.williams_r_oversold)) * 0.3
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                confidence,
+                f"Williams %R {wr:.1f} <= {config.williams_r_oversold:.1f} oversold",
+            )
+        if wr >= config.williams_r_overbought:
+            gap = abs(wr - config.williams_r_overbought)
+            confidence = 0.5 + (gap / abs(config.williams_r_overbought)) * 0.3
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                confidence,
+                f"Williams %R {wr:.1f} >= {config.williams_r_overbought:.1f} overbought",
+            )
+        return self._signal(
+            symbol,
+            config,
+            price,
+            SignalAction.HOLD,
+            0.25,
+            f"Williams %R {wr:.1f} neutral",
+        )
+
+    def _atr_channel(
+        self,
+        symbol: str,
+        prices: list[float],
+        config: StrategyConfig,
+        candles: list[Candle] | None,
+    ) -> Signal:
+        """ATR channel breakout: buy above EMA + ATR*mult, sell below EMA - ATR*mult."""
+        price = prices[-1]
+        if candles is None or len(candles) <= config.atr_period:
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.HOLD,
+                0.0,
+                "insufficient candle history for ATR channel",
+            )
+        atr_value = atr(candles, config.atr_period)
+        ema_value = ema(prices, config.slow_period)
+        if atr_value is None or ema_value is None:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "unable to compute ATR channel"
+            )
+        upper_channel = ema_value + atr_value * config.atr_multiplier
+        lower_channel = ema_value - atr_value * config.atr_multiplier
+        if price > upper_channel:
+            confidence = 0.5 + (price - upper_channel) / (atr_value * config.atr_multiplier) * 0.25
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                confidence,
+                f"price {price:.2f} broke above ATR channel {upper_channel:.2f}",
+            )
+        if price < lower_channel:
+            confidence = 0.5 + (lower_channel - price) / (atr_value * config.atr_multiplier) * 0.25
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                confidence,
+                f"price {price:.2f} broke below ATR channel {lower_channel:.2f}",
+            )
+        return self._signal(
+            symbol,
+            config,
+            price,
+            SignalAction.HOLD,
+            0.25,
+            f"inside ATR channel [{lower_channel:.2f}, {upper_channel:.2f}]",
         )

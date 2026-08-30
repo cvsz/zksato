@@ -280,6 +280,15 @@ class StrategyConfig(BaseModel):
     swing_rsi_period: int = Field(default=14, ge=2, le=100)
     position_fast_period: int = Field(default=50, ge=2, le=500)
     position_slow_period: int = Field(default=200, ge=3, le=1000)
+    stoch_k_period: int = Field(default=14, ge=2, le=200)
+    stoch_d_period: int = Field(default=3, ge=1, le=50)
+    stoch_overbought: float = Field(default=80.0, ge=50.0, le=100.0)
+    stoch_oversold: float = Field(default=20.0, ge=0.0, le=50.0)
+    atr_period: int = Field(default=14, ge=2, le=200)
+    atr_multiplier: float = Field(default=1.5, ge=0.1, le=10.0)
+    williams_r_period: int = Field(default=14, ge=2, le=200)
+    williams_r_overbought: float = Field(default=-20.0, ge=-50.0, le=0.0)
+    williams_r_oversold: float = Field(default=-80.0, ge=-100.0, le=-50.0)
 
 
 class StrategyVersion(BaseModel):
@@ -323,6 +332,8 @@ class BotConfig(BaseModel):
     take_profit_pct: float = Field(default=4.0, gt=0, le=100)
     auto_execute: bool = True
     cooldown_seconds: int = Field(default=60, ge=0, le=86_400)
+    confidence_threshold: float = Field(default=0.0, ge=0.0, le=1.0)
+    max_signals_per_tick: int = Field(default=0, ge=0, le=100)
 
     @field_validator("symbols")
     @classmethod

@@ -9,12 +9,13 @@ logger = logging.getLogger(__name__)
 
 TERMINAL_CSP = (
     "default-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' data: https://fonts.gstatic.com; "
     "script-src 'self' 'unsafe-inline' https://s3.tradingview.com; "
     "connect-src 'self' https://api.binance.com https://api.kucoin.com "
     "wss://stream.binance.com:9443 wss://*.kucoin.com; "
     "img-src 'self' data: https:; "
-    "frame-ancestors 'none'; "
+    "frame-ancestors 'self' https://zksato.zeaz.dev https://*.zeaz.dev; "
     "object-src 'none'; "
     "base-uri 'self'"
 )
@@ -29,7 +30,7 @@ async def market_terminal(request: Request) -> HTMLResponse:
     response = HTMLResponse(content=_TERMINAL_HTML, media_type="text/html")
     response.headers["Content-Security-Policy"] = TERMINAL_CSP
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
@@ -39,7 +40,7 @@ async def tradingview_widget(request: Request) -> HTMLResponse:
     response = HTMLResponse(content=_TRADINGVIEW_HTML, media_type="text/html")
     response.headers["Content-Security-Policy"] = TERMINAL_CSP
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
