@@ -185,15 +185,15 @@ def ichimoku(
 ) -> tuple[float, float, float, float] | None:
     if len(candles) < senkou_b_period:
         return None
-        
+
     def _highest_lowest(window: list[Candle]) -> float:
         return (max(c.high for c in window) + min(c.low for c in window)) / 2
-        
+
     tenkan_sen = _highest_lowest(candles[-tenkan_period:])
     kijun_sen = _highest_lowest(candles[-kijun_period:])
     senkou_span_a = (tenkan_sen + kijun_sen) / 2
     senkou_span_b = _highest_lowest(candles[-senkou_b_period:])
-    
+
     return tenkan_sen, kijun_sen, senkou_span_a, senkou_span_b
 
 

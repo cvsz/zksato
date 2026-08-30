@@ -108,13 +108,13 @@ class CcxtMarketFeed:
     async def _run(self) -> None:
         delay = 1.0
         while not self._stop.is_set():
+            ws_tasks: list[asyncio.Task[None]] = []
             try:
                 self._http = httpx.AsyncClient(timeout=10.0)
                 for exchange_id in self.settings.ccxt_exchange_list:
                     for symbol in self._symbols:
                         await self._fetch_snapshot(exchange_id, symbol)
 
-                ws_tasks: list[asyncio.Task[None]] = []
                 for exchange_id in self.settings.ccxt_exchange_list:
                     if exchange_id == "binance":
                         for symbol in self._symbols:

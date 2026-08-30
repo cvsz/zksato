@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import math
 
-from zksato.prediction.core import Signal, Tick
 from zksato.domain import Side
+from zksato.prediction.core import Signal, Tick
 
 
 class ProbabilityEdgeStrategy:

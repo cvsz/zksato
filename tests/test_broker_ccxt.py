@@ -27,7 +27,14 @@ class FakeCcxtExchange:
 
     def cancel_order(self, order_id: str, **kwargs):
         self.calls.append({"order_id": order_id})
-        return {"id": order_id, "symbol": "BTC/USDT", "side": "buy", "amount": 1, "price": 50000, "status": "canceled"}
+        return {
+            "id": order_id,
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "amount": 1,
+            "price": 50000,
+            "status": "canceled",
+        }
 
     def fetch_open_orders(self, symbol: str = ""):
         return []

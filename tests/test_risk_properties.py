@@ -1,4 +1,4 @@
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from zksato.config import Settings
@@ -24,6 +24,7 @@ def context(price: float, **updates: object) -> RiskContext:
     return RiskContext(**values)  # type: ignore[arg-type]
 
 
+@settings(deadline=None)
 @given(
     quantity=st.integers(min_value=1, max_value=100_000),
     price=st.floats(min_value=0.01, max_value=10_000, allow_nan=False, allow_infinity=False),
@@ -38,6 +39,7 @@ def test_kill_switch_always_rejects_buy(quantity: int, price: float) -> None:
     assert "global kill switch is active" in decision.reasons
 
 
+@settings(deadline=None)
 @given(
     quantity=st.integers(min_value=2, max_value=100_000),
     available=st.integers(min_value=0, max_value=99_999),
@@ -54,6 +56,7 @@ def test_equity_sell_cannot_exceed_available_position(quantity: int, available: 
     assert "sell quantity exceeds available position" in decision.reasons
 
 
+@settings(deadline=None)
 @given(
     extra_age=st.floats(min_value=0.001, max_value=10_000, allow_nan=False, allow_infinity=False)
 )
@@ -66,6 +69,7 @@ def test_stale_quote_always_rejects(extra_age: float) -> None:
     assert "market quote is stale" in decision.reasons
 
 
+@settings(deadline=None)
 @given(
     price=st.floats(min_value=1.0, max_value=10_000, allow_nan=False, allow_infinity=False),
     quantity=st.integers(min_value=1, max_value=100_000),

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -20,8 +20,8 @@ def test_telegram_notifier_enabled_with_credentials() -> None:
 @pytest.mark.asyncio
 async def test_telegram_send_success() -> None:
     notifier = TelegramNotifier(bot_token="token123", chat_id="chat456")
-    mock_response = AsyncMock()
-    mock_response.raise_for_status = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
     with patch("zksato.notifications.telegram.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response

@@ -1,8 +1,8 @@
 # zksato Roadmap
 
-## Current release — v0.6.0 Infrastructure, TFEX, UI, and AI
+## Current release — v1.0.0 Production Release & USDT-First Architecture
 
-Now that v0.5 has perfected the local runtime and tests, v0.6.0 focuses on real-world broker certification, production deployment, and advanced intelligence.
+v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI research modules, and full-stack self-hosted USDT multi-exchange execution.
 
 ### P9 — Infrastructure and Production Deployments (External)
 - [x] Infrastructure as Code (Terraform) for AWS/GCP with KMS encryption
@@ -13,13 +13,19 @@ Now that v0.5 has perfected the local runtime and tests, v0.6.0 focuses on real-
 - [x] Migrate Settrade simulator to Settrade UAT sandbox
 - [x] Contract rollover and dynamic margin management
 
-### P11 — Secure Operator Dashboard
-- [x] Frontend dashboard built for operator interaction
+### P11 — Secure Operator Dashboard & Next.js UI
+- [x] Next.js 16 multilingual operator UI (EN, TH, JA, ZH) with Lightweight Charts
 - [x] One-time manual risk approval via webhook pagers
+- [x] Real-time dark TradingView market terminal
 
 ### P12 — AI-Augmented Research
 - [x] LLM Sentiment signals integrated into `strategy.py`
 - [x] Agentic parameter sweep exploration inside `video_ea_research.py`
+
+### P13 — CCXT & Prediction Markets
+- [x] CCXT multi-exchange adapter (Binance, KuCoin, OKX, Bybit) for paper/sandbox
+- [x] Prediction markets synthetic feeds, complete-set cost risk engine, and guarded live gate
+- [x] TradingView HMAC webhook ingestion with automated alert parsing and Telegram delivery
 
 ## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars

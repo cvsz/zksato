@@ -23,7 +23,7 @@ def hit(url: str, api_key: str | None) -> tuple[int, float]:
         "bid": round(random.uniform(9, 100), 2),
         "offer": round(random.uniform(10, 101), 2),
         "volume": random.randint(100, 10000),
-        "timestamp": datetime.now(UTC).isoformat()
+        "timestamp": datetime.now(UTC).isoformat(),
     }
     data = json.dumps(quote).encode("utf-8")
     request = Request(url, data=data, headers=headers, method="POST")

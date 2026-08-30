@@ -105,9 +105,7 @@ class RiskEngine:
                 reasons.append("estimated notional exceeds available line")
             if context.reference_price and intent.price:
                 deviation = (
-                    abs(intent.price - context.reference_price)
-                    / context.reference_price
-                    * 100
+                    abs(intent.price - context.reference_price) / context.reference_price * 100
                 )
                 if deviation > self.settings.max_price_deviation_pct:
                     reasons.append("limit price deviates too far from reference price")
@@ -121,8 +119,7 @@ class RiskEngine:
         else:
             if (
                 context.quote_age_seconds is not None
-                and context.quote_age_seconds
-                > self.settings.market_data_stale_seconds
+                and context.quote_age_seconds > self.settings.market_data_stale_seconds
             ):
                 reasons.append("prediction feed is stale")
             if estimated_notional <= 0:
@@ -133,14 +130,12 @@ class RiskEngine:
                 reasons.append("prediction order exceeds configured per-order USD limit")
             if (
                 context.prediction_directional_residual is not None
-                and context.prediction_directional_residual
-                > self.settings.max_directional_residual
+                and context.prediction_directional_residual > self.settings.max_directional_residual
             ):
                 reasons.append("directional residual exceeds configured maximum")
             if (
                 context.prediction_complete_set_cost is not None
-                and context.prediction_complete_set_cost
-                > self.settings.max_complete_set_cost
+                and context.prediction_complete_set_cost > self.settings.max_complete_set_cost
             ):
                 reasons.append("complete-set cost exceeds configured maximum")
             if (
@@ -163,9 +158,7 @@ class PortfolioRiskManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    def check_correlation(
-        self, symbol: str, portfolio_positions: list[str]
-    ) -> list[str]:
+    def check_correlation(self, symbol: str, portfolio_positions: list[str]) -> list[str]:
         """Warn if adding a symbol would exceed correlation threshold.
 
         This is a simplified check: it flags if the symbol appears more than
@@ -188,22 +181,16 @@ class PortfolioRiskManager:
         reasons: list[str] = []
         total = len(portfolio_positions) + 1
         if total > 0 and (1.0 / total) * 100 > max_allocation_pct:
-            reasons.append(
-                f"symbol {symbol} allocation exceeds {max_allocation_pct:.1f}%"
-            )
+            reasons.append(f"symbol {symbol} allocation exceeds {max_allocation_pct:.1f}%")
         return reasons
 
-    def check_conflict(
-        self, strategy: str, active_strategies: list[str]
-    ) -> list[str]:
+    def check_conflict(self, strategy: str, active_strategies: list[str]) -> list[str]:
         """Warn if a conflicting strategy is already active on the same symbol."""
         reasons: list[str] = []
         if not self.settings.conflicting_strategies:
             return reasons
         conflicts = {
-            pair.strip()
-            for pair in self.settings.conflicting_strategies.split(",")
-            if pair.strip()
+            pair.strip() for pair in self.settings.conflicting_strategies.split(",") if pair.strip()
         }
         for conflict in conflicts:
             parts = conflict.split("-")
@@ -227,9 +214,7 @@ class PortfolioRiskManager:
         reasons: list[str] = []
         reasons.extend(self.check_correlation(symbol, portfolio_positions))
         reasons.extend(
-            self.check_allocation(
-                symbol, portfolio_positions, self.settings.max_allocation_pct
-            )
+            self.check_allocation(symbol, portfolio_positions, self.settings.max_allocation_pct)
         )
         reasons.extend(self.check_conflict(strategy, active_strategies))
         return reasons

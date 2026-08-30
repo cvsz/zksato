@@ -16,11 +16,16 @@ class BacktestResult:
     max_exposure: float
 
 
-def run_backtest(ticks: list[Tick], starting_cash: float = 1_000.0, limits: RiskLimits | None = None) -> BacktestResult:
+def run_backtest(
+    ticks: list[Tick],
+    starting_cash: float = 1_000.0,
+    limits: RiskLimits | None = None,
+) -> BacktestResult:
     if not ticks:
         raise ValueError("backtest requires at least one tick")
     limits = limits or RiskLimits()
     from zksato.config import Settings
+
     settings = Settings(prediction_enabled=True)
     broker = PaperPredictionBroker(settings=settings, limits=limits)
     broker.starting_cash = starting_cash

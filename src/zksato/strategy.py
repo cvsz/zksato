@@ -144,9 +144,7 @@ class StrategyEngine:
                 abs(fast - slow) / price * 20,
                 f"EMA{config.fast_period} crossed below EMA{config.slow_period}",
             )
-        return self._signal(
-            symbol, config, price, SignalAction.HOLD, 0.25, "no EMA crossover"
-        )
+        return self._signal(symbol, config, price, SignalAction.HOLD, 0.25, "no EMA crossover")
 
     def _multi_factor(
         self,
@@ -572,7 +570,11 @@ class StrategyEngine:
         price = prices[-1]
         if candles is None or len(candles) < config.vwap_period:
             return self._signal(
-                symbol, config, price, SignalAction.HOLD, 0.0,
+                symbol,
+                config,
+                price,
+                SignalAction.HOLD,
+                0.0,
                 "insufficient candle history for VWAP",
             )
         vwap_value = vwap(candles, period=config.vwap_period)

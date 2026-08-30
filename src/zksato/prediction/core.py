@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 from zksato.domain import Side
 
 
-class Outcome(str, Enum):
+class Outcome(StrEnum):
     UP = "up"
     DOWN = "down"
 

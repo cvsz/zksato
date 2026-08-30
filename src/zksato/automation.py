@@ -102,11 +102,11 @@ class AutomationEngine:
         prices = self.store.get_prices(symbol)
         if not prices:
             return
-            
+
         sentiment_score = None
         if config.strategy.name in ("llm_sentiment", "multi_factor"):
             sentiment_score = await self.news_adapter.get_aggregate_sentiment(symbol)
-            
+
         signal = self.strategy.evaluate(
             symbol, prices, config.strategy, sentiment_score=sentiment_score
         )

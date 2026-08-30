@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from zksato.broker.base import Broker, BrokerAmbiguousError
-from zksato.config import Settings, get_settings
+from zksato.broker.base import BrokerAmbiguousError
+from zksato.config import Settings
 from zksato.domain import (
     OrderIntent,
     OrderRecord,
@@ -23,20 +23,23 @@ class CcxtBroker:
         if not settings.ccxt_configured:
             raise RuntimeError("CCXT is not configured")
         self.settings = settings
-        try:
-            import ccxt
-        except ImportError as exc:
-            raise RuntimeError("install zksato[ccxt] to use CCXT mode") from exc
-        self._ccxt = ccxt
-        self._network_error = ccxt.NetworkError
-        self._exchange_not_available = ccxt.ExchangeNotAvailable
-
         self._exchanges: dict[str, Any] = {}
-        for exchange_id in settings.ccxt_exchange_list:
-            exchange_class = getattr(ccxt, exchange_id, None)
-            if exchange_class is None:
-                raise RuntimeError(f"unsupported CCXT exchange: {exchange_id}")
-            api_key, secret, passphrase = settings.ccxt_credentials_for(exchange_id)
+        self._exchange_not_available = Exception
+        self._network_error = Exception
+        self._init_exchanges()
+
+    def _init_exchanges(self) -> None:
+        try:
+            import ccxt  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise RuntimeError("ccxt is required for CcxtBroker") from exc
+        self._exchange_not_available = getattr(ccxt, "ExchangeNotAvailable", Exception)
+        self._network_error = getattr(ccxt, "NetworkError", Exception)
+        for exchange_id in self.settings.ccxt_exchange_list:
+            cls = getattr(ccxt, exchange_id, None)
+            if cls is None:
+                continue
+            api_key, secret, passphrase = self.settings.ccxt_credentials_for(exchange_id)
             config: dict[str, Any] = {
                 "apiKey": api_key,
                 "secret": secret,
@@ -44,58 +47,59 @@ class CcxtBroker:
             }
             if passphrase:
                 config["password"] = passphrase
-            if settings.ccxt_sandbox:
+            if self.settings.ccxt_sandbox:
                 config["options"] = {"defaultType": "spot", "adjustForTimeDifference": True}
-                if hasattr(exchange_class, "set_sandbox_mode"):
-                    exchange_instance = exchange_class(config)
-                    exchange_instance.set_sandbox_mode(True)
+                if hasattr(cls, "set_sandbox_mode"):
+                    instance = cls(config)
+                    instance.set_sandbox_mode(True)
                 else:
-                    exchange_instance = exchange_class(config)
-                self._exchanges[exchange_id] = exchange_instance
+                    instance = cls(config)
+                self._exchanges[exchange_id] = instance
             else:
-                self._exchanges[exchange_id] = exchange_class(config)
+                self._exchanges[exchange_id] = cls(config)
 
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         exchange_id = self._resolve_exchange(intent.symbol)
-        exchange = self._exchanges[exchange_id]
-        side = "buy" if intent.side == Side.BUY else "sell"
+        exchange = self._exchanges.get(exchange_id)
+        if exchange is None:
+            raise RuntimeError(f"No CCXT exchange configured for {intent.symbol}")
+        ccxt_side = "buy" if intent.side == Side.BUY else "sell"
         order_type = "limit" if intent.order_type == OrderType.LIMIT else "market"
         params: dict[str, Any] = {}
+        if intent.client_order_id:
+            params["clientOrderId"] = intent.client_order_id
         try:
-            response = exchange.create_order(
+            raw = exchange.create_order(
                 symbol=intent.symbol,
                 type=order_type,
-                side=side,
-                amount=float(intent.quantity),
-                price=float(intent.price) if intent.price else None,
+                side=ccxt_side,
+                amount=intent.quantity,
+                price=intent.price if order_type == "limit" else None,
                 params=params,
             )
-        except (self._network_error, self._exchange_not_available) as exc:
-            raise BrokerAmbiguousError(f"CCXT {exchange_id} order response ambiguous") from exc
+        except self._exchange_not_available as exc:
+            raise RuntimeError(f"exchange unavailable: {exc}") from exc
+        except self._network_error as exc:
+            raise BrokerAmbiguousError(
+                f"CCXT {exchange_id} order response ambiguous: {exc}"
+            ) from exc
         except Exception as exc:
-            raise RuntimeError(f"CCXT {exchange_id} order failed: {exc}") from exc
-        return self._map_order(response, intent=intent, exchange_id=exchange_id)
+            raise RuntimeError(f"CCXT order placement failed: {exc}") from exc
+
+        return self._map_order(raw, intent=intent, exchange_id=exchange_id)
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
-        exchange_id, client_order_id = self._parse_order_id(order_id)
-        exchange = self._exchanges[exchange_id]
+        exchange_id, native_order_id = self._parse_order_id(order_id)
+        exchange = self._exchanges.get(exchange_id)
+        if exchange is None:
+            raise RuntimeError(f"No CCXT exchange found for {exchange_id}")
         try:
-            response = exchange.cancel_order(client_order_id)
+            raw = exchange.cancel_order(native_order_id)
         except (self._network_error, self._exchange_not_available) as exc:
-            raise BrokerAmbiguousError(f"CCXT {exchange_id} cancel response ambiguous") from exc
+            raise BrokerAmbiguousError(f"ambiguous cancel for order {order_id}: {exc}") from exc
         except Exception as exc:
-            raise RuntimeError(f"CCXT {exchange_id} cancel failed: {exc}") from exc
-        intent = OrderIntent(
-            symbol=str(response.get("symbol", "UNKNOWN")),
-            side=Side.BUY if str(response.get("side", "buy")).lower() == "buy" else Side.SELL,
-            quantity=int(float(response.get("amount", 1)) or 1),
-            order_type=OrderType.LIMIT,
-            price=float(response.get("price", 0) or 0),
-            source=f"ccxt.{exchange_id}.cancel",
-        )
-        record = self._map_order(response, intent=intent, exchange_id=exchange_id)
-        record.status = OrderStatus.CANCELLED
-        return record
+            raise RuntimeError(f"CCXT cancel failed for {order_id}: {exc}") from exc
+        return self._map_order(raw, exchange_id=exchange_id)
 
     async def list_orders(self) -> list[OrderRecord]:
         records: list[OrderRecord] = []
@@ -104,15 +108,15 @@ class CcxtBroker:
                 orders = exchange.fetch_open_orders()
             except (self._network_error, self._exchange_not_available):
                 continue
-            for order in orders or []:
-                records.append(self._map_order(order, exchange_id=exchange_id))
+            for raw in orders or []:
+                records.append(self._map_order(raw, exchange_id=exchange_id))
         return records
 
     async def portfolio(self) -> PortfolioSnapshot:
         total_cash = 0.0
         total_market_value = 0.0
         positions: list[Position] = []
-        for exchange_id, exchange in self._exchanges.items():
+        for _exchange_id, exchange in self._exchanges.items():
             try:
                 balance = exchange.fetch_balance()
                 tickers = exchange.fetch_tickers()
@@ -156,7 +160,6 @@ class CcxtBroker:
         )
 
     def _resolve_exchange(self, symbol: str) -> str:
-        normalized = symbol.upper()
         for exchange_id in self.settings.ccxt_exchange_list:
             market = self._exchanges[exchange_id].market(symbol)
             if market:

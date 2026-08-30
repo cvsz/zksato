@@ -60,8 +60,7 @@ def test_alert_parser_sell_signal() -> None:
 def test_alert_parser_rejects_hold() -> None:
     parser = TradingViewAlertParser()
     assert (
-        parser.parse({"symbol": "AOT", "action": "hold", "price": 100.0, "strategy": "ema"})
-        is None
+        parser.parse({"symbol": "AOT", "action": "hold", "price": 100.0, "strategy": "ema"}) is None
     )
 
 
@@ -94,7 +93,7 @@ def test_config_store_roundtrip() -> None:
 def test_tradingview_endpoint_rejects_invalid_json() -> None:
     response = client.post(
         "/v1/tradingview/webhook",
-        data="not json",
+        content=b"not json",
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 422

@@ -210,8 +210,7 @@ def test_prediction_edge_sells_on_down_signal() -> None:
 def test_prediction_edge_holds_below_min_edge() -> None:
     engine = StrategyEngine()
     ticks = [
-        Tick(timestamp=i, spot=100.0, reference=100.0, up_ask=0.5, down_ask=0.5)
-        for i in range(5)
+        Tick(timestamp=i, spot=100.0, reference=100.0, up_ask=0.5, down_ask=0.5) for i in range(5)
     ]
     signal = engine.evaluate_prediction("BTC-5MIN", ticks, min_edge=0.99)
     assert signal.action == SignalAction.HOLD

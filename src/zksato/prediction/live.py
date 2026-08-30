@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 from zksato.config import Settings
 
 
@@ -26,4 +24,6 @@ class PredictionLiveGate:
             raise RuntimeError("live trading locked: adapter review is required")
         if not self.kill_switch_ready:
             raise RuntimeError("live trading locked: kill switch readiness is required")
-        raise NotImplementedError("no real-money venue adapter is shipped; implement and independently review one")
+        raise NotImplementedError(
+            "no real-money venue adapter is shipped; implement and independently review one"
+        )

@@ -23,9 +23,7 @@ class PredictionMarketClient(Protocol):
         self, market_id: str, side: str, amount_usd: float
     ) -> dict[str, Any]: ...
     async def cancel_order(self, order_id: str) -> dict[str, Any]: ...
-    async def fetch_open_orders(
-        self, market_id: str
-    ) -> list[dict[str, Any]]: ...
+    async def fetch_open_orders(self, market_id: str) -> list[dict[str, Any]]: ...
     async def fetch_balance(self) -> dict[str, Any]: ...
 
 
@@ -134,6 +132,7 @@ class PredictionBroker:
 
     def _default_client(self) -> PredictionMarketClient:
         from zksato.prediction.broker import PaperPredictionBroker
+
         return PaperPredictionBroker(self.settings)
 
     def _map_fill(self, payload: dict[str, Any], intent: OrderIntent | None = None) -> OrderRecord:

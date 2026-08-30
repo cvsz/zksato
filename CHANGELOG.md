@@ -2,13 +2,19 @@
 
 All notable changes to zksato are documented here.
 
-## [1.0.0] - 2026-08-12
+## [1.0.0] - 2026-08-30
 
-### Final Production Release
-- **Strategy & AI:** Added Agentic Walk-Forward Optimization, Multi-Factor strategy, Ichimoku Clouds, and a News Ingestion Adapter for real-time external sentiment.
-- **Security:** Integrated AWS Secrets Manager for secure, centralized credential handling.
+### Final Production Release & USDT Self-Hosting
+- **USDT-First Self-Hosting:** Full-stack localhost Docker Compose runtime with FastAPI backend, PostgreSQL system-of-record, Redis coordination, and Next.js 16 frontend.
+- **CCXT Multi-Exchange Adapter:** Multi-venue spot execution with sandbox mode support across Binance, Binance TH, KuCoin, OKX, and Bybit.
+- **Prediction Markets Module:** Synthetic pricing feeds, directional residual limits, complete-set cost risk engine, and guarded live execution gate.
+- **TradingView & Telegram Integration:** HMAC-SHA256 authenticated webhook alerting with automated signal dispatching, symbol-keyed configurations, and Telegram alert delivery.
+- **Market Terminal:** Real-time dark-themed TradingView charting terminal with read-only sandbox mode and CSP headers.
+- **Next.js Frontend:** Multi-lingual (EN, TH, JA, ZH) operator UI with Lightweight Charts, real-time risk gauges, session timeouts, and theme customizers.
+- **Strategy & AI:** Added Agentic Walk-Forward Optimization, Multi-Factor strategy, Ichimoku Clouds, and News Ingestion Adapter for real-time external sentiment.
+- **Security:** Integrated AWS Secrets Manager for centralized credential handling alongside local secret file loading and GPG encryption.
 - **Infrastructure:** Added Nginx configuration for TLS/SSL support via certbot and completed sustained load testing scripts for Database/Store robustness.
-- **Operations & Compliance:** Authored Broker Certification architecture docs, TFEX UAT scripts, and the Operator Agreement legal template.
+- **Operations & Compliance:** Authored Broker Certification architecture docs, TFEX UAT scripts, and Operator Agreement legal template.
 - Reached official full completion of all Roadmap objectives for production readiness.
 
 ## [0.6.0] - 2026-08-12

@@ -203,10 +203,10 @@ class SettradeTfexGateway:
             from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use TFEX") from exc
-            
+
         broker_id = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_broker_id
         app_code = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_app_code
-        
+
         investor = Investor(
             app_id=settings.settrade_app_id,
             app_secret=settings.settrade_app_secret,

@@ -209,9 +209,17 @@ async def lifespan(_: FastAPI):
     if settings.trading_mode != "paper" and settings.reconciliation_enabled:
         reconciliation_worker.start()
     outbox_dispatcher.start()
+    if ccxt_feed is not None:
+        ccxt_feed.start(["BTC", "ETH", "SOL", "BNB"])
+    if prediction_feed is not None:
+        prediction_feed.start(["BTC", "ETH", "SOL"])
     yield
     await reconciliation_worker.stop()
     await outbox_dispatcher.stop()
+    if ccxt_feed is not None:
+        await ccxt_feed.stop()
+    if prediction_feed is not None:
+        await prediction_feed.stop()
     if settrade_feed is not None:
         await settrade_feed.stop()
     await coordination.close()
@@ -221,7 +229,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="zksato",
-    version="0.5.0",
+    version="1.0.0",
     description="Risk-first automated trading control plane with dashboard",
     lifespan=lifespan,
 )

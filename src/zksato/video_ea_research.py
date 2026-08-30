@@ -137,7 +137,6 @@ class ParameterSweepResult(BaseModel):
     best_total_return_pct: float = 0.0
 
 
-
 class AgenticParameterSweepRequest(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     candles: list[Candle] = Field(min_length=5, max_length=5000)
@@ -213,7 +212,6 @@ class AgenticWalkForwardResult(BaseModel):
     best_parameters_over_time: list[dict[str, int | float]] = Field(default_factory=list)
     average_oos_return_pct: float = 0.0
     agent_summary: str
-
 
 
 class MonteCarloTradeStressRequest(BaseModel):
@@ -449,7 +447,6 @@ def parameter_sweep(request: ParameterSweepRequest) -> ParameterSweepResult:
     )
 
 
-
 def agentic_parameter_sweep(request: AgenticParameterSweepRequest) -> AgenticParameterSweepResult:
     sweep_request = ParameterSweepRequest(
         symbol=request.symbol,
@@ -537,19 +534,19 @@ def agentic_walk_forward(request: AgenticWalkForwardRequest) -> AgenticWalkForwa
     result = AgenticWalkForwardResult(
         symbol=request.symbol,
         windows_analyzed=0,
-        agent_summary="Agent dynamically adapted parameters across out-of-sample windows."
+        agent_summary="Agent dynamically adapted parameters across out-of-sample windows.",
     )
-    
+
     total_candles = len(request.candles)
     if total_candles < request.train_size + request.test_size:
         return result
 
     start = 0
     oos_returns = []
-    
+
     while start + request.train_size + request.test_size <= total_candles:
         train_candles = request.candles[start : start + request.train_size]
-        
+
         sweep_req = AgenticParameterSweepRequest(
             symbol=request.symbol,
             candles=train_candles,
@@ -559,16 +556,16 @@ def agentic_walk_forward(request: AgenticWalkForwardRequest) -> AgenticWalkForwa
             initial_cash=request.initial_cash,
             order_size=request.order_size,
             commission_pct=request.commission_pct,
-            slippage_pct=request.slippage_pct
+            slippage_pct=request.slippage_pct,
         )
         sweep_res = agentic_parameter_sweep(sweep_req)
         best_params = sweep_res.recommended_parameters
         result.best_parameters_over_time.append(best_params)
-        
+
         test_end = start + request.train_size + request.test_size
         test_candles = request.candles[start + request.train_size : test_end]
         test_config = request.base_strategy.model_copy(update=best_params)
-        
+
         backtest_req = BacktestRequest(
             symbol=request.symbol,
             candles=test_candles,
@@ -576,12 +573,12 @@ def agentic_walk_forward(request: AgenticWalkForwardRequest) -> AgenticWalkForwa
             initial_cash=request.initial_cash,
             order_size=request.order_size,
             commission_pct=request.commission_pct,
-            slippage_pct=request.slippage_pct
+            slippage_pct=request.slippage_pct,
         )
         backtester = Backtester()
         test_res = backtester.run(backtest_req)
         oos_returns.append(test_res.total_return_pct)
-        
+
         result.windows_analyzed += 1
         start += request.step_size
 

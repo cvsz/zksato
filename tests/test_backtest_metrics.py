@@ -41,9 +41,7 @@ def test_calmar_ratio_positive_returns() -> None:
     request = BacktestRequest(
         symbol="AOT",
         candles=candles,
-        strategy=StrategyConfig(
-            name="ema_cross", fast_period=2, slow_period=3, min_history=3
-        ),
+        strategy=StrategyConfig(name="ema_cross", fast_period=2, slow_period=3, min_history=3),
         initial_cash=100_000,
     )
     result = Backtester().run(request)
@@ -74,9 +72,7 @@ def test_calmar_ratio_zero_drawdown() -> None:
     request = BacktestRequest(
         symbol="AOT",
         candles=candles,
-        strategy=StrategyConfig(
-            name="ema_cross", fast_period=2, slow_period=3, min_history=3
-        ),
+        strategy=StrategyConfig(name="ema_cross", fast_period=2, slow_period=3, min_history=3),
         initial_cash=100_000,
     )
     result = Backtester().run(request)

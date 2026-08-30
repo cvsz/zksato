@@ -174,3 +174,27 @@ def test_video_ea_research_analytics_endpoints_return_evidence() -> None:
     )
     assert monte.status_code == 200
     assert monte.json()["seed"] == 7
+
+
+def test_market_terminal_and_status_endpoints() -> None:
+    terminal = client.get("/v1/market/terminal")
+    assert terminal.status_code == 200
+    assert "zksato Market Terminal" in terminal.text
+    assert "Content-Security-Policy" in terminal.headers
+
+    tv = client.get("/v1/market/tradingview")
+    assert tv.status_code == 200
+    assert "zksato TradingView" in tv.text
+
+    hb = client.get("/v1/market/health-bridge")
+    assert hb.status_code == 200
+    assert "status" in hb.json()
+    assert "version" in hb.json()
+
+    ccxt_stat = client.get("/v1/market/ccxt/status")
+    assert ccxt_stat.status_code == 200
+    assert "running" in ccxt_stat.json()
+
+    pred_stat = client.get("/v1/market/prediction/status")
+    assert pred_stat.status_code == 200
+    assert "running" in pred_stat.json()

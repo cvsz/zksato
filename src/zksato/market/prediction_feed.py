@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import math
 import random
 from collections import deque
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Callable
 
 import httpx
 
@@ -169,7 +168,9 @@ class PredictionMarketFeed:
                                     Quote(symbol=symbol, last=price, timestamp=datetime.now(UTC))
                                 )
                 except Exception as exc:
-                    logger.warning("reference price fetch failed for %s:%s: %s", exchange_id, symbol, exc)
+                    logger.warning(
+                        "reference price fetch failed for %s:%s: %s", exchange_id, symbol, exc
+                    )
 
     async def _generate_tick(self, symbol: str) -> None:
         history = self._spot_history.get(symbol)

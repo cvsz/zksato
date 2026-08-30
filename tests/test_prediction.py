@@ -1,12 +1,10 @@
-from datetime import UTC, datetime
-
 import pytest
 
 from zksato.broker.prediction import PredictionBroker
 from zksato.config import Settings
 from zksato.domain import OrderIntent, OrderStatus, OrderType, Side
 from zksato.prediction.backtest import run_backtest
-from zksato.prediction.core import Position, RiskLimits, Tick
+from zksato.prediction.core import Tick
 from zksato.prediction.data import SyntheticTickGenerator
 from zksato.prediction.strategy import ProbabilityEdgeStrategy
 from zksato.risk import RiskEngine
@@ -29,7 +27,14 @@ class FakePredictionClient:
         return order
 
     async def cancel_order(self, order_id: str) -> dict[str, object]:
-        return {"id": order_id, "market_id": "BTC-5MIN", "side": "UP", "amount": 1, "price": 0.5, "status": "canceled"}
+        return {
+            "id": order_id,
+            "market_id": "BTC-5MIN",
+            "side": "UP",
+            "amount": 1,
+            "price": 0.5,
+            "status": "canceled",
+        }
 
     async def fetch_open_orders(self, market_id: str) -> list[dict[str, object]]:
         return []
@@ -77,7 +82,15 @@ async def test_prediction_broker_cancel_maps_response() -> None:
 
 def test_prediction_strategy_generates_signal() -> None:
     strategy = ProbabilityEdgeStrategy(min_edge=0.01)
-    tick = Tick(timestamp=1, spot=105.0, reference=100.0, up_ask=0.6, down_ask=0.4, volatility=0.02, momentum=0.5)
+    tick = Tick(
+        timestamp=1,
+        spot=105.0,
+        reference=100.0,
+        up_ask=0.6,
+        down_ask=0.4,
+        volatility=0.02,
+        momentum=0.5,
+    )
     signal = strategy.signal(tick)
     assert signal is not None
     assert signal.side in {Side.UP, Side.DOWN}
@@ -101,6 +114,7 @@ def test_prediction_backtest_runs_with_synthetic_data() -> None:
 def test_prediction_risk_engine_rejects_excessive_edge() -> None:
     engine = RiskEngine(Settings(min_prediction_edge=0.1))
     from zksato.domain import RiskContext
+
     decision = engine.evaluate(
         OrderIntent(symbol="BTC-5MIN", side=Side.UP, quantity=1, price=0.5),
         RiskContext(
@@ -124,6 +138,7 @@ def test_prediction_risk_engine_rejects_excessive_edge() -> None:
 def test_prediction_risk_engine_rejects_directional_residual() -> None:
     engine = RiskEngine(Settings(max_directional_residual=50.0))
     from zksato.domain import RiskContext
+
     decision = engine.evaluate(
         OrderIntent(symbol="BTC-5MIN", side=Side.UP, quantity=1, price=0.5),
         RiskContext(
@@ -147,6 +162,7 @@ def test_prediction_risk_engine_rejects_directional_residual() -> None:
 def test_prediction_risk_engine_rejects_complete_set_cost() -> None:
     engine = RiskEngine(Settings(max_complete_set_cost=0.8))
     from zksato.domain import RiskContext
+
     decision = engine.evaluate(
         OrderIntent(symbol="BTC-5MIN", side=Side.DOWN, quantity=1, price=0.5),
         RiskContext(
@@ -165,3 +181,100 @@ def test_prediction_risk_engine_rejects_complete_set_cost() -> None:
     )
     assert decision.approved is False
     assert "complete-set cost exceeds configured maximum" in decision.reasons
+
+
+def test_prediction_live_gate_enforces_safety_invariants() -> None:
+    from zksato.prediction.live import PredictionLiveGate
+
+    # Case 1: prediction not enabled
+    gate = PredictionLiveGate(Settings(prediction_enabled=False))
+    with pytest.raises(RuntimeError, match="not enabled"):
+        gate.validate()
+
+    # Case 2: live trading disabled by policy
+    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=False))
+    with pytest.raises(RuntimeError, match="disabled by server policy"):
+        gate.validate()
+
+    # Case 3: acknowledge loss not set
+    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=True))
+    with pytest.raises(RuntimeError, match="acknowledge loss is required"):
+        gate.validate()
+
+    # Case 4: adapter review not set
+    gate.acknowledge_loss = True
+    with pytest.raises(RuntimeError, match="adapter review is required"):
+        gate.validate()
+
+    # Case 5: kill switch readiness not set
+    gate.reviewed_adapter = True
+    with pytest.raises(RuntimeError, match="kill switch readiness is required"):
+        gate.validate()
+
+    # Case 6: all prerequisites met, but no live venue adapter is shipped
+    gate.kill_switch_ready = True
+    with pytest.raises(NotImplementedError, match="no real-money venue adapter is shipped"):
+        gate.validate()
+
+
+def test_paper_prediction_broker_fills_and_settles_correctly() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker
+    from zksato.prediction.core import RiskLimits
+
+    limits = RiskLimits(
+        max_order_usd=500, max_market_exposure_usd=2000, max_directional_shares=2000
+    )
+    broker = PaperPredictionBroker(Settings(), limits=limits)
+
+    fill = broker.execute(Side.UP, 0.55, 100.0)
+    assert fill.side == Side.UP
+    assert fill.shares > 0
+    assert fill.price >= 0.55
+    assert len(broker.fills) == 1
+    assert broker.cash < broker.starting_cash
+
+    pnl = broker.settle(Side.UP)
+    assert isinstance(pnl, float)
+
+
+def test_paper_prediction_broker_rejects_invalid_price() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
+
+    broker = PaperPredictionBroker(Settings())
+    with pytest.raises(RiskRejected, match="price must be between 0 and 1"):
+        broker.execute(Side.UP, 0.0, 5.0)
+    with pytest.raises(RiskRejected, match="price must be between 0 and 1"):
+        broker.execute(Side.UP, 1.0, 5.0)
+
+
+def test_paper_prediction_broker_rejects_zero_order() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
+
+    broker = PaperPredictionBroker(Settings())
+    with pytest.raises(RiskRejected, match="order exceeds configured order limit"):
+        broker.execute(Side.UP, 0.5, 0.0)
+
+
+def test_paper_prediction_broker_rejects_directional_overexposure() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
+    from zksato.prediction.core import RiskLimits
+
+    # max_directional_shares=1 means even 2 shares UP triggers rejection
+    limits = RiskLimits(max_order_usd=50, max_market_exposure_usd=50000, max_directional_shares=3.0)
+    broker = PaperPredictionBroker(Settings(), limits=limits)
+    broker.execute(Side.UP, 0.5, 1.0)  # first fill: ~2 UP shares, residual=2 < 3, passes
+    with pytest.raises(RiskRejected, match="directional residual limit reached"):
+        broker.execute(Side.UP, 0.5, 1.0)  # second fill: residual would be ~4 > 3, rejected
+
+
+def test_paper_prediction_broker_rejects_insufficient_cash() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
+    from zksato.prediction.core import RiskLimits
+
+    limits = RiskLimits(
+        max_order_usd=50000, max_market_exposure_usd=500000, max_directional_shares=999999
+    )
+    broker = PaperPredictionBroker(Settings(), limits=limits)
+    broker.cash = 0.0
+    with pytest.raises(RiskRejected, match="insufficient paper cash"):
+        broker.execute(Side.UP, 0.5, 5.0)

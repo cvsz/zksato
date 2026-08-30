@@ -1,14 +1,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from starlette.responses import Response
-
-from zksato.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -52,12 +47,15 @@ async def tradingview_widget(request: Request) -> HTMLResponse:
 @router.get("/v1/market/health-bridge", include_in_schema=False)
 async def health_bridge() -> JSONResponse:
     try:
+        import zksato
         from zksato.api import _health_payload
 
         payload = await _health_payload()
+        ver = getattr(zksato, "__version__", "1.0.0")
     except Exception:
-        payload = {"status": "degraded", "version": "0.5.0"}
-    return JSONResponse({"status": payload.get("status", "degraded"), "version": "0.5.0"})
+        ver = "1.0.0"
+        payload = {"status": "degraded", "version": ver}
+    return JSONResponse({"status": payload.get("status", "degraded"), "version": ver})
 
 
 @router.get("/v1/market/ccxt/status", include_in_schema=False)
@@ -91,10 +89,29 @@ _TERMINAL_HTML = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>zksato Market Terminal</title>
     <style>
-        body { margin: 0; padding: 0; background: #131722; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; color: #d1d4dc; }
-        header { padding: 12px 16px; background: #1e222d; border-bottom: 1px solid #2a2e39; display: flex; align-items: center; justify-content: space-between; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #131722;
+            font-family: system-ui, -apple-system, sans-serif;
+            color: #d1d4dc;
+        }
+        header {
+            padding: 12px 16px;
+            background: #1e222d;
+            border-bottom: 1px solid #2a2e39;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
         h1 { font-size: 16px; margin: 0; font-weight: 600; }
-        .badge { font-size: 11px; background: #2962ff; color: #fff; padding: 2px 8px; border-radius: 4px; }
+        .badge {
+            font-size: 11px;
+            background: #2962ff;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
         .readonly { font-size: 11px; color: #787b86; }
         #tradingview_widget { height: calc(100vh - 48px); }
     </style>

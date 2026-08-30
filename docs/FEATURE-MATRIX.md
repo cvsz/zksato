@@ -9,6 +9,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Trading | Restart-safe paper recovery/client IDs | Implemented | durable with SQL store |
 | Trading | Portfolio/P&L recovery | Implemented | persistent cash/holdings/realized P&L |
 | Trading | Settrade v2 equity adapter | Implemented | broker UAT certification remains external |
+| Trading | CCXT multi-exchange adapter | Implemented | Binance, Binance TH, KuCoin, OKX, Bybit spot paper/sandbox |
+| Trading | Prediction market engine & risk | Implemented | synthetic feeds, directional residuals, complete set cost |
 | Trading | Confirmed manual live equity boundary | Implemented | deterministic risk + one-time approval |
 | Trading | Autonomous live-money execution | Intentionally unsupported | permanent safety invariant |
 | Execution | Durable idempotency | Implemented | `client_order_id` uniqueness |
@@ -16,6 +18,10 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Execution | Reconciliation fail-closed gate | Implemented | unresolved orders keep execution gate closed |
 | Execution | Order identity preservation | Implemented | reconciliation/cancel retain local economic intent |
 | Execution | Order detail/filter/cancel-open API | Implemented | bulk action only cancels already-open orders |
+| Execution | TradingView webhook ingestion | Implemented | HMAC-SHA256 authenticated webhook with automated order/signal dispatch |
+| Execution | Telegram notification dispatcher | Implemented | asynchronous real-time markdown trade and alert delivery |
+| UI | Next.js 16 multilingual operator dashboard | Implemented | EN, TH, JA, ZH support, Lightweight Charts, risk gauges |
+| UI | Dark TradingView Market Terminal | Implemented | read-only charting terminal with strict CSP |
 | Market data | External quote ingestion/demo feed | Implemented | paper/demo and API ingestion |
 | Market data | Supervised Settrade realtime bridge | Implemented | UAT evidence external |
 | Market data | Durable OHLCV/scanner | Implemented | research/strategy support |

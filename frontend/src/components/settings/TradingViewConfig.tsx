@@ -19,7 +19,7 @@ export function TradingViewConfig() {
   const { t } = useTranslation();
   const [alerts, setAlerts] = useState<TVAlert[]>([]);
   const [webhookUrl, setWebhookUrl] = useState(
-    'http://localhost:9569/v1/tradingview/webhook',
+    `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569'}/v1/tradingview/webhook`,
   );
   const [copied, setCopied] = useState(false);
   const [alertsError, setAlertsError] = useState(false);

@@ -8,13 +8,18 @@ zksato separates **market data → deterministic strategy/research → determini
 
 > **Permanent boundary:** autonomous live-money execution is forbidden. Live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains sandbox/UAT-only until broker certification.
 
-## v0.5 — P0-P9 source completion
+## v1.0.0 — Production Release & Multi-Exchange Architecture
 
-### Execution and market behavior
+### Execution, Market, and Prediction Behavior
 
-- FastAPI control plane + responsive dashboard on port `9569`
+- FastAPI control plane + responsive dashboard on port `9569` + Next.js 16 operator UI on port `3016`
 - PostgreSQL durable orders/events/fills/risk/account snapshots/bars/quotes/signals/alerts/audit/idempotency/outbox/runtime state
 - optional Redis coordination/rate-limit state; PostgreSQL remains the correctness boundary
+- CCXT multi-exchange spot adapter (Binance, Binance TH, KuCoin, OKX, Bybit) supporting paper/sandbox execution
+- Prediction markets module: synthetic probability feeds, complete-set cost calculations, directional residual limits, and guarded live execution gate
+- TradingView webhook ingestion with HMAC-SHA256 signature verification and automated alert/signal dispatching
+- Telegram asynchronous alert and trade notification delivery
+- Dark TradingView Market Terminal with read-only sandbox mode and CSP headers
 - restart-safe paper cash/holdings/P&L and client-order identity
 - paper market orders plus resting limit orders that can match on later quotes
 - configurable deterministic per-quote partial fills and quote-side price improvement
@@ -115,9 +120,12 @@ Machine clients can use `X-API-Key` or Bearer credentials. Browsers can exchange
 ## API groups
 
 - Platform/auth: `/health`, `/livez`, `/readyz`, `/metrics`, `/v1/config`, `/v1/auth/*`, `/v1/dashboard`
-- Market/reference: `/v1/market/*`, `/v1/reference/instruments`, `/v1/scanner`
+- Market/reference: `/v1/market/*`, `/v1/market-terminal`, `/v1/reference/instruments`, `/v1/scanner`
 - Automation: `/v1/bot/start|pause|resume|stop|tick`, `/v1/bot`
 - Risk/orders: `/v1/risk/*`, `/v1/orders*`, `/v1/reconcile`, `/v1/portfolio`
+- Prediction markets: `/v1/prediction/*`
+- CCXT / External feeds: `/v1/ccxt/*`
+- Integrations/webhooks: `/v1/webhooks/tradingview`, `/v1/notifications/telegram`
 - Evidence: `/v1/order-events`, `/v1/fills`, `/v1/risk/evaluations`, `/v1/account-snapshots`, `/v1/audit/*`
 - Research: `/v1/backtest`, `/v1/research/*`, `/v1/signals`
 - Operations: `/v1/alerts`
