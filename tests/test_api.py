@@ -42,3 +42,36 @@ def test_create_price_alert() -> None:
     )
     assert response.status_code == 201
     assert response.json()["symbol"] == "PTT"
+
+
+def test_agent_os_api_endpoints() -> None:
+    # 1. List skills
+    skills_res = client.get("/v1/agent-os/skills")
+    assert skills_res.status_code == 200
+    skills = skills_res.json()
+    assert any(s["name"] == "get_market_quote" for s in skills)
+    assert any(s["name"] == "submit_guarded_order" for s in skills)
+
+    # 2. Create subaccount
+    create_res = client.post(
+        "/v1/agent-os/subaccounts",
+        json={"agent_name": "api_test_agent", "collateral_usd": 1500.0},
+    )
+    assert create_res.status_code == 200
+    sub_id = create_res.json()["sub_account_id"]
+    assert sub_id.startswith("agsub-")
+
+    # 3. List subaccounts
+    list_res = client.get("/v1/agent-os/subaccounts")
+    assert list_res.status_code == 200
+    assert any(a["sub_account_id"] == sub_id for a in list_res.json())
+
+    # 4. Execute skill via API
+    exec_res = client.post(
+        "/v1/agent-os/execute",
+        json={"skill": "get_market_quote", "parameters": {"symbol": "AOT"}},
+    )
+    assert exec_res.status_code == 200
+    assert exec_res.json()["success"] is True
+    assert exec_res.json()["result"]["found"] is True
+

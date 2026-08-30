@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from zksato.agent_os import AgentExecutionEngine, AgentSubAccountManager
 from zksato.approvals import ApprovalRepository, ApprovalRequest, LiveApproval
 from zksato.auth import AuthManager, Principal, Role, require_roles
 from zksato.automation import AutomationEngine
@@ -1360,3 +1361,67 @@ async def telegram_test(
     text = message.get("message", "zksato test notification")
     sent = await dispatch_telegram(text)
     return {"sent": sent}
+
+
+# ── Agent OS Endpoints ──
+
+agent_subaccounts = AgentSubAccountManager()
+agent_engine = AgentExecutionEngine(
+    settings=settings,
+    trading_service=service,
+    subaccount_manager=agent_subaccounts,
+)
+
+
+@app.get("/v1/agent-os/skills")
+async def agent_os_list_skills(_principal: StrategyPrincipal) -> list[dict[str, object]]:
+    return agent_engine.skills.list_skills()
+
+
+@app.get("/v1/agent-os/subaccounts")
+async def agent_os_list_subaccounts(_principal: StrategyPrincipal) -> list[dict[str, object]]:
+    return [
+        {
+            "sub_account_id": a.sub_account_id,
+            "agent_name": a.agent_name,
+            "allocated_collateral_usd": a.allocated_collateral_usd,
+            "current_cash_usd": a.current_cash_usd,
+            "is_active": a.is_active,
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in agent_subaccounts.list_subaccounts()
+    ]
+
+
+@app.post("/v1/agent-os/subaccounts")
+async def agent_os_create_subaccount(
+    payload: dict[str, object],
+    _principal: RiskPrincipal,
+) -> dict[str, object]:
+    agent_name = str(payload.get("agent_name", "agent"))
+    collateral = float(payload.get("collateral_usd", 1000.0))
+    account = agent_subaccounts.create_subaccount(agent_name=agent_name, collateral_usd=collateral)
+    store.add_audit(
+        "agent_os.subaccount.created",
+        f"created agent subaccount {account.sub_account_id} for {agent_name}",
+        {"sub_account_id": account.sub_account_id, "collateral_usd": collateral},
+    )
+    return {
+        "sub_account_id": account.sub_account_id,
+        "agent_name": account.agent_name,
+        "allocated_collateral_usd": account.allocated_collateral_usd,
+        "current_cash_usd": account.current_cash_usd,
+    }
+
+
+@app.post("/v1/agent-os/execute")
+async def agent_os_execute_skill(
+    payload: dict[str, object],
+    _principal: StrategyPrincipal,
+) -> dict[str, object]:
+    skill_name = str(payload.get("skill", ""))
+    params = payload.get("parameters", {})
+    if not isinstance(params, dict) or not skill_name:
+        raise HTTPException(status_code=422, detail="skill and parameters dict required")
+    result = await agent_engine.skills.execute_skill(skill_name, **params)
+    return result
