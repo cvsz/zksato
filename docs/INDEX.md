@@ -33,6 +33,7 @@
 - `MARKET-DATA.md`
 - `SETTRADE-INTEGRATION.md`
 - `TFEX.md`
+- `BINANCE-AGENT-OS.md`
 - `STRATEGY.md`
 - `RISK.md`
 - `BACKTESTING.md`

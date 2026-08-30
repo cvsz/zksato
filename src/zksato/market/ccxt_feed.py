@@ -19,9 +19,17 @@ logger = logging.getLogger(__name__)
 
 _BINANCE_SYMBOL_MAP: dict[str, str] = {
     "BTC": "BTCUSDT",
+    "BTC/USDT": "BTCUSDT",
+    "BTC/THB": "BTCTHB",
     "ETH": "ETHUSDT",
+    "ETH/USDT": "ETHUSDT",
+    "ETH/THB": "ETHTHB",
     "SOL": "SOLUSDT",
+    "SOL/USDT": "SOLUSDT",
     "BNB": "BNBUSDT",
+    "BNB/USDT": "BNBUSDT",
+    "BNB/THB": "BNBTHB",
+    "USDT/THB": "USDTTHB",
     "XRP": "XRPUSDT",
     "DOGE": "DOGEUSDT",
     "ADA": "ADAUSDT",

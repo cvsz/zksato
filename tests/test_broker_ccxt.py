@@ -140,3 +140,31 @@ async def test_ccxt_broker_handles_network_error() -> None:
                     price=50000.0,
                 )
             )
+
+
+@pytest.mark.asyncio
+async def test_ccxt_broker_binance_th_execution() -> None:
+    settings = Settings(
+        ccxt_enabled=True,
+        ccxt_exchanges="binanceth",
+        ccxt_sandbox=True,
+        ccxt_binanceth_api_key="th_key",
+        ccxt_binanceth_secret="th_secret",
+    )
+    fake_ccxt = make_fake_ccxt_module()
+    with mock.patch.dict("sys.modules", {"ccxt": fake_ccxt}):
+        broker = CcxtBroker(settings)
+        record = await broker.place_order(
+            OrderIntent(
+                symbol="BTC/THB",
+                side=Side.BUY,
+                quantity=1,
+                order_type=OrderType.LIMIT,
+                price=2100000.0,
+                source="test",
+            )
+        )
+        assert record.symbol == "BTC/THB"
+        assert record.side == Side.BUY
+        assert record.status == OrderStatus.ACCEPTED
+        assert record.broker_order_id.startswith("binanceth:")
