@@ -106,3 +106,29 @@ def test_tradingview_endpoint_accepts_valid_payload_without_auth() -> None:
     )
     assert response.status_code == 200
     assert response.json()["status"] == "accepted"
+
+
+def test_tradingview_endpoint_with_hmac_signature() -> None:
+    from zksato.api import tradingview_config
+
+    tradingview_config.set_webhook_secret("PTT", "secret_key_123")
+    payload = b'{"symbol":"PTT","action":"sell","price":50.0,"strategy":"rsi"}'
+    signature = hmac.new(b"secret_key_123", payload, hashlib.sha256).hexdigest()
+
+    # Bad signature rejected
+    bad_resp = client.post(
+        "/v1/tradingview/webhook",
+        content=payload,
+        headers={"Content-Type": "application/json", "X-TradingView-Signature": "invalid_sig"},
+    )
+    assert bad_resp.status_code == 401
+
+    # Valid signature accepted
+    ok_resp = client.post(
+        "/v1/tradingview/webhook",
+        content=payload,
+        headers={"Content-Type": "application/json", "X-TradingView-Signature": signature},
+    )
+    assert ok_resp.status_code == 200
+    assert ok_resp.json()["status"] == "accepted"
+    tradingview_config.delete_webhook_secret("PTT")

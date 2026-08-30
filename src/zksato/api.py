@@ -1274,17 +1274,31 @@ async def tradingview_webhook(
     request: Request,
     x_signature: str | None = Header(default=None, alias="X-TV-Signature"),
 ) -> dict[str, object]:
+    sig = (
+        x_signature
+        or request.headers.get("x-tradingview-signature")
+        or request.headers.get("x-tv-signature")
+    )
     payload_bytes = await request.body()
-    signature = x_signature
-    if not tradingview_validator.validate(payload_bytes, signature):
-        raise HTTPException(status_code=401, detail="invalid webhook signature")
     try:
         payload = await request.json()
     except Exception as exc:
         raise HTTPException(status_code=422, detail="invalid json payload") from exc
+
     signal = tradingview_parser.parse(payload)
     if signal is None:
         raise HTTPException(status_code=422, detail="invalid tradingview alert payload")
+
+    # Check symbol-specific secret first, fallback to global validator
+    symbol_secret = tradingview_config.get_webhook_secret(signal.symbol)
+    if symbol_secret:
+        sym_validator = TradingViewWebhookValidator(symbol_secret)
+        if not sym_validator.validate(payload_bytes, sig):
+            raise HTTPException(status_code=401, detail="invalid webhook signature for symbol")
+    else:
+        if not tradingview_validator.validate(payload_bytes, sig):
+            raise HTTPException(status_code=401, detail="invalid webhook signature")
+
     stored = store.add_signal(signal)
     store.add_audit(
         "tradingview.webhook",
