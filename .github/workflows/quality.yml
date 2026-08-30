@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -23,8 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: agent/update-all-2026-08-31
-          persist-credentials: true
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -34,32 +33,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev,quality]'
-      - name: Repair branch formatting
-        if: github.event_name == 'pull_request' && github.head_ref == 'agent/update-all-2026-08-31'
-        shell: bash
-        run: |
-          set -euo pipefail
-          ruff format .
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('pyproject.toml')
-          text = path.read_text()
-          old = '"ruff>=0.11,<1.0"'
-          new = '"ruff==0.16.5"'
-          if old in text:
-              path.write_text(text.replace(old, new, 1))
-          PY
-          sed -i 's/[[:space:]]\+$//' docker-compose.yml
-          if git diff --quiet; then
-            echo 'No repair changes needed.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add pyproject.toml docker-compose.yml src tests
-          git commit -m 'style: apply canonical formatting and whitespace fixes'
-          git push origin HEAD:agent/update-all-2026-08-31
       - name: Dependency consistency
         run: python -m pip check
       - name: Ruff format check
