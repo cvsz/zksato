@@ -184,13 +184,32 @@ export default function DashboardPage() {
       const br = await fetch(`${backendUrl}/v1/bot`);
       if (br.ok) {
         const bData = await br.json();
-        setBots(bData);
+        if (Array.isArray(bData)) {
+          setBots(bData);
+        } else if (bData && typeof bData === 'object') {
+          // Wrap single bot status object
+          if (bData.config) {
+            setBots([
+              {
+                bot_id: bData.config.strategy_name || 'bot-1',
+                strategy_name: bData.config.strategy_name || 'unknown',
+                symbol: bData.config.symbol || 'BTC/USDT',
+                active: bData.state === 'running',
+                execution_mode: 'paper',
+              },
+            ]);
+          } else {
+            setBots([]);
+          }
+        } else {
+          setBots([]);
+        }
       }
 
       const ar = await fetch(`${backendUrl}/v1/audit?limit=15`);
       if (ar.ok) {
         const aData = await ar.json();
-        setAuditLogs(aData);
+        setAuditLogs(Array.isArray(aData) ? aData : []);
       }
 
       const rr = await fetch(`${backendUrl}/v1/risk/preflight`).catch(() => null);
@@ -198,7 +217,7 @@ export default function DashboardPage() {
         const rData = await rr.json();
         setRiskLimits({
           max_notional: rData.max_notional ?? rData.max_order_notional ?? 0,
-          allowed_symbols: rData.allowed_symbols ?? [],
+          allowed_symbols: Array.isArray(rData.allowed_symbols) ? rData.allowed_symbols : [],
         });
       }
     } catch (err) {
@@ -229,7 +248,7 @@ export default function DashboardPage() {
         // PnL endpoint unavailable — keep last known value
       }
     };
-    if (bots.some((b) => b.active)) {
+    if (Array.isArray(bots) && bots.some((b) => b?.active)) {
       fetchPnl();
       const interval = setInterval(fetchPnl, 8000);
       return () => {
@@ -414,7 +433,7 @@ export default function DashboardPage() {
     }
   };
 
-  const activeBots = bots.filter((b) => b.active);
+  const activeBots = Array.isArray(bots) ? bots.filter((b) => b?.active) : [];
   const ksActive = health?.kill_switch_active ?? false;
 
   return (
