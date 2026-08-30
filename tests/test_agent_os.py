@@ -93,4 +93,21 @@ async def test_agent_execution_engine_routing() -> None:
     )
     assert order_res["success"] is True
     assert order_res["result"]["approved"] is True
-    assert order_res["result"]["order_id"] is not None
+    order_id = order_res["result"]["order_id"]
+    assert order_id is not None
+
+    # 3. Test get_account_summary skill
+    acc_summary = await engine.skills.execute_skill(
+        "get_account_summary", sub_account_id=acc.sub_account_id
+    )
+    assert acc_summary["success"] is True
+    assert acc_summary["result"]["sub_account_id"] == acc.sub_account_id
+    assert acc_summary["result"]["allocated_collateral_usd"] == 2000.0
+
+    # 4. Test cancel_agent_order skill
+    cancel_res = await engine.skills.execute_skill(
+        "cancel_agent_order",
+        sub_account_id=acc.sub_account_id,
+        order_id=order_id,
+    )
+    assert cancel_res["success"] is True

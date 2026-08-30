@@ -100,6 +100,58 @@ class AgentExecutionEngine:
                     "status": "rejected",
                 }
 
+        async def get_account_summary(sub_account_id: str) -> dict[str, Any]:
+            acc = self.subaccount_manager.get_subaccount(sub_account_id)
+            if not acc or not acc.can_perform(AgentPermission.READ_PORTFOLIO):
+                return {"success": False, "error": "Permission denied or account not found"}
+            portfolio = await self.trading_service.portfolio(record_snapshot=False)
+            return {
+                "success": True,
+                "sub_account_id": acc.sub_account_id,
+                "agent_name": acc.agent_name,
+                "allocated_collateral_usd": acc.allocated_collateral_usd,
+                "current_cash_usd": acc.current_cash_usd,
+                "portfolio_equity": portfolio.equity if portfolio else 0.0,
+                "positions_count": len(portfolio.positions) if portfolio else 0,
+            }
+
+        async def calculate_technical_indicator(
+            symbol: str, indicator: str, period: int = 14
+        ) -> dict[str, Any]:
+            history = self.trading_service.store.get_history(symbol)
+            if not history or len(history) < period:
+                count = len(history) if history else 0
+                return {
+                    "success": False,
+                    "error": f"Insufficient price history for {symbol} (have {count})",
+                }
+            prices = [h.close for h in history]
+            ind_lower = indicator.lower()
+            if ind_lower == "rsi":
+                from zksato.indicators import calculate_rsi
+
+                val = calculate_rsi(prices, period=period)
+                return {"success": True, "indicator": "rsi", "symbol": symbol, "value": val}
+            elif ind_lower == "ema":
+                from zksato.indicators import calculate_ema
+
+                val = calculate_ema(prices, period=period)
+                return {"success": True, "indicator": "ema", "symbol": symbol, "value": val}
+            else:
+                return {"success": False, "error": f"Unsupported indicator: {indicator}"}
+
+        async def cancel_agent_order(sub_account_id: str, order_id: str) -> dict[str, Any]:
+            acc = self.subaccount_manager.get_subaccount(sub_account_id)
+            if not acc or not acc.can_perform(AgentPermission.CANCEL_ORDER):
+                return {"success": False, "error": "Permission denied"}
+            try:
+                cancelled = await self.trading_service.cancel_order(
+                    order_id, actor=f"agent:{acc.agent_name}"
+                )
+                return {"success": True, "cancelled": cancelled}
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+
         self.skills.register(
             name="get_market_quote",
             description="Fetches live market quote for an equity/crypto/derivative symbol.",
@@ -107,6 +159,24 @@ class AgentExecutionEngine:
                 "symbol": {"type": "string", "description": "Trading pair symbol"}
             },
             handler=get_market_quote,
+        )
+
+        self.skills.register(
+            name="get_account_summary",
+            description="Fetches portfolio equity and sub-account collateral balance.",
+            parameters_schema={"sub_account_id": {"type": "string"}},
+            handler=get_account_summary,
+        )
+
+        self.skills.register(
+            name="calculate_technical_indicator",
+            description="Computes RSI, EMA, or SMA indicator values from stored bar history.",
+            parameters_schema={
+                "symbol": {"type": "string"},
+                "indicator": {"type": "string", "enum": ["rsi", "ema"]},
+                "period": {"type": "integer", "default": 14},
+            },
+            handler=calculate_technical_indicator,
         )
 
         self.skills.register(
@@ -121,4 +191,14 @@ class AgentExecutionEngine:
                 "order_type": {"type": "string", "enum": ["limit", "market"]},
             },
             handler=submit_guarded_order,
+        )
+
+        self.skills.register(
+            name="cancel_agent_order",
+            description="Cancels an active resting order belonging to an agent.",
+            parameters_schema={
+                "sub_account_id": {"type": "string"},
+                "order_id": {"type": "string"},
+            },
+            handler=cancel_agent_order,
         )
