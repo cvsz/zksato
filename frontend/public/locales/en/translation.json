@@ -24,6 +24,7 @@
   "auth.api_key_login": "Sign in with API Key",
   "auth.logout": "Logout",
   "menu.dashboard": "Dashboard",
+  "menu.terminal": "Market Terminal",
   "menu.tfex": "TFEX",
   "menu.research": "Video EA Research",
   "menu.reconciliation": "Reconciliation",

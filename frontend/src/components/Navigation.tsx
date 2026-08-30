@@ -74,6 +74,28 @@ const menuConfig = [
     ),
   },
   {
+    key: 'terminal',
+    i18nKey: 'menu.terminal',
+    path: 'http://localhost:9569/v1/market/terminal',
+    external: true,
+    icon: (
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+        <line x1="8" y1="21" x2="16" y2="21" />
+        <line x1="12" y1="17" x2="12" y2="21" />
+      </svg>
+    ),
+  },
+  {
     key: 'reconciliation',
     i18nKey: 'menu.reconciliation',
     path: 'reconciliation',
@@ -419,7 +441,9 @@ export function Navigation({ lng }: NavigationProps) {
                 {menuConfig.map((item) => (
                   <Link
                     key={item.key}
-                    href={`/${lng}/${item.path}`}
+                    href={item.external ? item.path : `/${lng}/${item.path}`}
+                    target={item.external ? '_blank' : undefined}
+                    rel={item.external ? 'noopener noreferrer' : undefined}
                     className={`nav-link${isActive(item.path) ? ' active' : ''}`}
                     {...(isActive(item.path) ? { 'aria-current': 'page' as const } : {})}
                   >
@@ -506,7 +530,9 @@ export function Navigation({ lng }: NavigationProps) {
             {menuConfig.map((item) => (
               <Link
                 key={item.key}
-                href={`/${lng}/${item.path}`}
+                href={item.external ? item.path : `/${lng}/${item.path}`}
+                target={item.external ? '_blank' : undefined}
+                rel={item.external ? 'noopener noreferrer' : undefined}
                 className={`nav-mobile-link${isActive(item.path) ? ' active' : ''}`}
                 {...(isActive(item.path) ? { 'aria-current': 'page' as const } : {})}
               >

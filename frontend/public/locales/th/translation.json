@@ -24,6 +24,7 @@
   "auth.google_signin": "เข้าสู่ระบบด้วย Google",
   "auth.logout": "ออกจากระบบ",
   "menu.dashboard": "แดชบอร์ด",
+  "menu.terminal": "เทอร์มินัลกราฟ (TradingView)",
   "menu.settings": "ตั้งค่า",
   "menu.login": "เข้าสู่ระบบ",
   "menu.logout": "ออกจากระบบ",
