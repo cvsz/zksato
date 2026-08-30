@@ -572,7 +572,7 @@ select.input-field {
 .ticker-content {
   display: inline-flex;
   gap: 48px;
-  animation: ticker-scroll 35s linear infinite;
+  animation: ticker-scroll 300s linear infinite;
 }
 .ticker-item {
   display: inline-flex;
