@@ -85,13 +85,86 @@ class TelegramNotifier:
             )
         return await self.send(text)
 
-    async def send_bot_status(self, bot_id: str, state: str, reason: str | None = None) -> bool:
-        icon = "🟢" if state == "running" else "⏸️" if state == "paused" else "🛑"
-        reason_str = f"\n• *Reason:* `{reason}`" if reason else ""
+    async def send_risk_rejection(
+        self,
+        symbol: str,
+        reasons: list[str],
+        attempted_notional: float = 0.0,
+    ) -> bool:
+        reasons_list = [f"  - `{r}`" for r in reasons]
+        reasons_fmt = "\n".join(reasons_list) if reasons_list else "  - `Risk threshold exceeded`"
         text = (
-            f"{icon} *[BOT STATE CHANGE]*\n"
-            f"• *Bot ID:* `{bot_id}`\n"
-            f"• *New State:* `{state.upper()}`"
-            f"{reason_str}"
+            f"⛔ *[RISK REJECTION]*\n"
+            f"• *Symbol:* `{symbol}`\n"
+            f"• *Notional:* `${attempted_notional:,.2f}`\n"
+            f"• *Violations:*\n{reasons_fmt}"
+        )
+        return await self.send(text)
+
+    async def send_pnl_summary(
+        self,
+        total_pnl: float,
+        daily_pnl_pct: float,
+        open_positions: int,
+        currency: str = "USDT",
+    ) -> bool:
+        icon = "📈" if total_pnl >= 0 else "📉"
+        sign = "+" if total_pnl >= 0 else ""
+        text = (
+            f"{icon} *[DAILY PORTFOLIO P&L SUMMARY]*\n"
+            f"• *Total Realized + Unrealized:* `{sign}${total_pnl:,.2f} {currency}`\n"
+            f"• *Daily Return:* `{sign}{daily_pnl_pct:.2f}%`\n"
+            f"• *Open Active Positions:* `{open_positions}`\n"
+            f"• *Timestamp:* `UTC`"
+        )
+        return await self.send(text)
+
+    async def send_var_alert(
+        self,
+        var_amount: float,
+        var_pct: float,
+        confidence_level: float = 0.95,
+        horizon_days: int = 1,
+    ) -> bool:
+        text = (
+            f"⚠️ *[PORTFOLIO VALUE-AT-RISK (VaR) ALERT]*\n"
+            f"• *Confidence Level:* `{int(confidence_level * 100)}%`\n"
+            f"• *Time Horizon:* `{horizon_days} Day(s)`\n"
+            f"• *Parametric VaR:* `${var_amount:,.2f}` (`{var_pct:.2f}%` of equity)\n"
+            f"• *Action:* Review portfolio exposure and leverage"
+        )
+        return await self.send(text)
+
+    async def send_tradingview_signal(
+        self,
+        ticker: str,
+        action: str,
+        price: float | None = None,
+        strategy: str = "TradingView Webhook",
+        interval: str = "1h",
+    ) -> bool:
+        price_str = f" @ ${price:.2f}" if price else ""
+        text = (
+            f"📡 *[TRADINGVIEW WEBHOOK SIGNAL RECEIVED]*\n"
+            f"• *Strategy:* `{strategy}`\n"
+            f"• *Ticker:* `{ticker}` ({interval})\n"
+            f"• *Signal:* *{action.upper()}*{price_str}\n"
+            f"• *Status:* Routed to RiskEngine"
+        )
+        return await self.send(text)
+
+    async def send_reconciliation_alert(
+        self,
+        status: str,
+        unresolved_orders: int = 0,
+        mismatched_positions: int = 0,
+    ) -> bool:
+        icon = "✅" if unresolved_orders == 0 and mismatched_positions == 0 else "⚠️"
+        text = (
+            f"{icon} *[BROKER RECONCILIATION RESULT]*\n"
+            f"• *Status:* `{status.upper()}`\n"
+            f"• *Unresolved Orders:* `{unresolved_orders}`\n"
+            f"• *Mismatched Positions:* `{mismatched_positions}`\n"
+            f"• *External Truth Source:* `Broker SET/TFEX State`"
         )
         return await self.send(text)
