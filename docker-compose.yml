@@ -46,7 +46,7 @@ services:
     pids_limit: 256
 
   dashboard:
-    build: 
+    build:
       context: ./dashboard
     ports:
       - "5174:80"

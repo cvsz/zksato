@@ -20,7 +20,7 @@ class PredictionMarketClient(Protocol):
     """Pluggable prediction market venue client."""
 
     async def create_order(
-        self, market_id: str, side: str, amount_usd: float
+        self, market_id: str, side: str, amount_usd: float, price: float
     ) -> dict[str, Any]: ...
     async def cancel_order(self, order_id: str) -> dict[str, Any]: ...
     async def fetch_open_orders(self, market_id: str) -> list[dict[str, Any]]: ...
@@ -49,7 +49,9 @@ class PredictionBroker:
         market_id = intent.symbol
         side_str = "UP" if intent.side == Side.UP else "DOWN"
         try:
-            response = await self._client.create_order(market_id, side_str, amount_usd)
+            response = await self._client.create_order(
+                market_id, side_str, amount_usd, float(intent.price)
+            )
         except (TimeoutError, ConnectionError, OSError) as exc:
             raise BrokerAmbiguousError("prediction market order response ambiguous") from exc
         record = self._map_fill(response, intent=intent)

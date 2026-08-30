@@ -98,4 +98,3 @@ class RiskLimits:
     fee_bps: float = 10.0
     slippage_bps: float = 5.0
     max_slippage_bps: float = 500.0
-

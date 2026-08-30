@@ -247,4 +247,3 @@ class PortfolioRiskManager:
         )
         reasons.extend(self.check_conflict(strategy, active_strategies))
         return reasons
-

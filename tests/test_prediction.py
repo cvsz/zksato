@@ -14,13 +14,15 @@ class FakePredictionClient:
     def __init__(self) -> None:
         self.orders: list[dict[str, object]] = []
 
-    async def create_order(self, market_id: str, side: str, amount_usd: float) -> dict[str, object]:
+    async def create_order(
+        self, market_id: str, side: str, amount_usd: float, price: float
+    ) -> dict[str, object]:
         order = {
             "id": f"pred-{len(self.orders) + 1}",
             "market_id": market_id,
             "side": side,
             "amount": amount_usd,
-            "price": 0.5,
+            "price": price,
             "status": "filled",
         }
         self.orders.append(order)
@@ -338,4 +340,3 @@ def test_cpmm_liquidity_pool_dynamic_slippage() -> None:
     # Order exceeding max slippage is rejected
     with pytest.raises(RiskRejected, match="slippage .* exceeds limit"):
         broker.execute(Side.UP, 0.50, 300.0)
-

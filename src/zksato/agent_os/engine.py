@@ -118,36 +118,36 @@ class AgentExecutionEngine:
         async def calculate_technical_indicator(
             symbol: str, indicator: str, period: int = 14
         ) -> dict[str, Any]:
-            history = self.trading_service.store.get_history(symbol)
-            if not history or len(history) < period:
-                count = len(history) if history else 0
-                return {
-                    "success": False,
-                    "error": f"Insufficient price history for {symbol} (have {count})",
-                }
-            prices = [h.close for h in history]
+            prices = self.trading_service.store.get_prices(symbol)
             ind_lower = indicator.lower()
             if ind_lower == "rsi":
-                from zksato.indicators import calculate_rsi
+                from zksato.indicators import rsi
 
-                val = calculate_rsi(prices, period=period)
-                return {"success": True, "indicator": "rsi", "symbol": symbol, "value": val}
+                val = rsi(prices, period=period)
             elif ind_lower == "ema":
-                from zksato.indicators import calculate_ema
+                from zksato.indicators import ema
 
-                val = calculate_ema(prices, period=period)
-                return {"success": True, "indicator": "ema", "symbol": symbol, "value": val}
+                val = ema(prices, period=period)
             else:
                 return {"success": False, "error": f"Unsupported indicator: {indicator}"}
+            if val is None:
+                return {
+                    "success": False,
+                    "error": f"Insufficient price history for {symbol} (have {len(prices)})",
+                }
+            return {
+                "success": True,
+                "indicator": ind_lower,
+                "symbol": symbol,
+                "value": val,
+            }
 
         async def cancel_agent_order(sub_account_id: str, order_id: str) -> dict[str, Any]:
             acc = self.subaccount_manager.get_subaccount(sub_account_id)
             if not acc or not acc.can_perform(AgentPermission.CANCEL_ORDER):
                 return {"success": False, "error": "Permission denied"}
             try:
-                cancelled = await self.trading_service.cancel_order(
-                    order_id, actor=f"agent:{acc.agent_name}"
-                )
+                cancelled = await self.trading_service.cancel_order(order_id)
                 return {"success": True, "cancelled": cancelled}
             except Exception as exc:
                 return {"success": False, "error": str(exc)}
@@ -155,9 +155,7 @@ class AgentExecutionEngine:
         self.skills.register(
             name="get_market_quote",
             description="Fetches live market quote for an equity/crypto/derivative symbol.",
-            parameters_schema={
-                "symbol": {"type": "string", "description": "Trading pair symbol"}
-            },
+            parameters_schema={"symbol": {"type": "string", "description": "Trading pair symbol"}},
             handler=get_market_quote,
         )
 

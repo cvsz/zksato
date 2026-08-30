@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from zksato.config import Settings
 from zksato.domain import Side
@@ -35,6 +36,7 @@ class PaperPredictionBroker:
         self.cash = self.starting_cash
         self.position = Position()
         self.fills: list[Fill] = []
+        self._orders: dict[str, dict[str, Any]] = {}
 
     def execute(self, side: Side, quoted_price: float, order_usd: float) -> Fill:
         if not 0.0 < quoted_price < 1.0:
@@ -68,6 +70,46 @@ class PaperPredictionBroker:
         fill = Fill(side, shares, price, total)
         self.fills.append(fill)
         return fill
+
+    async def create_order(
+        self, market_id: str, side: str, amount_usd: float, price: float
+    ) -> dict[str, Any]:
+        try:
+            normalized_side = Side(side.lower())
+        except ValueError as exc:
+            raise ValueError(f"unsupported prediction side: {side}") from exc
+        if normalized_side not in {Side.UP, Side.DOWN}:
+            raise ValueError(f"unsupported prediction side: {side}")
+        fill = self.execute(normalized_side, price, amount_usd)
+        order_id = f"paper-{len(self.fills)}"
+        payload: dict[str, Any] = {
+            "id": order_id,
+            "market_id": market_id,
+            "side": fill.side.value,
+            "amount": amount_usd / price,
+            "price": fill.price,
+            "status": "filled",
+        }
+        self._orders[order_id] = payload
+        return dict(payload)
+
+    async def cancel_order(self, order_id: str) -> dict[str, Any]:
+        payload = self._orders.get(order_id)
+        if payload is None:
+            raise ValueError("paper prediction order not found")
+        cancelled = dict(payload)
+        cancelled["status"] = "canceled"
+        return cancelled
+
+    async def fetch_open_orders(self, market_id: str) -> list[dict[str, Any]]:
+        return [
+            dict(payload)
+            for payload in self._orders.values()
+            if payload.get("market_id") == market_id and payload.get("status") == "open"
+        ]
+
+    async def fetch_balance(self) -> dict[str, Any]:
+        return {"cash": self.cash}
 
     def settle(self, winner: Side) -> float:
         payout = self.position.shares[winner]

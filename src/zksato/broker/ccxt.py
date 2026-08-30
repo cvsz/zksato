@@ -30,7 +30,7 @@ class CcxtBroker:
 
     def _init_exchanges(self) -> None:
         try:
-            import ccxt  # type: ignore[import-not-found]
+            import ccxt
         except ImportError as exc:
             raise RuntimeError("ccxt is required for CcxtBroker") from exc
         self._exchange_not_available = getattr(ccxt, "ExchangeNotAvailable", Exception)
