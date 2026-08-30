@@ -74,4 +74,3 @@ def test_agent_os_api_endpoints() -> None:
     assert exec_res.status_code == 200
     assert exec_res.json()["success"] is True
     assert exec_res.json()["result"]["found"] is True
-

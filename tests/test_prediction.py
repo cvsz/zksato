@@ -338,4 +338,3 @@ def test_cpmm_liquidity_pool_dynamic_slippage() -> None:
     # Order exceeding max slippage is rejected
     with pytest.raises(RiskRejected, match="slippage .* exceeds limit"):
         broker.execute(Side.UP, 0.50, 300.0)
-

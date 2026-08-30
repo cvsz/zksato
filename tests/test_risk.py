@@ -61,4 +61,3 @@ def test_portfolio_var_and_expected_shortfall() -> None:
 
     assert var_95 > 0.0
     assert cvar_95 >= var_95
-

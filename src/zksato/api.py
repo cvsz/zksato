@@ -1459,10 +1459,7 @@ async def telegram_webhook(payload: dict[str, Any]) -> dict[str, bool]:
                 "total": float(store.get_portfolio_pnl()),
                 "currency": "USDT",
             },
-            quotes=[
-                {"symbol": q.symbol, "price": q.last}
-                for q in store.list_quotes()
-            ],
+            quotes=[{"symbol": q.symbol, "price": q.last} for q in store.list_quotes()],
         )
         url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
         async with httpx.AsyncClient(timeout=10.0) as client:

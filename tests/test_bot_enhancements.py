@@ -1,5 +1,6 @@
 """Tests for bot enhancements: confidence threshold, max_signals_per_tick,
 new indicator strategies (stochastic, williams_r, atr_channel), and scalp bug fix."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -57,6 +58,7 @@ def _engine(
 
 # --- Scalp bug fix ---
 
+
 def test_scalp_lower_band_destructuring_is_correct() -> None:
     """Regression: _scalp previously destructured lower as upper."""
     engine = StrategyEngine()
@@ -73,6 +75,7 @@ def test_scalp_lower_band_destructuring_is_correct() -> None:
 
 
 # --- New indicators ---
+
 
 def test_stochastic_oscillator_returns_k_and_d() -> None:
     candles = _build_candles([100.0 + i * 0.5 for i in range(20)])
@@ -127,6 +130,7 @@ def test_williams_r_overbought() -> None:
 
 
 # --- New strategies ---
+
 
 def test_stochastic_strategy_holds_without_candles() -> None:
     engine = StrategyEngine()
@@ -249,6 +253,7 @@ def test_atr_channel_strategy_sell_on_downward_breakout() -> None:
 
 # --- Confidence threshold ---
 
+
 @pytest.mark.asyncio
 async def test_confidence_threshold_suppresses_low_confidence_signals() -> None:
     """Signals below confidence_threshold must be dropped before submission."""
@@ -259,12 +264,11 @@ async def test_confidence_threshold_suppresses_low_confidence_signals() -> None:
         store.update_quote(Quote(symbol="AOT", last=p))
         store.update_quote(Quote(symbol="PTT", last=p))
     await engine.tick()
-    assert store.list_signals() == [] or all(
-        s.confidence >= 0.99 for s in store.list_signals()
-    )
+    assert store.list_signals() == [] or all(s.confidence >= 0.99 for s in store.list_signals())
 
 
 # --- max_signals_per_tick ---
+
 
 @pytest.mark.asyncio
 async def test_max_signals_per_tick_limits_execution() -> None:
@@ -282,6 +286,7 @@ async def test_max_signals_per_tick_limits_execution() -> None:
 
 
 # --- BotConfig model validation ---
+
 
 def test_bot_config_confidence_threshold_validates() -> None:
     config = BotConfig(symbols=["AOT"], confidence_threshold=0.75, max_signals_per_tick=5)
