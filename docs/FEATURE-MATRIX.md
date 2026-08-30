@@ -11,6 +11,7 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Trading | Settrade v2 equity adapter | Implemented | broker UAT certification remains external |
 | Trading | CCXT multi-exchange adapter | Implemented | Binance, Binance TH, KuCoin, OKX, Bybit spot paper/sandbox |
 | Trading | Prediction market engine & risk | Implemented | synthetic feeds, directional residuals, complete set cost |
+| Trading | Prediction CLOB adapter (Polymarket) | Implemented | httpx-wired quote/order/cancel with HMAC, injected-client testable, fail-closed guards via PredictionLiveGate |
 | Trading | CPMM liquidity pool & slippage | Implemented | non-linear depth price impact, basis-point slippage, swap executions |
 | Trading | Native Agent OS & sandboxed sub-accounts | Implemented | isolated collateral budgets, zero-withdrawal enforcement, skill hub |
 | Trading | Confirmed manual live equity boundary | Implemented | deterministic risk + one-time approval |

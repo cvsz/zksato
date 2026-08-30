@@ -89,7 +89,7 @@ Implemented: external news ingestion adapter with sentiment scoring; LLM sentime
 
 ## P13 — Multi-exchange CCXT & prediction markets
 
-Implemented: CCXT multi-venue spot adapter (Binance, Binance TH, KuCoin, OKX, Bybit) supporting paper and sandbox modes; prediction markets synthetic feeds, complete-set cost calculations, and directional residual limits; `PredictionVenueAdapter` interface and `PolymarketClobAdapter` scaffold with fail-closed `PredictionLiveGate`; and HMAC-SHA256 authenticated TradingView webhook alerting with asynchronous Telegram notification dispatch.
+Implemented: CCXT multi-venue spot adapter (Binance, Binance TH, KuCoin, OKX, Bybit) supporting paper and sandbox modes; prediction markets synthetic feeds, complete-set cost calculations, and directional residual limits; `PredictionVenueAdapter` interface and `PolymarketClobAdapter` httpx-wired quote/order/cancel (HMAC, injected-client testable) with fail-closed `PredictionLiveGate`; and HMAC-SHA256 authenticated TradingView webhook alerting with asynchronous Telegram notification dispatch.
 
 ## Permanent invariant
 

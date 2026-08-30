@@ -283,21 +283,58 @@ def test_paper_prediction_broker_rejects_insufficient_cash() -> None:
 
 
 @pytest.mark.asyncio
-async def test_polymarket_clob_adapter_raises_not_implemented() -> None:
-    """PolymarketClobAdapter is a scaffold — all methods must raise NotImplementedError
-    so no caller silently receives fabricated data from an unwired HTTP adapter."""
+async def test_polymarket_clob_adapter_wired_with_fake_client() -> None:
+    """PolymarketClobAdapter is now wired — with an injected http client it must
+    return normalized quotes/order payloads and enforce credential/validation guards."""
     from zksato.prediction.live import PolymarketClobAdapter
 
-    adapter = PolymarketClobAdapter(api_key="key123", api_secret="sec456")
+    class _FakeResp:
+        def __init__(self, data: object, status_code: int = 200) -> None:
+            self._data = data
+            self.status_code = status_code
+            self.text = str(data)
 
-    with pytest.raises(NotImplementedError, match="not yet wired"):
-        await adapter.get_market_quote("mkt-1")
+        def json(self) -> object:
+            return self._data
 
-    with pytest.raises(NotImplementedError, match="not yet wired"):
-        await adapter.place_order("mkt-1", Side.UP, 0.50, 10.0)
+    class _FakeClient:
+        async def get(self, url: str, params: dict[str, object] | None = None) -> _FakeResp:
+            if "/book" in url:
+                return _FakeResp({"bids": [{"price": "0.49"}], "asks": [{"price": "0.51"}]})
+            return _FakeResp({"price": "0.55"})
 
-    with pytest.raises(NotImplementedError, match="not yet wired"):
-        await adapter.cancel_order("poly-mkt-1-up")
+        async def post(self, url: str, json: dict[str, object] | None = None) -> _FakeResp:
+            payload = json or {}
+            return _FakeResp(
+                {
+                    "order_id": "poly-1",
+                    "market_id": str(payload.get("token_id", "mkt-1")),
+                    "price": payload.get("price", 0.5),
+                    "size": payload.get("size", 10),
+                    "status": "open",
+                }
+            )
+
+        async def delete(self, url: str) -> _FakeResp:
+            return _FakeResp({"success": True})
+
+        async def aclose(self) -> None:
+            return None
+
+    adapter = PolymarketClobAdapter(
+        api_key="key123", api_secret="sec456", http_client=_FakeClient()
+    )
+    quote = await adapter.get_market_quote("mkt-1")
+    assert quote["market_id"] == "mkt-1"
+    placed = await adapter.place_order("mkt-1", Side.UP, 0.50, 10.0)
+    assert placed["order_id"] == "poly-1"
+    assert placed["status"] == "open"
+    cancelled = await adapter.cancel_order("poly-1")
+    assert cancelled is True
+
+    # Validation guards remain
+    with pytest.raises(ValueError, match="price must be between"):
+        await adapter.place_order("mkt-1", Side.UP, 0.0, 10.0)
 
 
 @pytest.mark.asyncio

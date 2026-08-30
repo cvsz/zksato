@@ -8,6 +8,7 @@ Coverage targets:
 - __call__ aggregates only fields with a value.
 - Cache path is exercised via a monkey-patched secrets_cache.
 """
+
 from __future__ import annotations
 
 import os

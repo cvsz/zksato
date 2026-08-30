@@ -9,6 +9,7 @@ Covers:
 - Side normalisation in create_order.
 - CPMM pool integration (slippage-gated fills).
 """
+
 from __future__ import annotations
 
 import pytest

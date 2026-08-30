@@ -10,4 +10,11 @@ Start with the non-mutating probe:
 python scripts/uat_certify.py --base-url http://127.0.0.1:9569 --api-key "$READ_KEY"
 ```
 
+Aggregate local runtime + live probe + manual evidence for `POST /v1/production/readiness`:
+
+```bash
+python scripts/verify_external_gates.py --base-url http://127.0.0.1:9569 --api-key "$READ_KEY" --output readiness-input.json
+cat readiness-input.json  # supply as ExternalReadinessEvidence JSON to the readiness endpoint
+```
+
 Mutating UAT cases must be executed deliberately through existing authenticated sandbox endpoints. Record request correlation ID, client order ID, broker order/deal IDs, timestamps, expected result, observed result, reconciliation result, SDK version, account, and reviewer. Never place real-money orders as part of certification automation.

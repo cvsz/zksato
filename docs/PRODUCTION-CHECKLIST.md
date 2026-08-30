@@ -3,7 +3,7 @@
 This checklist does not authorize trading; it records prerequisites for a separately approved manual canary.
 
 ## Source/release
-- [ ] final revision checks green
+- [ ] final revision checks green (`ruff check . && pytest -m "not uat and not performance"` + `python scripts/verify_external_gates.py --check-only`)
 - [ ] release artifact/digest/checksum verified
 - [ ] SBOM/security findings reviewed
 - [ ] migrations and rollback reviewed

@@ -193,6 +193,11 @@ class Settings(BaseSettings):
     prediction_venue: str = "polymarket"
     prediction_max_order_usd: float = Field(default=10.0, gt=0)
     prediction_enable_live: bool = False
+    prediction_clob_url: str = "https://clob.polymarket.com"
+    prediction_clob_api_key: str | None = None
+    prediction_clob_api_secret: str | None = None
+    prediction_clob_passphrase: str | None = None
+    prediction_clob_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     max_directional_residual: float = Field(default=100.0, ge=0)
     max_complete_set_cost: float = Field(default=1.0, gt=0)
     min_prediction_edge: float = Field(default=0.03, ge=0, le=1)
@@ -205,6 +210,9 @@ class Settings(BaseSettings):
             "live_confirmation_token": "zksato_live_confirmation_token",
             "api_keys": "zksato_api_keys",
             "notification_webhook_url": "zksato_notification_webhook_url",
+            "prediction_clob_api_key": "zksato_prediction_clob_api_key",
+            "prediction_clob_api_secret": "zksato_prediction_clob_api_secret",
+            "prediction_clob_passphrase": "zksato_prediction_clob_passphrase",
         }
         secret_root = Path(self.secret_dir)
         for field_name, file_name in mapping.items():
