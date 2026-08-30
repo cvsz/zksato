@@ -76,7 +76,7 @@ const menuConfig = [
   {
     key: 'terminal',
     i18nKey: 'menu.terminal',
-    path: 'http://localhost:9569/v1/market/terminal',
+    path: '/v1/market/terminal',
     external: true,
     icon: (
       <svg
