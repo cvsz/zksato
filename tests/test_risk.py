@@ -47,3 +47,18 @@ def test_rejects_notional_over_available_line() -> None:
     )
     assert decision.approved is False
     assert "estimated notional exceeds available line" in decision.reasons
+
+
+def test_portfolio_var_and_expected_shortfall() -> None:
+    from zksato.risk import PortfolioRiskManager
+
+    manager = PortfolioRiskManager(Settings())
+    returns = [-0.05, -0.03, -0.02, 0.01, 0.02, 0.03, 0.04, 0.05, 0.01, -0.01]
+    var_95 = manager.calculate_var(returns, confidence_level=0.95, portfolio_value=100_000.0)
+    cvar_95 = manager.calculate_expected_shortfall(
+        returns, confidence_level=0.95, portfolio_value=100_000.0
+    )
+
+    assert var_95 > 0.0
+    assert cvar_95 >= var_95
+

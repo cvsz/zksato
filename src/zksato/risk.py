@@ -203,6 +203,35 @@ class PortfolioRiskManager:
                 reasons.append(f"strategy {strategy} conflicts with active {a}")
         return reasons
 
+    def calculate_var(
+        self,
+        returns: list[float],
+        confidence_level: float = 0.95,
+        portfolio_value: float = 100_000.0,
+    ) -> float:
+        """Computes Historical Value-at-Risk (VaR) in USD."""
+        if not returns:
+            return 0.0
+        sorted_returns = sorted(returns)
+        idx = max(0, int((1.0 - confidence_level) * len(sorted_returns)))
+        loss_pct = abs(min(0.0, sorted_returns[idx]))
+        return loss_pct * portfolio_value
+
+    def calculate_expected_shortfall(
+        self,
+        returns: list[float],
+        confidence_level: float = 0.95,
+        portfolio_value: float = 100_000.0,
+    ) -> float:
+        """Computes Conditional Value-at-Risk (CVaR / Expected Shortfall) in USD."""
+        if not returns:
+            return 0.0
+        sorted_returns = sorted(returns)
+        idx = max(1, int((1.0 - confidence_level) * len(sorted_returns)))
+        tail_losses = [abs(min(0.0, r)) for r in sorted_returns[:idx]]
+        avg_tail_loss = sum(tail_losses) / len(tail_losses) if tail_losses else 0.0
+        return avg_tail_loss * portfolio_value
+
     def evaluate(
         self,
         symbol: str,
@@ -218,3 +247,4 @@ class PortfolioRiskManager:
         )
         reasons.extend(self.check_conflict(strategy, active_strategies))
         return reasons
+
