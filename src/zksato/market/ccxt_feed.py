@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Any
@@ -145,7 +146,9 @@ class CcxtMarketFeed:
                     task.cancel()
                 await asyncio.gather(*ws_tasks, return_exceptions=True)
                 self._reconnect_count += 1
-                await asyncio.sleep(delay)
+                # Exponential backoff with uniform jitter (±20%)
+                jitter = delay * (0.8 + 0.4 * (random.random() if "random" in globals() else 0.5))
+                await asyncio.sleep(jitter)
                 delay = min(delay * 2, 30.0)
             finally:
                 if self._http is not None:

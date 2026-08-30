@@ -306,3 +306,36 @@ async def test_prediction_live_gate_and_polymarket_adapter() -> None:
     gate.kill_switch_ready = True
     # Should not raise
     gate.validate()
+
+
+def test_cpmm_liquidity_pool_dynamic_slippage() -> None:
+    from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
+    from zksato.prediction.core import LiquidityPool, RiskLimits
+
+    pool = LiquidityPool(up_reserve=1000.0, down_reserve=1000.0)
+    assert pool.spot_up_price == 0.5
+    assert pool.spot_down_price == 0.5
+
+    # Small trade: minimal slippage
+    shares_small, price_small, slippage_small = pool.quote_buy(Side.UP, 10.0)
+    assert price_small > 0.50
+    assert slippage_small < 250.0  # < 2.5%
+
+    # Large trade: high slippage
+    shares_large, price_large, slippage_large = pool.quote_buy(Side.UP, 500.0)
+    assert price_large > price_small
+    assert slippage_large > 2000.0  # > 20%
+
+    # Broker integration with pool
+    limits = RiskLimits(max_order_usd=500.0, max_slippage_bps=300.0)
+    broker = PaperPredictionBroker(Settings(), limits=limits, pool=pool)
+
+    # Order with low slippage succeeds
+    fill = broker.execute(Side.UP, 0.50, 10.0)
+    assert fill.shares > 0
+    assert fill.price > 0.50
+
+    # Order exceeding max slippage is rejected
+    with pytest.raises(RiskRejected, match="slippage .* exceeds limit"):
+        broker.execute(Side.UP, 0.50, 300.0)
+

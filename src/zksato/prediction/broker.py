@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from zksato.config import Settings
 from zksato.domain import Side
-from zksato.prediction.core import Position, RiskLimits
+from zksato.prediction.core import LiquidityPool, Position, RiskLimits
 
 
 class RiskRejected(RuntimeError):
@@ -22,9 +22,15 @@ class Fill:
 class PaperPredictionBroker:
     """Deterministic paper broker for prediction markets."""
 
-    def __init__(self, settings: Settings, limits: RiskLimits | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        limits: RiskLimits | None = None,
+        pool: LiquidityPool | None = None,
+    ) -> None:
         self.settings = settings
         self.limits = limits or RiskLimits()
+        self.pool = pool
         self.starting_cash = 10_000.0
         self.cash = self.starting_cash
         self.position = Position()
@@ -35,8 +41,16 @@ class PaperPredictionBroker:
             raise RiskRejected("price must be between 0 and 1")
         if order_usd <= 0 or order_usd > self.limits.max_order_usd:
             raise RiskRejected("order exceeds configured order limit")
-        slippage = quoted_price * self.limits.slippage_bps / 10_000
-        price = min(0.999999, quoted_price + slippage)
+
+        if self.pool is not None:
+            shares, price, slippage_bps = self.pool.swap_buy(side, order_usd)
+            if slippage_bps > self.limits.max_slippage_bps:
+                raise RiskRejected(f"slippage {slippage_bps:.1f} bps exceeds limit")
+        else:
+            slippage = quoted_price * self.limits.slippage_bps / 10_000
+            price = min(0.999999, quoted_price + slippage)
+            shares = order_usd / price
+
         fee = order_usd * self.limits.fee_bps / 10_000
         total = order_usd + fee
         if total > self.cash:
