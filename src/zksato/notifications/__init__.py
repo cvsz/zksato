@@ -6,6 +6,7 @@ from contextlib import suppress
 import httpx
 
 from zksato.config import get_settings
+from zksato.notifications.telegram import TelegramNotifier
 from zksato.outbox_delivery import plan_retry, truncate_error
 from zksato.store import StateStore
 
@@ -16,6 +17,15 @@ def _safe_delivery_error(exc: Exception) -> str:
     if isinstance(exc, httpx.HTTPStatusError):
         return truncate_error(f"{type(exc).__name__}: status={exc.response.status_code}")
     return truncate_error(type(exc).__name__)
+
+
+async def dispatch_telegram(message: str) -> bool:
+    settings = get_settings()
+    notifier = TelegramNotifier(
+        bot_token=settings.telegram_bot_token,
+        chat_id=settings.telegram_chat_id,
+    )
+    return await notifier.send(message)
 
 
 class OutboxDispatcher:

@@ -1,8 +1,36 @@
 from __future__ import annotations
 
+import math
+
+from zksato.config import get_settings
 from zksato.domain import BacktestRequest, BacktestResult, BacktestTrade, Side, SignalAction
 from zksato.indicators import max_drawdown_pct
 from zksato.strategy import StrategyEngine
+
+_TRADING_DAYS = 252.0
+
+
+def _annualized_sharpe(returns: list[float], risk_free_rate: float) -> float | None:
+    if len(returns) < 2:
+        return None
+    mean_r = sum(returns) / len(returns)
+    std_r = math.sqrt(sum((r - mean_r) ** 2 for r in returns) / len(returns))
+    if std_r <= 0:
+        return None
+    daily_rf = risk_free_rate / _TRADING_DAYS
+    return (mean_r - daily_rf) / std_r * math.sqrt(_TRADING_DAYS)
+
+
+def _annualized_sortino(returns: list[float], risk_free_rate: float) -> float | None:
+    if len(returns) < 2:
+        return None
+    mean_r = sum(returns) / len(returns)
+    downside = [min(r, 0.0) ** 2 for r in returns]
+    downside_dev = math.sqrt(sum(downside) / len(downside))
+    if downside_dev <= 0:
+        return None
+    daily_rf = risk_free_rate / _TRADING_DAYS
+    return (mean_r - daily_rf) / downside_dev * math.sqrt(_TRADING_DAYS)
 
 
 class Backtester:
@@ -83,12 +111,25 @@ class Backtester:
         gross_loss = sum(-value for value in closed_pnls if value < 0)
         first_price = request.candles[0].close
         buy_and_hold = ((final_price - first_price) / first_price * 100) if first_price else 0.0
+
+        returns: list[float] = []
+        for i in range(1, len(equity_curve)):
+            prev = equity_curve[i - 1]
+            if prev > 0:
+                returns.append((equity_curve[i] - prev) / prev)
+
+        risk_free_rate = get_settings().risk_free_rate
+        sharpe = _annualized_sharpe(returns, risk_free_rate)
+        sortino = _annualized_sortino(returns, risk_free_rate)
+        max_dd = max_drawdown_pct(equity_curve)
+        calmar = (total_return / max_dd) if max_dd > 0 else None
+
         return BacktestResult(
             symbol=request.symbol.upper(),
             initial_cash=request.initial_cash,
             final_equity=final_equity,
             total_return_pct=total_return,
-            max_drawdown_pct=max_drawdown_pct(equity_curve),
+            max_drawdown_pct=max_dd,
             total_trades=len(trades),
             win_rate_pct=(wins / closed * 100) if closed else 0.0,
             closed_trades=closed,
@@ -101,4 +142,7 @@ class Backtester:
             buy_and_hold_return_pct=buy_and_hold,
             trades=trades,
             equity_curve=equity_curve,
+            sharpe_ratio=sharpe,
+            sortino_ratio=sortino,
+            calmar_ratio=calmar,
         )

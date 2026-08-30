@@ -44,6 +44,13 @@ security = [
 settrade = [
   "settrade-v2==2.2.1",
 ]
+ccxt = [
+  "ccxt>=4.3,<5.0",
+]
+prediction = [
+  "xgboost>=2.0,<3.0",
+  "scikit-learn>=1.5,<2.0",
+]
 observability = [
   "opentelemetry-api>=1.35,<2.0",
   "opentelemetry-sdk>=1.35,<2.0",

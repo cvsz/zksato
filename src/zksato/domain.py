@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class Side(StrEnum):
     BUY = "buy"
     SELL = "sell"
+    UP = "up"
+    DOWN = "down"
 
 
 class OrderType(StrEnum):
@@ -141,6 +143,9 @@ class RiskContext(BaseModel):
     account_allowed: bool = True
     opens_new_position: bool = True
     reduces_exposure: bool = False
+    prediction_directional_residual: float | None = Field(default=None, ge=0)
+    prediction_complete_set_cost: float | None = Field(default=None, ge=0)
+    prediction_edge: float | None = Field(default=None)
 
 
 class OrderSubmission(BaseModel):
@@ -269,6 +274,12 @@ class StrategyConfig(BaseModel):
     sentiment_buy_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
     sentiment_sell_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
     min_history: int = Field(default=25, ge=3, le=1000)
+    vwap_period: int = Field(default=14, ge=1, le=500)
+    scalp_fast_period: int = Field(default=3, ge=2, le=200)
+    scalp_slow_period: int = Field(default=8, ge=3, le=500)
+    swing_rsi_period: int = Field(default=14, ge=2, le=100)
+    position_fast_period: int = Field(default=50, ge=2, le=500)
+    position_slow_period: int = Field(default=200, ge=3, le=1000)
 
 
 class StrategyVersion(BaseModel):
@@ -365,6 +376,9 @@ class BacktestResult(BaseModel):
     buy_and_hold_return_pct: float = 0.0
     trades: list[BacktestTrade] = Field(default_factory=list)
     equity_curve: list[float] = Field(default_factory=list)
+    sharpe_ratio: float | None = None
+    sortino_ratio: float | None = None
+    calmar_ratio: float | None = None
 
 
 class AlertRule(BaseModel):

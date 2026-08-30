@@ -45,8 +45,11 @@ from zksato.domain import (
     StrategyVersion,
 )
 from zksato.market import DemoMarketFeed
+from zksato.market.ccxt_feed import CcxtMarketFeed
+from zksato.market.prediction_feed import PredictionMarketFeed
 from zksato.market_settrade import SettradeRealtimeFeed
-from zksato.notifications import OutboxDispatcher
+from zksato.market_terminal import router as market_terminal_router
+from zksato.notifications import OutboxDispatcher, dispatch_telegram
 from zksato.observability import (
     COORDINATION_HEALTH,
     HTTP_LATENCY,
@@ -88,6 +91,11 @@ from zksato.tfex import (
     TfexOrderSubmission,
     TfexRiskDecision,
     TfexRiskEngine,
+)
+from zksato.tradingview import (
+    TradingViewAlertParser,
+    TradingViewConfigStore,
+    TradingViewWebhookValidator,
 )
 from zksato.video_ea import VideoDerivedEaPlanner, VideoEaPlan, VideoEaPlanRequest
 from zksato.video_ea_research import (
@@ -148,6 +156,18 @@ service = TradingService(
 )
 automation = AutomationEngine(settings=settings, store=store, service=service)
 demo_feed = DemoMarketFeed(automation=automation)
+ccxt_feed: CcxtMarketFeed | None = None
+prediction_feed: PredictionMarketFeed | None = None
+if settings.ccxt_configured and settings.trading_mode in {"paper", "sandbox"}:
+    try:
+        ccxt_feed = CcxtMarketFeed(automation=automation, settings=settings)
+    except RuntimeError:
+        ccxt_feed = None
+if settings.prediction_enabled:
+    try:
+        prediction_feed = PredictionMarketFeed(settings=settings)
+    except RuntimeError:
+        prediction_feed = None
 backtester = Backtester()
 scanner = MarketScanner()
 auth = AuthManager(settings)
@@ -160,6 +180,9 @@ outbox_dispatcher = OutboxDispatcher(
     store=store,
     webhook_url=settings.notification_webhook_url,
 )
+tradingview_validator = TradingViewWebhookValidator(settings.tradingview_webhook_secret)
+tradingview_parser = TradingViewAlertParser()
+tradingview_config = TradingViewConfigStore()
 research = ResearchService(settings, store)
 production = ProductionReadinessService(settings, store)
 video_ea_planner = VideoDerivedEaPlanner()
@@ -225,6 +248,8 @@ if settings.cors_origins:
     )
 if settings.trusted_hosts:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+
+app.include_router(market_terminal_router)
 
 
 @app.middleware("http")
@@ -1234,3 +1259,82 @@ async def tfex_place_uat_order(
         {"actor": principal.subject, "volume": submission.intent.volume},
     )
     return result
+
+
+@app.post("/v1/tradingview/webhook")
+async def tradingview_webhook(
+    request: Request,
+    x_signature: str | None = Header(default=None, alias="X-TV-Signature"),
+) -> dict[str, object]:
+    payload_bytes = await request.body()
+    signature = x_signature
+    if not tradingview_validator.validate(payload_bytes, signature):
+        raise HTTPException(status_code=401, detail="invalid webhook signature")
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="invalid json payload") from exc
+    signal = tradingview_parser.parse(payload)
+    if signal is None:
+        raise HTTPException(status_code=422, detail="invalid tradingview alert payload")
+    stored = store.add_signal(signal)
+    store.add_audit(
+        "tradingview.webhook",
+        f"tradingview alert for {signal.symbol} {signal.action.value}",
+        {"signal_id": str(stored.id), "symbol": signal.symbol},
+    )
+    return {"status": "accepted", "signal_id": str(stored.id)}
+
+
+@app.get("/v1/tradingview/config")
+async def tradingview_config_list(_principal: ReadPrincipal) -> dict[str, object]:
+    items = tradingview_config.list_webhooks()
+    return {
+        "webhooks": [
+            {"symbol": item["symbol"], "secret_configured": item["secret_configured"]}
+            for item in items
+        ],
+    }
+
+
+@app.post("/v1/tradingview/config")
+async def tradingview_config_create(
+    payload: dict[str, str],
+    _principal: RiskPrincipal,
+) -> dict[str, object]:
+    symbol = payload.get("symbol")
+    secret = payload.get("secret")
+    if not symbol or not secret:
+        raise HTTPException(status_code=422, detail="symbol and secret are required")
+    tradingview_config.set_webhook_secret(symbol, secret)
+    store.add_audit(
+        "tradingview.config.updated",
+        f"tradingview webhook config updated for {symbol}",
+        {"symbol": symbol},
+    )
+    return {"status": "updated", "symbol": symbol}
+
+
+@app.delete("/v1/tradingview/config/{symbol}")
+async def tradingview_config_delete(
+    symbol: str,
+    _principal: RiskPrincipal,
+) -> dict[str, bool]:
+    deleted = tradingview_config.delete_webhook_secret(symbol)
+    if deleted:
+        store.add_audit(
+            "tradingview.config.deleted",
+            f"tradingview webhook config deleted for {symbol}",
+            {"symbol": symbol},
+        )
+    return {"deleted": deleted}
+
+
+@app.post("/v1/telegram/test")
+async def telegram_test(
+    message: dict[str, str],
+    _principal: RiskPrincipal,
+) -> dict[str, bool]:
+    text = message.get("message", "zksato test notification")
+    sent = await dispatch_telegram(text)
+    return {"sent": sent}

@@ -94,6 +94,15 @@ class Settings(BaseSettings):
     require_stop_loss: bool = True
     allow_equity_short_selling: bool = False
     kill_switch: bool = False
+    vwap_period: int = Field(default=14, ge=1, le=500)
+    scalp_fast_period: int = Field(default=3, ge=2, le=200)
+    scalp_slow_period: int = Field(default=8, ge=3, le=500)
+    swing_rsi_period: int = Field(default=14, ge=2, le=100)
+    position_fast_period: int = Field(default=50, ge=2, le=500)
+    position_slow_period: int = Field(default=200, ge=3, le=1000)
+    max_correlation: float = Field(default=0.7, ge=0, le=1)
+    max_allocation_pct: float = Field(default=20.0, gt=0, le=100)
+    conflicting_strategies: str = ""
 
     max_tfex_contracts: int = Field(default=20, ge=1, le=10_000)
     max_tfex_margin_usage_pct: float = Field(default=50.0, gt=0, le=100)
@@ -109,6 +118,10 @@ class Settings(BaseSettings):
         "momentum",
         "macd_cross",
         "breakout",
+        "scalp",
+        "swing",
+        "position",
+        "vwap",
     ] = "ema_cross"
     default_order_size: int = Field(default=100, ge=1)
     default_stop_loss_pct: float = Field(default=2.0, gt=0, le=50)
@@ -131,6 +144,12 @@ class Settings(BaseSettings):
     notification_retry_max_seconds: float = Field(default=300.0, gt=0, le=86_400)
     notification_max_attempts: int = Field(default=5, ge=1, le=100)
 
+    tradingview_webhook_secret: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    telegram_enabled: bool = False
+    risk_free_rate: float = Field(default=0.02, ge=0.0, le=1.0)
+
     log_level: str = "INFO"
     log_json: bool = True
     otel_endpoint: str | None = None
@@ -142,6 +161,30 @@ class Settings(BaseSettings):
     research_min_trades: int = Field(default=20, ge=1)
     research_max_drawdown_pct: float = Field(default=20.0, gt=0, le=100)
     research_min_oos_return_pct: float = -100.0
+
+    ccxt_enabled: bool = False
+    ccxt_exchanges: str = ""
+    ccxt_sandbox: bool = True
+    ccxt_binance_api_key: str | None = None
+    ccxt_binance_secret: str | None = None
+    ccxt_binanceth_api_key: str | None = None
+    ccxt_binanceth_secret: str | None = None
+    ccxt_kucoin_api_key: str | None = None
+    ccxt_kucoin_secret: str | None = None
+    ccxt_kucoin_passphrase: str | None = None
+    ccxt_okx_api_key: str | None = None
+    ccxt_okx_secret: str | None = None
+    ccxt_okx_passphrase: str | None = None
+    ccxt_bybit_api_key: str | None = None
+    ccxt_bybit_secret: str | None = None
+
+    prediction_enabled: bool = False
+    prediction_venue: str = "polymarket"
+    prediction_max_order_usd: float = Field(default=10.0, gt=0)
+    prediction_enable_live: bool = False
+    max_directional_residual: float = Field(default=100.0, ge=0)
+    max_complete_set_cost: float = Field(default=1.0, gt=0)
+    min_prediction_edge: float = Field(default=0.03, ge=0, le=1)
 
     def model_post_init(self, __context: object) -> None:
         mapping = {
@@ -222,6 +265,24 @@ class Settings(BaseSettings):
             if token.strip() and role.strip():
                 result[token.strip()] = role.strip().lower()
         return result
+
+    @property
+    def ccxt_configured(self) -> bool:
+        return bool(self.ccxt_enabled and self.ccxt_exchanges.strip())
+
+    @property
+    def ccxt_exchange_list(self) -> list[str]:
+        return [item.strip().lower() for item in self.ccxt_exchanges.split(",") if item.strip()]
+
+    def ccxt_credentials_for(self, exchange: str) -> tuple[str | None, str | None, str | None]:
+        normalized = exchange.strip().lower()
+        key_field = f"ccxt_{normalized}_api_key"
+        secret_field = f"ccxt_{normalized}_secret"
+        passphrase_field = f"ccxt_{normalized}_passphrase"
+        key = getattr(self, key_field, None)
+        secret = getattr(self, secret_field, None)
+        passphrase = getattr(self, passphrase_field, None)
+        return key, secret, passphrase
 
 
 @lru_cache

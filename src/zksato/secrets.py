@@ -3,12 +3,20 @@ import logging
 import os
 from typing import Any
 
-import boto3
-from botocore.exceptions import ClientError
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 logger = logging.getLogger(__name__)
+
+try:
+    import boto3  # type: ignore[import-not-found]
+    from botocore.exceptions import ClientError  # type: ignore[import-not-found]
+
+    _AWS_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional dependency
+    boto3 = None  # type: ignore[assignment]
+    ClientError = Exception  # type: ignore[assignment,misc]
+    _AWS_AVAILABLE = False
 
 
 class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
@@ -20,6 +28,9 @@ class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
         self._load_secrets()
 
     def _load_secrets(self) -> None:
+        if not _AWS_AVAILABLE:
+            logger.debug("boto3 not installed; AWS Secrets Manager disabled, using env vars")
+            return
         try:
             session = boto3.session.Session()
             client = session.client(
