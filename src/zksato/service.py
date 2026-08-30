@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hmac
 from datetime import UTC, datetime
 
 from zksato.approvals import ApprovalRepository
@@ -83,7 +82,7 @@ class TradingService:
             None,
         )
         existing_value = float(existing.market_value) if existing else 0.0
-        holding_qty = int(existing.quantity) if existing else 0
+        holding_qty = float(existing.quantity) if existing else 0
         gross_value = sum(abs(float(position.market_value)) for position in portfolio.positions)
         net_value = sum(float(position.market_value) for position in portfolio.positions)
         if intent.side == Side.BUY:
@@ -343,11 +342,8 @@ class TradingService:
             except ValueError as exc:
                 raise TradingModeError(str(exc)) from exc
             return
-        if self.settings.legacy_live_token_enabled:
-            expected = self.settings.live_confirmation_token
-            supplied = submission.confirmation_token
-            if expected and supplied and hmac.compare_digest(expected, supplied):
-                return
+        # Legacy reusable live token has been removed; intent-bound approval is mandatory
+        # even when ZKSATO_LEGACY_LIVE_TOKEN_ENABLED is set (fails closed per invariant #2).
         raise TradingModeError("one-time intent-bound live approval is required")
 
     async def get_order(self, order_id: str) -> OrderRecord:
@@ -389,23 +385,43 @@ class TradingService:
             )
             return target
 
+        # Preserve broker truth for economic fields; only keep local identity
+        # per invariant #5: broker is source of truth for live reconciliation
         merged = remote.model_copy(
             update={
                 "id": target.id,
                 "broker_order_id": remote.broker_order_id or target.broker_order_id,
                 "client_order_id": target.client_order_id or remote.client_order_id,
-                "symbol": target.symbol,
-                "side": target.side,
-                "quantity": target.quantity,
-                "order_type": target.order_type,
-                "price": target.price,
-                "stop_loss": target.stop_loss,
-                "take_profit": target.take_profit,
                 "source": target.source,
                 "correlation_id": target.correlation_id or remote.correlation_id,
                 "created_at": target.created_at,
             }
         )
+        if (
+            remote.symbol != target.symbol
+            or remote.side != target.side
+            or float(remote.quantity) != float(target.quantity)
+            or remote.price != target.price
+        ):
+            self.store.add_audit(
+                "reconciliation.divergence",
+                f"broker cancel divergence for {target.symbol} vs {remote.symbol}",
+                {
+                    "order_id": str(target.id),
+                    "local": {
+                        "symbol": target.symbol,
+                        "side": target.side.value,
+                        "quantity": float(target.quantity),
+                        "price": target.price,
+                    },
+                    "remote": {
+                        "symbol": remote.symbol,
+                        "side": remote.side.value,
+                        "quantity": float(remote.quantity),
+                        "price": remote.price,
+                    },
+                },
+            )
         self.store.upsert_order(merged)
         self.store.record_order_fill(merged, source="cancel")
         self.store.add_order_event(

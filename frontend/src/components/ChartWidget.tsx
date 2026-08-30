@@ -34,36 +34,8 @@ export const ChartWidget: React.FC<ChartWidgetProps> = memo(
     const chartRef = useRef<IChartApi | null>(null);
     const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
-    if (data.length === 0) {
-      return (
-        <div
-          ref={chartContainerRef}
-          role="img"
-          aria-label="Price chart — no data available"
-          style={{
-            width: '100%',
-            height: '300px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-muted)',
-            fontSize: '14px',
-            background: 'var(--bg-surface)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginRight: '10px', opacity: 0.4 }}>
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <polyline points="17 8 12 3 7 8" />
-            <polyline points="7 16 12 21 17 16" />
-          </svg>
-          No chart data available
-        </div>
-      );
-    }
-
     useEffect(() => {
+      if (data.length === 0) return;
       if (!chartContainerRef.current) return;
 
       const handleResize = () => {
@@ -144,6 +116,35 @@ export const ChartWidget: React.FC<ChartWidgetProps> = memo(
         chart.remove();
       };
     }, [data, colors]);
+
+    if (data.length === 0) {
+      return (
+        <div
+          ref={chartContainerRef}
+          role="img"
+          aria-label="Price chart — no data available"
+          style={{
+            width: '100%',
+            height: '300px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-muted)',
+            fontSize: '14px',
+            background: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-subtle)',
+          }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginRight: '10px', opacity: 0.4 }}>
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <polyline points="17 8 12 3 7 8" />
+            <polyline points="7 16 12 21 17 16" />
+          </svg>
+          No chart data available
+        </div>
+      );
+    }
 
     return (
       <div

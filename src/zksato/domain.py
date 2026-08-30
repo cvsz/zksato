@@ -98,7 +98,7 @@ class Bar(BaseModel):
 class OrderIntent(BaseModel):
     symbol: str = Field(min_length=1, max_length=32)
     side: Side
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
     order_type: OrderType = OrderType.LIMIT
     price: float | None = Field(default=None, gt=0)
     stop_loss: float | None = Field(default=None, gt=0)
@@ -167,8 +167,8 @@ class OrderRecord(BaseModel):
     client_order_id: str | None = None
     symbol: str
     side: Side
-    quantity: int
-    filled_quantity: int = 0
+    quantity: float
+    filled_quantity: float = 0
     order_type: OrderType
     price: float | None
     average_fill_price: float | None = None
@@ -198,7 +198,7 @@ class FillRecord(BaseModel):
     broker_order_id: str | None = Field(default=None, max_length=128)
     symbol: str = Field(min_length=1, max_length=32)
     side: Side
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
     price: float = Field(gt=0)
     fee: float = Field(default=0.0, ge=0)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -226,7 +226,7 @@ class RiskEvaluation(BaseModel):
 
 class Position(BaseModel):
     symbol: str
-    quantity: int
+    quantity: float
     average_price: float
     market_price: float
     market_value: float

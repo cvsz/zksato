@@ -59,6 +59,8 @@ class CcxtBroker:
                 self._exchanges[exchange_id] = cls(config)
 
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
+        if intent.side not in {Side.BUY, Side.SELL}:
+            raise ValueError(f"CcxtBroker requires BUY/SELL side, got {intent.side.value}")
         exchange_id = self._resolve_exchange(intent.symbol)
         exchange = self._exchanges.get(exchange_id)
         if exchange is None:
@@ -139,7 +141,7 @@ class CcxtBroker:
                 positions.append(
                     Position(
                         symbol=symbol,
-                        quantity=int(free),
+                        quantity=float(free),
                         average_price=last,
                         market_price=last,
                         market_value=value,
@@ -184,8 +186,8 @@ class CcxtBroker:
         side = Side.BUY if raw_side == "buy" else Side.SELL
         raw_type = str(payload.get("type", "limit")).lower()
         order_type = OrderType.LIMIT if raw_type == "limit" else OrderType.MARKET
-        quantity = int(float(payload.get("amount", intent.quantity if intent else 0)) or 0)
-        filled = int(float(payload.get("filled", payload.get("cost", 0)) or 0))
+        quantity = float(payload.get("amount", intent.quantity if intent else 0) or 0)
+        filled = float(payload.get("filled", payload.get("cost", 0)) or 0)
         raw_status = str(payload.get("status", "open")).lower()
         status = self._status(raw_status, quantity, filled)
         now = datetime.now(UTC)
@@ -209,7 +211,7 @@ class CcxtBroker:
         )
 
     @staticmethod
-    def _status(raw: str, quantity: int, filled: int) -> OrderStatus:
+    def _status(raw: str, quantity: float, filled: float) -> OrderStatus:
         if "cancel" in raw or raw == "canceled":
             return OrderStatus.CANCELLED
         if "reject" in raw or raw == "rejected":

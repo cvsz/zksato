@@ -71,10 +71,14 @@ class AgentExecutionEngine:
                 ref_p = price or 1.0
                 stop_loss = ref_p * (1.0 - self.settings.default_stop_loss_pct / 100.0)
 
+            if side.lower() not in {"buy", "sell"}:
+                return {"approved": False, "reason": "side must be buy or sell"}
+            if float(quantity) <= 0:
+                return {"approved": False, "reason": "quantity must be positive"}
             intent = OrderIntent(
                 symbol=symbol,
                 side=intent_side,
-                quantity=int(quantity),
+                quantity=float(quantity),
                 order_type=intent_type,
                 price=price,
                 stop_loss=stop_loss,

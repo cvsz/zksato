@@ -308,7 +308,7 @@ async def test_polymarket_clob_adapter_wired_with_fake_client() -> None:
             return _FakeResp(
                 {
                     "order_id": "poly-1",
-                    "market_id": str(payload.get("token_id", "mkt-1")),
+                    "market_id": str(payload.get("market_id", payload.get("token_id", "mkt-1"))),
                     "price": payload.get("price", 0.5),
                     "size": payload.get("size", 10),
                     "status": "open",

@@ -78,7 +78,7 @@ class _FakeBookClient:
             {
                 "order_id": "poly-123",
                 "id": "poly-123",
-                "market_id": payload.get("token_id", "mkt-1"),
+                "market_id": payload.get("market_id", payload.get("token_id", "mkt-1")),
                 "price": payload.get("price", 0.55),
                 "size": payload.get("size", 10),
                 "status": "open",

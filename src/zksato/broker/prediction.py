@@ -139,7 +139,7 @@ class PredictionBroker:
 
     def _map_fill(self, payload: dict[str, Any], intent: OrderIntent | None = None) -> OrderRecord:
         side = Side.UP if str(payload.get("side", "UP")).upper() == "UP" else Side.DOWN
-        quantity = int(float(payload.get("amount", intent.quantity if intent else 0)) or 0)
+        quantity = float(payload.get("amount", intent.quantity if intent else 0) or 0)
         price = float(payload.get("price", intent.price if intent else 0) or 0)
         raw_status = str(payload.get("status", "open")).lower()
         status = OrderStatus.ACCEPTED

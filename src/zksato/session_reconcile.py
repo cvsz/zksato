@@ -12,15 +12,15 @@ from zksato.store import StateStore
 
 class PositionDiscrepancy(BaseModel):
     symbol: str
-    expected_quantity: int
-    broker_quantity: int
-    difference: int
+    expected_quantity: float
+    broker_quantity: float
+    difference: float
 
 
 class SessionReconciliationReport(BaseModel):
     matched: bool
-    expected_positions: dict[str, int]
-    broker_positions: dict[str, int]
+    expected_positions: dict[str, float]
+    broker_positions: dict[str, float]
     discrepancies: list[PositionDiscrepancy] = Field(default_factory=list)
     unresolved_orders: list[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -34,19 +34,19 @@ class SessionReconciliationService:
         self.store = store
 
     async def run(self) -> SessionReconciliationReport:
-        expected: defaultdict[str, int] = defaultdict(int)
+        expected: defaultdict[str, float] = defaultdict(float)
         for fill in reversed(self.store.list_fills(limit=100_000)):
             direction = 1 if fill.side == Side.BUY else -1
-            expected[fill.symbol] += direction * fill.quantity
+            expected[fill.symbol] += direction * float(fill.quantity)
         expected_clean = {
-            symbol: quantity for symbol, quantity in expected.items() if quantity != 0
+            symbol: quantity for symbol, quantity in expected.items() if abs(quantity) > 1e-9
         }
 
         portfolio = await self.broker.portfolio()
         broker_positions = {
-            position.symbol: int(position.quantity)
+            position.symbol: float(position.quantity)
             for position in portfolio.positions
-            if int(position.quantity) != 0
+            if abs(float(position.quantity)) > 1e-9
         }
         symbols = sorted(set(expected_clean) | set(broker_positions))
         discrepancies = [

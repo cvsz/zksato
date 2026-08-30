@@ -172,7 +172,7 @@ export function Navigation({ lng }: NavigationProps) {
     );
     const urlToken = params.get('token');
     if (urlToken) {
-      localStorage.setItem('zksato_api_key', urlToken);
+      window.sessionStorage.setItem('zksato_api_key', urlToken);
       const clean = window.location.pathname + window.location.hash;
       window.history.replaceState(null, '', clean);
     }
@@ -183,15 +183,25 @@ export function Navigation({ lng }: NavigationProps) {
         : null;
     setIsLoggedIn(!!token);
 
-    const onStorage = () => {
-      const t =
-        typeof window !== 'undefined'
-          ? window.sessionStorage.getItem('zksato_api_key')
-          : null;
+    const onStorage = (e: StorageEvent) => {
+      // storage event only fires for localStorage; also check sessionStorage on visibility/focus
+      if (e.storageArea === window.localStorage) {
+        const t = window.sessionStorage.getItem('zksato_api_key');
+        setIsLoggedIn(!!t);
+      }
+    };
+    const onFocus = () => {
+      const t = window.sessionStorage.getItem('zksato_api_key');
       setIsLoggedIn(!!t);
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [pathname]);
 
   useEffect(() => {

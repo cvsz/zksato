@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from threading import RLock
+from threading import Lock, RLock
 from time import monotonic
 from typing import Annotated, Any
 
@@ -192,6 +192,8 @@ video_ea_planner = VideoDerivedEaPlanner()
 video_ea_runtime_lock = RLock()
 settrade_feed: SettradeRealtimeFeed | None = None
 tfex_gateway: SettradeTfexGateway | None = None
+tfex_gateway_lock = Lock()
+settrade_feed_lock = Lock()
 tfex_risk = TfexRiskEngine(settings)
 
 read_access = require_roles(auth, Role.READ_ONLY)
@@ -292,10 +294,12 @@ def _tfex_gateway() -> SettradeTfexGateway:
     if not settings.settrade_tfex_configured:
         raise HTTPException(status_code=409, detail="Settrade TFEX credentials are incomplete")
     if tfex_gateway is None:
-        try:
-            tfex_gateway = SettradeTfexGateway(settings)
-        except RuntimeError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        with tfex_gateway_lock:
+            if tfex_gateway is None:
+                try:
+                    tfex_gateway = SettradeTfexGateway(settings)
+                except RuntimeError as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
     return tfex_gateway
 
 
@@ -595,9 +599,10 @@ async def start_settrade_feed(_principal: StrategyPrincipal) -> dict[str, object
     global settrade_feed
     if settings.trading_mode == "paper":
         raise HTTPException(status_code=409, detail="Settrade feed requires sandbox/live mode")
-    if settrade_feed is None:
-        settrade_feed = SettradeRealtimeFeed(settings, automation)
-    settrade_feed.start(settings.watchlist)
+    with settrade_feed_lock:
+        if settrade_feed is None:
+            settrade_feed = SettradeRealtimeFeed(settings, automation)
+        settrade_feed.start(settings.watchlist)
     store.add_audit("market.settrade.started", "Settrade realtime supervisor started")
     return settrade_feed.status()
 
@@ -659,7 +664,9 @@ async def bot_status(_principal: ReadPrincipal) -> BotStatus:
 
 @app.post("/v1/risk/check", response_model=RiskDecision)
 async def risk_check(submission: OrderSubmission, _principal: ReadPrincipal) -> RiskDecision:
-    return service.check_risk(submission)
+    # Recompute trusted risk context server-side; do not trust client-supplied RiskContext
+    context = await service.risk_context_for(submission.intent)
+    return service.risk_engine.evaluate(submission.intent, context)
 
 
 @app.post("/v1/risk/preflight", response_model=RiskDecision)
@@ -1223,7 +1230,15 @@ async def tfex_risk_check(
     submission: TfexOrderSubmission,
     _principal: ReadPrincipal,
 ) -> TfexRiskDecision:
-    return tfex_risk.evaluate(submission)
+    gateway = _tfex_gateway()
+    quote_age = store.quote_age_seconds(submission.intent.symbol)
+    context = await gateway.risk_context(
+        symbol=submission.intent.symbol,
+        price=submission.intent.price,
+        quote_age_seconds=quote_age,
+        market_data_available=store.get_quote(submission.intent.symbol) is not None,
+    )
+    return tfex_risk.evaluate(TfexOrderSubmission(intent=submission.intent, risk=context))
 
 
 @app.post("/v1/tfex/risk/preflight", response_model=TfexRiskDecision)

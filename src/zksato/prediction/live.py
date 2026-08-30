@@ -86,22 +86,22 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
         self._http_client = http_client
 
     # ------------------------------------------------------------------ internals
-    def _auth_headers(self) -> dict[str, str]:
-        # Polymarket CLOB uses HMAC-SHA256 over timestamp + method + path.
-        # Keep header names generic so a operator-provided gateway can translate.
+    def _auth_headers(self, method: str = "GET", path: str = "/auth") -> dict[str, str]:
         headers: dict[str, str] = {"Content-Type": "application/json"}
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
-            # Attach short-lived signature when secret is present; do not log secret.
             if self.api_secret:
                 ts = str(int(time.time()))
-                payload = f"{ts}GET/auth".encode()
+                payload = f"{ts}{method}{path}".encode()
                 sig = hmac.new(self.api_secret.encode(), payload, hashlib.sha256).hexdigest()
                 headers["X-TIMESTAMP"] = ts
                 headers["X-SIGNATURE"] = sig
                 if self.passphrase:
                     headers["X-PASSPHRASE"] = self.passphrase
         return headers
+
+    def _auth_headers_for(self, method: str, path: str) -> dict[str, str]:
+        return self._auth_headers(method=method, path=path)
 
     def _validate_market(self, market_id: str) -> None:
         if not market_id or not market_id.strip():
@@ -248,12 +248,20 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
         self._validate_order(float(price), float(order_usd))
         # Size in shares = USD / price (binary contract: $1 payout)
         size = float(order_usd) / float(price) if float(price) > 0 else 0.0
+        # Polymarket CLOB uses per-outcome token ids; encode outcome in token_id
+        # so UP/DOWN are not both BUY on the same token.
+        token_id = market_id
+        if ":" not in market_id and "_" not in market_id:
+            # If venue expects YES/NO suffixes, disambiguate outcome deterministically
+            suffix = "YES" if side == Side.UP else "NO"
+            token_id = f"{market_id}-{suffix}"
         payload = {
-            "token_id": market_id,
-            "side": "BUY",  # BUY/SELL per token; map UP/DOWN to BUY
+            "token_id": token_id,
+            "side": "BUY",  # always BUY the outcome-specific token
             "price": round(float(price), 6),
             "size": round(size, 4),
-            "outcome": side.value.upper(),  # preserve UP/DOWN for auditing
+            "outcome": side.value.upper(),
+            "market_id": market_id,
         }
         client, should_close = await self._get_client()
         try:

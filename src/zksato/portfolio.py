@@ -8,7 +8,7 @@ from zksato.store import StateStore
 
 @dataclass
 class Holding:
-    quantity: int = 0
+    quantity: float = 0
     average_price: float = 0.0
 
 
@@ -47,7 +47,7 @@ class PaperPortfolio:
             for symbol, raw in raw_holdings.items():
                 if not isinstance(symbol, str) or not isinstance(raw, dict):
                     continue
-                quantity = int(raw.get("quantity", 0) or 0)
+                quantity = float(raw.get("quantity", 0) or 0)
                 average_price = float(raw.get("average_price", 0) or 0)
                 self.holdings[symbol] = Holding(
                     quantity=max(quantity, 0),
@@ -67,10 +67,10 @@ class PaperPortfolio:
             }
         )
 
-    def can_sell(self, symbol: str, quantity: int) -> bool:
-        return self.holdings.get(symbol, Holding()).quantity >= quantity
+    def can_sell(self, symbol: str, quantity: float) -> bool:
+        return self.holdings.get(symbol, Holding()).quantity >= quantity - 1e-9
 
-    def apply_fill(self, symbol: str, side: Side, quantity: int, price: float) -> None:
+    def apply_fill(self, symbol: str, side: Side, quantity: float, price: float) -> None:
         holding = self.holdings.setdefault(symbol, Holding())
         if side == Side.BUY:
             cost = quantity * price
