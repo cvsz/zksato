@@ -25,7 +25,15 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 ### P13 — CCXT & Prediction Markets
 - [x] CCXT multi-exchange adapter (Binance, KuCoin, OKX, Bybit) for paper/sandbox
 - [x] Prediction markets synthetic feeds, complete-set cost risk engine, and guarded live gate
+- [x] CPMM dynamic liquidity depth and slippage calculations (`LiquidityPool`)
 - [x] TradingView HMAC webhook ingestion with automated alert parsing and Telegram delivery
+
+### P14 — Native Agent OS & Binance TH (Thailand)
+- [x] Native Python Agent OS architecture (`AgentSubAccount`, `AgentSkillHub`, `AgentExecutionEngine`)
+- [x] Sandboxed sub-accounts with hardcoded `WITHDRAW = False` invariant and collateral ceilings
+- [x] Financial intelligence skill hub: quotes, indicators (RSI/EMA), account telemetry, guarded risk submission, and order cancellation
+- [x] Binance TH (Thailand) spot integration (`BTC/THB`, `USDT/THB`, `ETH/THB`, `BNB/THB`)
+- [x] Full REST API endpoints for Agent OS mounted on FastAPI control plane (`/v1/agent-os/*`)
 
 ## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars

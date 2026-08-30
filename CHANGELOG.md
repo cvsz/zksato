@@ -5,6 +5,11 @@ All notable changes to zksato are documented here.
 ## [1.0.0] - 2026-08-30
 
 ### Final Production Release & USDT Self-Hosting
+- **Native Python Agent OS:** Decoupled, zero-MCP agent framework featuring partitioned sub-accounts (`AgentSubAccount`), hardcoded `WITHDRAW = False` safety invariants, and an extensible `AgentSkillHub` registry.
+- **Agent OS REST Control Plane:** Exposed `/v1/agent-os/skills`, `/v1/agent-os/subaccounts`, and `/v1/agent-os/execute` routes on the FastAPI control plane with strict pre-trade `RiskEngine` boundaries.
+- **CPMM Liquidity Depth & Dynamic Slippage:** Integrated `LiquidityPool` model into prediction markets, computing non-linear price impact, basis-point slippage, and swap executions.
+- **Binance TH (Thailand) Spot Execution:** Added official support and symbol mappings for Thai Baht fiat spot pairs (`BTC/THB`, `USDT/THB`, `ETH/THB`, `BNB/THB`) via `binanceth` venue.
+- **WebSocket Supervisor with Jittered Backoff:** Added randomized uniform jitter and exponential backoff to public market stream reconnections.
 - **USDT-First Self-Hosting:** Full-stack localhost Docker Compose runtime with FastAPI backend, PostgreSQL system-of-record, Redis coordination, and Next.js 16 frontend.
 - **CCXT Multi-Exchange Adapter:** Multi-venue spot execution with sandbox mode support across Binance, Binance TH, KuCoin, OKX, and Bybit.
 - **Prediction Markets Module:** Synthetic pricing feeds, directional residual limits, complete-set cost risk engine, and guarded live execution gate.
