@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     telegram_enabled: bool = False
+    telegram_notify_orders: bool = True
+    telegram_notify_fills: bool = True
+    telegram_notify_kill_switch: bool = True
+    telegram_notify_risk_rejections: bool = True
     risk_free_rate: float = Field(default=0.02, ge=0.0, le=1.0)
 
     log_level: str = "INFO"

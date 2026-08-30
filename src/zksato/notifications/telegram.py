@@ -31,3 +31,67 @@ class TelegramNotifier:
                 return True
         except (httpx.HTTPError, OSError, ValueError):
             return False
+
+    async def send_order_alert(
+        self,
+        symbol: str,
+        side: str,
+        quantity: int,
+        order_type: str,
+        price: float | None = None,
+        strategy: str = "manual",
+    ) -> bool:
+        price_str = f" @ ${price:.2f}" if price else " @ MARKET"
+        text = (
+            f"⚡ *[ORDER SUBMITTED]*\n"
+            f"• *Strategy:* `{strategy}`\n"
+            f"• *Symbol:* `{symbol}`\n"
+            f"• *Side:* *{side.upper()}* {quantity} contracts{price_str}\n"
+            f"• *Type:* `{order_type.upper()}`\n"
+            f"• *Mode:* `Paper Execution`"
+        )
+        return await self.send(text)
+
+    async def send_fill_alert(
+        self,
+        symbol: str,
+        side: str,
+        quantity: int,
+        fill_price: float,
+        commission: float = 0.0,
+    ) -> bool:
+        text = (
+            f"✅ *[FILL EXECUTED]*\n"
+            f"• *Symbol:* `{symbol}`\n"
+            f"• *Side:* *{side.upper()}* {quantity} contracts\n"
+            f"• *Execution Price:* `${fill_price:.4f}`\n"
+            f"• *Commission:* `${commission:.2f}`"
+        )
+        return await self.send(text)
+
+    async def send_kill_switch_alert(self, active: bool, actor: str = "operator") -> bool:
+        if active:
+            text = (
+                f"🚨 *[EMERGENCY KILL SWITCH ENGAGED]*\n"
+                f"• *Triggered by:* `{actor}`\n"
+                f"• *Action:* All automated execution HALTED immediately\n"
+                f"• *Status:* CRITICAL DEFENSE ACTIVE"
+            )
+        else:
+            text = (
+                f"🟢 *[KILL SWITCH DEACTIVATED]*\n"
+                f"• *Cleared by:* `{actor}`\n"
+                f"• *Action:* Automated execution resumed under risk guardrails"
+            )
+        return await self.send(text)
+
+    async def send_bot_status(self, bot_id: str, state: str, reason: str | None = None) -> bool:
+        icon = "🟢" if state == "running" else "⏸️" if state == "paused" else "🛑"
+        reason_str = f"\n• *Reason:* `{reason}`" if reason else ""
+        text = (
+            f"{icon} *[BOT STATE CHANGE]*\n"
+            f"• *Bot ID:* `{bot_id}`\n"
+            f"• *New State:* `{state.upper()}`"
+            f"{reason_str}"
+        )
+        return await self.send(text)
