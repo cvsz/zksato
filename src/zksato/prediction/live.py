@@ -29,38 +29,41 @@ class PredictionVenueAdapter(ABC):
 
 
 class PolymarketClobAdapter(PredictionVenueAdapter):
-    """Audited read/write venue adapter scaffold for Polymarket CTF / CLOB."""
+    """Audited read/write venue adapter scaffold for Polymarket CTF / CLOB.
+
+    This adapter is intentionally unimplemented.  Real Polymarket CLOB / CTF
+    API integration (authentication, order signing, REST calls) has not been
+    wired yet.  All methods raise ``NotImplementedError`` so that any accidental
+    call to a live or paper path that reaches this adapter fails loudly rather
+    than silently returning fabricated data.
+
+    To enable live prediction-market execution, supply a concrete implementation
+    that satisfies the ``PredictionVenueAdapter`` contract and pass it to
+    ``PredictionLiveGate``.
+    """
+
+    _NOT_WIRED = (
+        "PolymarketClobAdapter: HTTP / CLOB integration is not yet wired. "
+        "Provide a concrete PredictionVenueAdapter implementation."
+    )
 
     def __init__(self, api_key: str | None = None, api_secret: str | None = None) -> None:
         self.api_key = api_key
         self.api_secret = api_secret
 
     async def get_market_quote(self, market_id: str) -> dict[str, str | float]:
-        # Return structured quote layout
-        return {
-            "market_id": market_id,
-            "up_ask": 0.50,
-            "up_bid": 0.49,
-            "down_ask": 0.50,
-            "down_bid": 0.49,
-            "spread": 0.01,
-        }
+        """Not implemented — raises to prevent silent use of placeholder data."""
+        raise NotImplementedError(self._NOT_WIRED)
 
     async def place_order(
         self, market_id: str, side: Side, price: float, order_usd: float
     ) -> dict[str, Any]:
-        if not self.api_key:
-            raise RuntimeError("Polymarket venue credentials not configured")
-        return {
-            "order_id": f"poly-{market_id}-{side.value}",
-            "status": "submitted",
-            "side": side.value,
-            "price": price,
-            "order_usd": order_usd,
-        }
+        """Not implemented — raises to prevent accidental live-money calls."""
+        raise NotImplementedError(self._NOT_WIRED)
 
     async def cancel_order(self, order_id: str) -> bool:
-        return True
+        """Not implemented — raises to prevent silent no-ops."""
+        raise NotImplementedError(self._NOT_WIRED)
 
 
 class PredictionLiveGate:

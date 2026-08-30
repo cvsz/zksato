@@ -283,31 +283,51 @@ def test_paper_prediction_broker_rejects_insufficient_cash() -> None:
 
 
 @pytest.mark.asyncio
-async def test_prediction_live_gate_and_polymarket_adapter() -> None:
-    from zksato.prediction.live import PolymarketClobAdapter, PredictionLiveGate
+async def test_polymarket_clob_adapter_raises_not_implemented() -> None:
+    """PolymarketClobAdapter is a scaffold — all methods must raise NotImplementedError
+    so no caller silently receives fabricated data from an unwired HTTP adapter."""
+    from zksato.prediction.live import PolymarketClobAdapter
 
     adapter = PolymarketClobAdapter(api_key="key123", api_secret="sec456")
-    quote = await adapter.get_market_quote("mkt-1")
-    assert quote["market_id"] == "mkt-1"
-    assert quote["up_ask"] == 0.50
 
-    order = await adapter.place_order("mkt-1", Side.UP, 0.50, 10.0)
-    assert order["status"] == "submitted"
-    assert order["side"] == Side.UP.value
+    with pytest.raises(NotImplementedError, match="not yet wired"):
+        await adapter.get_market_quote("mkt-1")
 
-    cancelled = await adapter.cancel_order("poly-mkt-1-UP")
-    assert cancelled is True
+    with pytest.raises(NotImplementedError, match="not yet wired"):
+        await adapter.place_order("mkt-1", Side.UP, 0.50, 10.0)
 
-    # Gate validation passes when all safety checks and adapter are satisfied
+    with pytest.raises(NotImplementedError, match="not yet wired"):
+        await adapter.cancel_order("poly-mkt-1-up")
+
+
+@pytest.mark.asyncio
+async def test_prediction_live_gate_passes_with_compliant_adapter() -> None:
+    """PredictionLiveGate.validate() passes when all safety flags are set
+    and a concrete (non-scaffold) adapter is supplied."""
+    from typing import Any
+
+    from zksato.prediction.live import PredictionLiveGate, PredictionVenueAdapter
+
+    class _StubAdapter(PredictionVenueAdapter):
+        async def get_market_quote(self, market_id: str) -> dict[str, str | float]:
+            return {"market_id": market_id, "up_ask": 0.51, "up_bid": 0.49}
+
+        async def place_order(
+            self, market_id: str, side: Side, price: float, order_usd: float
+        ) -> dict[str, Any]:
+            return {"order_id": "stub-1", "status": "submitted"}
+
+        async def cancel_order(self, order_id: str) -> bool:
+            return True
+
     gate = PredictionLiveGate(
         Settings(prediction_enabled=True, prediction_enable_live=True),
-        adapter=adapter,
+        adapter=_StubAdapter(),
     )
     gate.acknowledge_loss = True
     gate.reviewed_adapter = True
     gate.kill_switch_ready = True
-    # Should not raise
-    gate.validate()
+    gate.validate()  # must not raise
 
 
 def test_cpmm_liquidity_pool_dynamic_slippage() -> None:
