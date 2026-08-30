@@ -25,7 +25,7 @@ class TradingViewWebhookValidator:
 
 
 class TradingViewAlertParser:
-    def parse(self, payload: dict) -> Signal | None:
+    def parse(self, payload: object) -> Signal | None:
         if not isinstance(payload, dict):
             return None
         symbol = payload.get("symbol")

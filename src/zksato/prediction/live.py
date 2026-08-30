@@ -11,7 +11,7 @@ class PredictionVenueAdapter(ABC):
     """Abstract interface for external prediction market CLOB venues (e.g. Polymarket, Kalshi)."""
 
     @abstractmethod
-    async def get_market_quote(self, market_id: str) -> dict[str, float]:
+    async def get_market_quote(self, market_id: str) -> dict[str, str | float]:
         """Fetch current best bid/ask and implied probability for binary outcomes."""
         pass
 
@@ -35,7 +35,7 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
         self.api_key = api_key
         self.api_secret = api_secret
 
-    async def get_market_quote(self, market_id: str) -> dict[str, float]:
+    async def get_market_quote(self, market_id: str) -> dict[str, str | float]:
         # Return structured quote layout
         return {
             "market_id": market_id,

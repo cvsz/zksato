@@ -1401,7 +1401,13 @@ async def agent_os_create_subaccount(
     _principal: RiskPrincipal,
 ) -> dict[str, object]:
     agent_name = str(payload.get("agent_name", "agent"))
-    collateral = float(payload.get("collateral_usd", 1000.0))
+    raw_collateral = payload.get("collateral_usd", 1000.0)
+    if isinstance(raw_collateral, bool) or not isinstance(raw_collateral, (str, int, float)):
+        raise HTTPException(status_code=422, detail="collateral_usd must be numeric")
+    try:
+        collateral = float(raw_collateral)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="collateral_usd must be numeric") from exc
     account = agent_subaccounts.create_subaccount(agent_name=agent_name, collateral_usd=collateral)
     store.add_audit(
         "agent_os.subaccount.created",
@@ -1447,18 +1453,23 @@ async def telegram_webhook(payload: dict[str, Any]) -> dict[str, bool]:
     chat_id = chat.get("id", settings.telegram_chat_id)
 
     if text.startswith("/"):
+        portfolio_summary: dict[str, Any] | None = None
+        command_name = text.split("@", 1)[0].strip().lower()
+        if command_name == "/pnl":
+            snapshot = await service.portfolio(record_snapshot=False)
+            portfolio_summary = {
+                "total": snapshot.realized_pnl + snapshot.unrealized_pnl,
+                "currency": "USDT",
+            }
         resp = await notifier.handle_telegram_command(
             text,
             chat_id,
             system_status={
                 "environment": settings.environment,
                 "execution_mode": settings.trading_mode,
-                "kill_switch_active": service.kill_switch_active,
+                "kill_switch_active": settings.kill_switch,
             },
-            portfolio_summary={
-                "total": float(store.get_portfolio_pnl()),
-                "currency": "USDT",
-            },
+            portfolio_summary=portfolio_summary,
             quotes=[{"symbol": q.symbol, "price": q.last} for q in store.list_quotes()],
         )
         url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
