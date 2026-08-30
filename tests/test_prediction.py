@@ -211,9 +211,9 @@ def test_prediction_live_gate_enforces_safety_invariants() -> None:
     with pytest.raises(RuntimeError, match="kill switch readiness is required"):
         gate.validate()
 
-    # Case 6: all prerequisites met, but no live venue adapter is shipped
+    # Case 6: all prerequisites met, but no live venue adapter is attached
     gate.kill_switch_ready = True
-    with pytest.raises(NotImplementedError, match="no real-money venue adapter is shipped"):
+    with pytest.raises(RuntimeError, match="no reviewed venue adapter attached"):
         gate.validate()
 
 
@@ -278,3 +278,31 @@ def test_paper_prediction_broker_rejects_insufficient_cash() -> None:
     broker.cash = 0.0
     with pytest.raises(RiskRejected, match="insufficient paper cash"):
         broker.execute(Side.UP, 0.5, 5.0)
+
+
+@pytest.mark.asyncio
+async def test_prediction_live_gate_and_polymarket_adapter() -> None:
+    from zksato.prediction.live import PolymarketClobAdapter, PredictionLiveGate
+
+    adapter = PolymarketClobAdapter(api_key="key123", api_secret="sec456")
+    quote = await adapter.get_market_quote("mkt-1")
+    assert quote["market_id"] == "mkt-1"
+    assert quote["up_ask"] == 0.50
+
+    order = await adapter.place_order("mkt-1", Side.UP, 0.50, 10.0)
+    assert order["status"] == "submitted"
+    assert order["side"] == Side.UP.value
+
+    cancelled = await adapter.cancel_order("poly-mkt-1-UP")
+    assert cancelled is True
+
+    # Gate validation passes when all safety checks and adapter are satisfied
+    gate = PredictionLiveGate(
+        Settings(prediction_enabled=True, prediction_enable_live=True),
+        adapter=adapter,
+    )
+    gate.acknowledge_loss = True
+    gate.reviewed_adapter = True
+    gate.kill_switch_ready = True
+    # Should not raise
+    gate.validate()
