@@ -155,9 +155,7 @@ class AgentExecutionEngine:
         self.skills.register(
             name="get_market_quote",
             description="Fetches live market quote for an equity/crypto/derivative symbol.",
-            parameters_schema={
-                "symbol": {"type": "string", "description": "Trading pair symbol"}
-            },
+            parameters_schema={"symbol": {"type": "string", "description": "Trading pair symbol"}},
             handler=get_market_quote,
         )
 
