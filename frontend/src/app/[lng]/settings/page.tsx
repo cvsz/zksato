@@ -8,6 +8,7 @@ import { ThemeCustomizer } from '../../../components/settings/ThemeCustomizer';
 import { AlertManager } from '../../../components/settings/TelegramLink';
 import { NotificationPreferences } from '../../../components/settings/NotificationPreferences';
 import { TradingViewConfig } from '../../../components/settings/TradingViewConfig';
+import { getBackendUrl } from '../../../utils/api';
 
 interface StatusMessage {
   type: 'success' | 'error';
@@ -20,8 +21,7 @@ export default function SettingsPage() {
   initI18n(lng);
   const { t } = useTranslation('translation');
 
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+  const backendUrl = getBackendUrl();
 
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);

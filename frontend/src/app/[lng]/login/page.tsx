@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { usePathname, useRouter } from 'next/navigation';
+import { getBackendUrl } from '../../../utils/api';
 
 export default function LoginPage() {
   const pathname = usePathname();
@@ -20,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+      const backendUrl = getBackendUrl();
       const res = await fetch(`${backendUrl}/v1/auth/session`, {
         method: 'POST',
         headers: {

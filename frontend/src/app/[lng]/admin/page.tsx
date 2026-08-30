@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { Toast } from '../../../components/Toast';
+import { getBackendUrl } from '../../../utils/api';
 
 interface SystemHealth {
   status: string;
@@ -85,7 +86,7 @@ export default function AdminDashboardPage() {
   initI18n(lng);
   const { t } = useTranslation('translation');
 
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+  const backendUrl = getBackendUrl();
 
   const [tab, setTab] = useState<TabKey>('overview');
   const [paperMode, setPaperMode] = useState(false);

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { ChartWidget } from '../../../components/ChartWidget';
+import { getBackendUrl } from '../../../utils/api';
 
 interface BotResponse {
   bot_id: string;
@@ -143,8 +144,7 @@ export default function DashboardPage() {
     return `${val.toFixed(6)}`;
   };
 
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+  const backendUrl = getBackendUrl();
 
   useEffect(() => {
     let cancelled = false;
