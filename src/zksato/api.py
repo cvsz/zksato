@@ -3,8 +3,9 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from threading import RLock
 from time import monotonic
-from typing import Annotated
+from typing import Annotated, Any
 
+import httpx
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -51,6 +52,7 @@ from zksato.market.prediction_feed import PredictionMarketFeed
 from zksato.market_settrade import SettradeRealtimeFeed
 from zksato.market_terminal import router as market_terminal_router
 from zksato.notifications import OutboxDispatcher, dispatch_telegram
+from zksato.notifications.telegram import TelegramNotifier
 from zksato.observability import (
     COORDINATION_HEALTH,
     HTTP_LATENCY,
@@ -1425,3 +1427,48 @@ async def agent_os_execute_skill(
         raise HTTPException(status_code=422, detail="skill and parameters dict required")
     result = await agent_engine.skills.execute_skill(skill_name, **params)
     return result
+
+
+@app.post("/v1/telegram/webhook")
+async def telegram_webhook(payload: dict[str, Any]) -> dict[str, bool]:
+    notifier = TelegramNotifier(
+        bot_token=settings.telegram_bot_token,
+        chat_id=settings.telegram_chat_id,
+    )
+    if not notifier.enabled:
+        return {"ok": True}
+
+    msg = payload.get("message")
+    if not isinstance(msg, dict):
+        return {"ok": True}
+
+    text = str(msg.get("text", "")).strip()
+    chat = msg.get("chat", {})
+    chat_id = chat.get("id", settings.telegram_chat_id)
+
+    if text.startswith("/"):
+        resp = await notifier.handle_telegram_command(
+            text,
+            chat_id,
+            system_status={
+                "environment": settings.environment,
+                "execution_mode": settings.trading_mode,
+                "kill_switch_active": service.kill_switch_active,
+            },
+            portfolio_summary={
+                "total": float(store.get_portfolio_pnl()),
+                "currency": "USDT",
+            },
+            quotes=[
+                {"symbol": q.symbol, "price": q.last}
+                for q in store.list_quotes()
+            ],
+        )
+        url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(
+                url,
+                json={"chat_id": chat_id, "text": resp, "parse_mode": "Markdown"},
+            )
+
+    return {"ok": True}

@@ -168,3 +168,66 @@ class TelegramNotifier:
             f"• *External Truth Source:* `Broker SET/TFEX State`"
         )
         return await self.send(text)
+
+    async def handle_telegram_command(
+        self,
+        command: str,
+        chat_id: str | int,
+        *,
+        system_status: dict[str, Any] | None = None,
+        portfolio_summary: dict[str, Any] | None = None,
+        quotes: list[dict[str, Any]] | None = None,
+    ) -> str:
+        cmd = command.strip().lower()
+        if cmd.startswith("/"):
+            cmd = cmd[1:]
+        cmd = cmd.split("@")[0].strip()
+
+        if cmd in {"start", "help"}:
+            return (
+                "🤖 *[zKSato Automated Trading Bot]*\n\n"
+                "Available Commands:\n"
+                "• `/status` - System health, mode & kill switch\n"
+                "• `/pnl` - Real-time portfolio P&L summary\n"
+                "• `/bots` - Active strategies and symbols\n"
+                "• `/var` - Value-at-Risk calculation\n"
+                "• `/quotes` - Spot market tickers\n"
+                "• `/kill` - Emergency Kill Switch HALT\n"
+                "• `/resume` - Clear Kill Switch\n"
+                "• `/help` - Show this menu"
+            )
+
+        if cmd == "status":
+            env = system_status.get("environment", "dev") if system_status else "dev"
+            mode = system_status.get("execution_mode", "paper") if system_status else "paper"
+            ks = system_status.get("kill_switch_active", False) if system_status else False
+            ks_text = "🚨 ENGAGED (HALTED)" if ks else "🟢 SAFE (OPERATIONAL)"
+            return (
+                f"🛡️ *[SYSTEM STATUS]*\n"
+                f"• *Environment:* `{env.upper()}`\n"
+                f"• *Execution Mode:* `{mode.upper()}`\n"
+                f"• *Kill Switch:* *{ks_text}*\n"
+                f"• *Terminal:* [Launch Dashboard](https://zksato.zeaz.dev/en/dashboard)"
+            )
+
+        if cmd == "pnl":
+            total = portfolio_summary.get("total", 0.0) if portfolio_summary else 0.0
+            cur = portfolio_summary.get("currency", "USDT") if portfolio_summary else "USDT"
+            sign = "+" if total >= 0 else ""
+            return (
+                f"📊 *[PORTFOLIO P&L]*\n"
+                f"• *Realized + Unrealized:* `{sign}${total:,.2f} {cur}`\n"
+                f"• *Status:* Live Tracking Active"
+            )
+
+        if cmd == "quotes":
+            if not quotes:
+                return "📈 *[SPOT QUOTES]*\nNo active market quotes available."
+            lines = ["📈 *[SPOT QUOTES]*"]
+            for q in quotes[:8]:
+                sym = q.get("symbol", "UNKNOWN")
+                price = q.get("price", q.get("last", 0.0))
+                lines.append(f"• *{sym}:* `${price:,.2f}`")
+            return "\n".join(lines)
+
+        return f"❓ Unknown command `/{cmd}`. Type `/help` for available options."
