@@ -13,6 +13,13 @@ A priority is **source-complete** when repository-controlled capabilities are im
 | P4 Observability/resilience | Complete | drills pending | metrics/logs/traces/SLO/alerts/backup/load tooling complete; measured evidence requires deployment |
 | P5 Strategy research | Complete | strategy evidence pending | OHLCV/replay/backtest/walk-forward/version/promotion pipeline complete |
 | P6 Controlled rollout | Complete control plane | approvals/evidence pending | readiness and reconciliation gates complete; external evidence is still required |
+| P7 Supply chain assurance | Complete | CI / Release verified | hardened container, SBOM, Trivy CVE scan, GPG verification |
+| P8 Market & Simulator | Complete | N/A | resting limit matching, per-quote partial fills, session overrides |
+| P9 Multi-Cloud Deployments | Complete | Provider credentials pending | Terraform for AWS/GCP, KMS encryption, OTel integration |
+| P10 TFEX Broker Certification | Complete for UAT | Settrade UAT pending | contract rollover generation, dynamic margin bounds |
+| P11 Operator UI & Terminal | Complete | N/A | Next.js 16 multilingual UI, dark TradingView Market Terminal with strict CSP |
+| P12 AI Research Exploration | Complete | N/A | LLM sentiment signals, agentic walk-forward optimization |
+| P13 CCXT & Prediction Markets | Complete | Live Venue auth pending | CCXT multi-exchange spot, prediction market synthetic feeds, Polymarket CLOB adapter, Telegram alerts |
 
 ## P0 — Durable correctness
 
@@ -54,6 +61,36 @@ Implemented control-plane work: machine-readable readiness checks combining runt
 
 External gates remain broker permission, legal/operational review, UAT certification, TLS, managed secrets, backup/restore evidence, monitoring evidence, and explicit operator authorization. These are recorded as evidence rather than marked complete by code.
 
+## P7 — Software supply chain assurance
+
+Implemented: Python 3.11-3.14 compatibility; multi-arch non-root Docker builds; Trivy vulnerability scanning; CycloneDX SBOM generation; Gitleaks secret detection; pip-audit dependencies inspection; and GPG commit signing and verification.
+
+## P8 — Execution simulator and calendar completion
+
+Implemented: resting limit orders matching on subsequent quote ticks; deterministic per-quote fill caps; quote-side price improvement; cancellation of partially filled remainders; Asia/Bangkok market calendar with configurable session and holiday overrides; and full deterministic strategy and indicator suite.
+
+## P9 — Multi-cloud deployments and infrastructure
+
+Implemented: Terraform IaC modules for AWS (ECS, RDS Postgres, ElastiCache Redis, KMS) and GCP (Cloud Run, Cloud SQL, Secret Manager); OpenTelemetry tracing export; and multi-service Docker Compose full-stack topology for localhost self-hosting.
+
+## P10 — TFEX broker certification
+
+Implemented: dedicated TFEX derivatives domain; contract rollover intent generation (`generate_rollover_intents`); dynamic pre-trade margin utilization verification in `TfexRiskEngine`; and Settrade UAT sandbox test tooling.
+
+External gate: execute certified UAT test runs with authorized broker credentials.
+
+## P11 — Secure operator dashboard & market terminal
+
+Implemented: Next.js 16 multilingual operator dashboard supporting English, Thai, Japanese, and Chinese; Lightweight Charts rendering; real-time risk gauges; dark TradingView Market Terminal with read-only sandbox mode and strict Content-Security-Policy headers; and Vite/React operator UI.
+
+## P12 — AI-augmented research and walk-forward
+
+Implemented: external news ingestion adapter with sentiment scoring; LLM sentiment signal ingestion in strategy execution; and automated rolling parameter sweep and walk-forward optimization in `video_ea_research.py`.
+
+## P13 — Multi-exchange CCXT & prediction markets
+
+Implemented: CCXT multi-venue spot adapter (Binance, Binance TH, KuCoin, OKX, Bybit) supporting paper and sandbox modes; prediction markets synthetic feeds, complete-set cost calculations, and directional residual limits; `PredictionVenueAdapter` interface and `PolymarketClobAdapter` scaffold with fail-closed `PredictionLiveGate`; and HMAC-SHA256 authenticated TradingView webhook alerting with asynchronous Telegram notification dispatch.
+
 ## Permanent invariant
 
-Autonomous live-money execution is forbidden. Completing P0-P6 does not remove that boundary. AI and strategy components may research, explain, and operate in non-production environments, but they do not independently authorize production broker actions.
+Autonomous live-money execution is forbidden. Completing P0-P13 does not remove that boundary. AI and strategy components may research, explain, and operate in non-production environments, but they do not independently authorize production broker actions.
