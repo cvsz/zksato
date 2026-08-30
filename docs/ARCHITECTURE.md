@@ -101,7 +101,7 @@ Coordinates deterministic strategies with risk-checked execution. It owns bot li
 
 ### `strategy.py` / `indicators.py`
 
-Shared deterministic strategy implementation used by both automation and backtesting. Current strategies are EMA crossover, RSI mean reversion and breakout.
+Shared deterministic strategy implementation used by both automation and backtesting. Strategies include EMA/SMA crossover, RSI/Bollinger mean reversion, momentum, MACD cross, breakout, and multi-factor strategies.
 
 ### `risk.py`
 
@@ -119,32 +119,45 @@ Server-side pre-trade controls:
 - available-line validation
 - reference-price deviation guard
 - per-trade stop-risk budget
+- complete-set cost risk and directional residual limits (prediction markets)
 
 This module has no LLM or strategy dependencies.
 
 ### `service.py`
 
-The trusted execution boundary. It always runs risk checks and then enforces environment policy. Paper mode is local, sandbox is allowed only with Settrade credentials, and live mode requires explicit enablement and confirmation. Automated live calls are rejected unconditionally.
+The trusted execution boundary. It always runs risk checks and then enforces environment policy. Paper mode is local, sandbox is allowed only with broker/exchange credentials, and live mode requires explicit enablement and confirmation. Automated live calls are rejected unconditionally.
 
-### `broker/paper.py`
+### `broker/paper.py` & `broker/ccxt.py` & `prediction/`
 
-Local deterministic fill simulator with market/marketable-limit fills, open-limit orders, cancellation and duplicate client-order protection.
+- `broker/paper.py`: Local deterministic fill simulator with resting limit matching, per-quote partial fill caps, quote-side price improvement, cancellation, and idempotency protection.
+- `broker/ccxt.py`: Multi-exchange spot adapter (Binance, Binance TH, KuCoin, OKX, Bybit) supporting paper and sandbox execution.
+- `prediction/`: Prediction market engine featuring synthetic feeds, complete-set cost calculations, `PredictionVenueAdapter` interface (`PolymarketClobAdapter`), and fail-closed `PredictionLiveGate`.
+
+### `tradingview.py` & `notifications/telegram.py`
+
+- `tradingview.py`: HMAC-SHA256 authenticated webhook validator supporting global and symbol-scoped secrets, alert parsing, and signal ingestion.
+- `notifications/telegram.py`: Asynchronous Telegram alert and order notification dispatcher.
+
+### `market_terminal.py`
+
+Dark-themed TradingView charting terminal operating in read-only sandbox mode with Content-Security-Policy headers.
 
 ### `portfolio.py`
 
-Paper cash and position accounting with weighted average price, realized P/L, unrealized P/L, mark-to-market equity and drawdown tracking.
+Paper cash and position accounting with weighted average price, realized P/L, unrealized P/L, mark-to-market equity, and drawdown tracking.
 
-### `broker/settrade.py`
+### `broker/settrade.py` & `tfex.py`
 
-Optional Settrade Open API v2 equity adapter. The SDK is imported lazily so paper mode has no Settrade runtime dependency. Broker-specific behavior must be certified in UAT before production promotion.
+- `broker/settrade.py`: Optional Settrade Open API v2 equity adapter.
+- `tfex.py`: Dedicated TFEX derivatives domain with contract registry, contract rollover intent generation (`generate_rollover_intents`), and dynamic margin threshold checks.
 
 ### `backtest.py`
 
-Long-only event-loop backtester using the same strategy engine as automation. It returns equity curve, return, drawdown, trade count and win rate.
+Event-loop backtester using the same strategy engine as automation, with transaction fees, slippage modeling, and benchmark analytics.
 
-### `store.py`
+### `persistence.py` & `store.py`
 
-Thread-safe in-process state adapter for paper/UAT single-node operation. Its narrow interface is designed to be replaced by durable PostgreSQL/Redis adapters without changing strategy or risk modules.
+PostgreSQL durable state store using SQLAlchemy for orders, events, fills, risk evaluations, quotes, account snapshots, and outbox, alongside Redis for distributed rate-limiting and coordination.
 
 ## Execution modes
 
