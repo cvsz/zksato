@@ -8,11 +8,9 @@ that internal prerequisites are met.
 
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 try:
     import tomllib
@@ -194,7 +192,9 @@ def check_version_sync() -> tuple[bool, str, str]:
 
     runtime_version = _runtime_version()
     if runtime_version is None:
-        runtime_version = _extract_runtime_version(Path("src/zksato/__init__.py").read_text(encoding="utf-8"))
+        runtime_version = _extract_runtime_version(
+            Path("src/zksato/__init__.py").read_text(encoding="utf-8")
+        )
     if runtime_version is None:
         return False, project_version, "not found"
     return project_version == runtime_version, project_version, runtime_version
@@ -227,9 +227,15 @@ def main() -> int:
     if missing_files:
         for path in missing_files:
             print(f"    - {path}")
-    print(f"  Version sync (pyproject={project_ver}, runtime={runtime_ver}): {'OK' if version_ok else 'MISMATCH'}")
+    print(
+        f"  Version sync (pyproject={project_ver}, runtime={runtime_ver}): "
+        f"{'OK' if version_ok else 'MISMATCH'}"
+    )
     print(f"  Tests passing: {'OK' if tests_ok else 'FAILED'}")
-    print(f"  Binance testnet credentials: {'OK' if binance_testnet_ok else 'MISSING'} ({binance_testnet_status})")
+    print(
+        f"  Binance testnet credentials: "
+        f"{'OK' if binance_testnet_ok else 'MISSING'} ({binance_testnet_status})"
+    )
 
     if missing_files or not version_ok or not tests_ok:
         print("\nFix internal prerequisites before requesting external evidence.")
@@ -240,8 +246,8 @@ def main() -> int:
         status = "BLOCKING" if gate.blocking else "non-blocking"
         print(f"\n  [{status}] {gate.name}")
         print(f"    Owner: {gate.owner}")
-        print(f"    Evidence artifact: {gate.evidence_artifact}")
-        print(f"    Internal prerequisites:")
+        print("    Evidence artifact: {gate.evidence_artifact}")
+        print("    Internal prerequisites:")
         for prereq in gate.internal_prerequisites:
             print(f"      - {prereq} [operator must verify]")
 

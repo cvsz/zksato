@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from typing import Any
 
 from zloop import AgentAdapter, AgentResult, Budgets, JsonlMemoryStore, LoopEngine, LoopState
 
