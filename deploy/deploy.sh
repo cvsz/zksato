@@ -23,35 +23,44 @@ set -a
 source "$DEPLOY_DIR/.env.$ENVIRONMENT"
 set +a
 
-# Validate required variables
-REQUIRED_VARS=(
-  "POSTGRES_PASSWORD"
-  "REDIS_PASSWORD"
-  "SESSION_SECRET"
-  "API_KEYS"
-  "CLOUDFLARE_API_TOKEN"
-  "CLOUDFLARE_ACCOUNT_ID"
-  "CLOUDFLARE_ZONE_ID"
-  "CLOUDFLARE_TUNNEL_ID"
-)
-
-for var in "${REQUIRED_VARS[@]}"; do
-  if [ -z "${!var:-}" ]; then
-    echo "ERROR: Required environment variable $var is not set"
-    exit 1
-  fi
-done
-
-# Validate secrets exist
+# Ensure secrets directory exists
 SECRETS_DIR="$DEPLOY_DIR/secrets"
-if [ ! -d "$SECRETS_DIR" ]; then
-  echo "ERROR: Secrets directory not found at $SECRETS_DIR"
-  exit 1
+mkdir -p "$SECRETS_DIR"
+
+# Sync secrets from parent .env if not present in deploy/secrets
+sync_secret() {
+  local secret_name="$1"
+  local env_var_name="$2"
+  local secret_file="$SECRETS_DIR/$secret_name.txt"
+  
+  if [ ! -f "$secret_file" ] && [ -n "${!env_var_name:-}" ]; then
+    echo "$secret_name: syncing from .env to deploy/secrets/"
+    printf '%s' "${!env_var_name}" > "$secret_file"
+    chmod 600 "$secret_file"
+  fi
+}
+
+sync_secret "postgres_password" "POSTGRES_PASSWORD"
+sync_secret "session_secret" "ZKSATO_SESSION_SECRET"
+sync_secret "api_keys" "ZKSATO_API_KEYS"
+
+# Handle Redis password - generate if not present
+if [ ! -f "$SECRETS_DIR/redis_password.txt" ]; then
+  if [ -n "${REDIS_PASSWORD:-}" ]; then
+    echo "redis_password: syncing from .env to deploy/secrets/"
+    printf '%s' "$REDIS_PASSWORD" > "$SECRETS_DIR/redis_password.txt"
+  else
+    echo "redis_password: generating random password"
+    openssl rand -hex 32 > "$SECRETS_DIR/redis_password.txt"
+  fi
+  chmod 600 "$SECRETS_DIR/redis_password.txt"
 fi
 
-for secret in postgres_password.txt redis_password.txt session_secret.txt api_keys.txt; do
-  if [ ! -f "$SECRETS_DIR/$secret" ]; then
-    echo "ERROR: Secret file $secret not found in $SECRETS_DIR"
+# Validate required secrets exist
+REQUIRED_SECRETS=("postgres_password" "redis_password" "session_secret" "api_keys")
+for secret in "${REQUIRED_SECRETS[@]}"; do
+  if [ ! -f "$SECRETS_DIR/$secret.txt" ]; then
+    echo "ERROR: Secret file $secret.txt not found in $SECRETS_DIR"
     exit 1
   fi
 done
