@@ -2,7 +2,7 @@
 
 All notable changes to zksato are documented here.
 
-## [1.0.0] - 2026-08-30
+## [1.0.0] - 2026-08-31
 
 ### Final Production Release & USDT Self-Hosting
 - **Native Python Agent OS:** Decoupled, zero-MCP agent framework featuring partitioned sub-accounts (`AgentSubAccount`), hardcoded `WITHDRAW = False` safety invariants, and an extensible `AgentSkillHub` registry.
@@ -19,7 +19,9 @@ All notable changes to zksato are documented here.
 - **Strategy & AI:** Added Agentic Walk-Forward Optimization, Multi-Factor strategy, Ichimoku Clouds, and News Ingestion Adapter for real-time external sentiment.
 - **Security:** Integrated AWS Secrets Manager for centralized credential handling alongside local secret file loading and GPG encryption.
 - **Infrastructure:** Added Nginx configuration for TLS/SSL support via certbot and completed sustained load testing scripts for Database/Store robustness.
-- **Operations & Compliance:** Authored Broker Certification architecture docs, TFEX UAT scripts, and Operator Agreement legal template.
+- **Operations & Compliance:** Authored Broker Certification architecture docs, TFEX UAT scripts, Operator Agreement legal template, operator handoff document, and updated external-gate evidence templates.
+- **Quality:** Resolved mypy type errors across 58 source files; removed stale `# type: ignore` comments; fixed `available_quantity` and `filled_quantity_recorded` type mismatches.
+- **Testing:** Eliminated skipped PostgreSQL integration test by configuring `ZKSATO_TEST_DATABASE_URL` for Dockerized Postgres; 327 tests passing with 71.25% coverage.
 - Reached official full completion of all Roadmap objectives for production readiness.
 
 ## [0.6.0] - 2026-08-12
