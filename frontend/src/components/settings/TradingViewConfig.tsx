@@ -4,50 +4,48 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getBackendUrl } from '../../utils/api';
 
-interface TVAlert {
-  id: string;
-  ticker: string;
-  exchange: string;
-  action: string;
-  price?: number;
-  strategy?: string;
-  interval?: string;
-  volume?: number;
-  received_at: string;
+interface TVWebhook {
+  symbol: string;
+  exchange?: string;
+  created_at?: string;
 }
 
 export function TradingViewConfig() {
   const { t } = useTranslation();
-  const [alerts, setAlerts] = useState<TVAlert[]>([]);
+  const [webhooks, setWebhooks] = useState<TVWebhook[]>([]);
   const [copied, setCopied] = useState(false);
-  const [alertsError, setAlertsError] = useState(false);
+  const [error, setError] = useState(false);
 
   const backendUrl = getBackendUrl();
-  const [webhookUrl, setWebhookUrl] = useState(`${backendUrl}/v1/tradingview/webhook`);
+  const webhookUrl = `${backendUrl}/v1/tradingview/webhook`;
 
-  const fetchAlerts = useCallback(async () => {
+  const fetchWebhooks = useCallback(async () => {
     try {
-      setAlertsError(false);
-      const res = await fetch(
-        `${backendUrl}/v1/tradingview/alerts?limit=10`,
-      );
+      setError(false);
+      const res = await fetch(`${backendUrl}/v1/tradingview/config`);
       if (res.ok) {
         const data = await res.json();
-        setAlerts(data);
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setWebhooks(
+          items.map((item: any) => ({
+            symbol: item.symbol || '',
+            exchange: item.exchange || '',
+            created_at: item.created_at,
+          })),
+        );
       } else {
-        setAlertsError(true);
+        setError(true);
       }
     } catch {
-      setAlertsError(true);
+      setError(true);
     }
   }, [backendUrl]);
 
   useEffect(() => {
-    setWebhookUrl(`${backendUrl}/v1/tradingview/webhook`);
-    fetchAlerts();
-    const interval = setInterval(fetchAlerts, 5000);
+    fetchWebhooks();
+    const interval = setInterval(fetchWebhooks, 5000);
     return () => clearInterval(interval);
-  }, [backendUrl, fetchAlerts]);
+  }, [backendUrl, fetchWebhooks]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -142,7 +140,7 @@ export function TradingViewConfig() {
 
       <div>
         <h4 className="h4" style={{ marginBottom: '12px' }}>
-          {t('tradingview.recent_signals')}
+          {t('tradingview.webhook_configs', 'Webhook Configurations')}
         </h4>
         <div
           aria-live="polite"
@@ -154,9 +152,9 @@ export function TradingViewConfig() {
             overflowY: 'auto',
           }}
         >
-          {alerts.map((al) => (
+          {webhooks.map((wh) => (
             <div
-              key={al.id}
+              key={wh.symbol}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -169,30 +167,15 @@ export function TradingViewConfig() {
               }}
             >
               <div>
-                <strong
-                  style={{
-                    color:
-                      al.action === 'BUY'
-                        ? 'var(--color-accent)'
-                        : al.action === 'SELL'
-                          ? 'var(--color-danger)'
-                          : 'var(--text-secondary)',
-                    marginRight: '8px',
-                  }}
-                >
-                  {al.action}
-                </strong>
-                <span style={{ fontWeight: '600' }}>{al.ticker}</span>
-                <span className="text-muted" style={{ marginLeft: '8px' }}>
-                  ({al.strategy})
-                </span>
+                <strong style={{ marginRight: '8px' }}>{wh.symbol}</strong>
+                <span className="text-muted">{wh.exchange || 'default'}</span>
               </div>
               <span className="text-secondary">
-                {al.price ? `$${al.price.toFixed(2)}` : 'Market'}
+                {wh.created_at ? new Date(wh.created_at).toLocaleString() : ''}
               </span>
             </div>
           ))}
-          {alerts.length === 0 && !alertsError && (
+          {webhooks.length === 0 && !error && (
             <div
               className="text-muted"
               style={{
@@ -204,7 +187,7 @@ export function TradingViewConfig() {
               {t('tradingview.no_alerts')}
             </div>
           )}
-          {alertsError && (
+          {error && (
             <div
               style={{
                 textAlign: 'center',
@@ -213,10 +196,10 @@ export function TradingViewConfig() {
               }}
             >
               <span className="text-muted" style={{ display: 'block', marginBottom: '8px' }}>
-                Failed to load alerts
+                Failed to load webhook configs
               </span>
               <button
-                onClick={fetchAlerts}
+                onClick={fetchWebhooks}
                 className="btn-base btn-sm"
                 style={{ color: 'var(--color-primary)' }}
               >

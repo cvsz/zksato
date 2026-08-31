@@ -261,5 +261,7 @@
   "signals.title": "Active Signals",
   "alerts.title": "Alert Rules",
   "dashboard.scanner_title": "Market Scanner",
-  "dashboard.bot_controls": "Bot Controls"
+  "dashboard.bot_controls": "Bot Controls",
+  "tradingview.webhook_configs": "Webhook Configurations",
+  "telegram.test_button": "Send Test Notification"
 }

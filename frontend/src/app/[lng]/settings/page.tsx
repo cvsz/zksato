@@ -6,7 +6,7 @@ import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { ThemeCustomizer } from '../../../components/settings/ThemeCustomizer';
 import { AlertManager } from '../../../components/settings/TelegramLink';
-import { NotificationPreferences } from '../../../components/settings/NotificationPreferences';
+import { TelegramTest } from '../../../components/settings/TelegramTest';
 import { TradingViewConfig } from '../../../components/settings/TradingViewConfig';
 import { getBackendUrl } from '../../../utils/api';
 
@@ -131,7 +131,7 @@ export default function SettingsPage() {
           </div>
 
           <AlertManager />
-          <NotificationPreferences />
+          <TelegramTest />
         </div>
 
         <div style={{ display: 'grid', gap: '28px' }}>
