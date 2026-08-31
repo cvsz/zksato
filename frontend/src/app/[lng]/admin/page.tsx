@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
@@ -9,53 +9,62 @@ import { getBackendUrl } from '../../../utils/api';
 
 interface SystemHealth {
   status: string;
-  uptime: string;
-  cpu_usage: number;
-  memory_usage: number;
-  services: {
-    postgres: boolean;
-    redis: boolean;
-    backend: boolean;
-    celery: boolean;
-    frontend: boolean;
-  };
+  environment?: string;
+  execution_mode?: string;
+  live_trading_enabled?: boolean;
+  kill_switch_active?: boolean;
+  services?: Record<string, boolean>;
 }
 
-interface BotStatus {
+interface BotRecord {
   id: string;
   strategy_name: string;
   symbol: string;
-  status: 'Running' | 'Stopped' | 'Error';
-  execution_mode: 'Live' | 'Paper';
+  status: string;
+  execution_mode: string;
+  last_error?: string | null;
+  last_tick_at?: string | null;
+  signals_generated?: number;
+  orders_submitted?: number;
 }
 
-interface AuditLog {
+interface AuditRecord {
   id: string;
-  timestamp: string;
-  severity: 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
+  timestamp?: string;
+  created_at?: string;
+  severity?: string;
   message: string;
+  event_type?: string;
+  details?: unknown;
 }
 
-interface RiskLimits {
-  kill_switch_active: boolean;
-  max_notional: number;
-  allowed_symbols: string[];
-  current_exposure: number;
-  position_limits: number;
-}
-
-interface WebhookAlert {
+interface RiskRecord {
   id: string;
-  timestamp: string;
-  success: boolean;
-  payload: string;
+  symbol?: string;
+  decision?: string;
+  max_notional?: number;
+  allowed_symbols?: string[];
+  quantity?: number;
+  price?: number;
+  created_at?: string;
+  timestamp?: string;
+}
+
+interface PortfolioRecord {
+  total_equity?: number;
+  cash?: number;
+  positions_value?: number;
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+}
+
+interface WebhookRecord {
+  symbol: string;
+  exchange?: string;
+  created_at?: string;
 }
 
 type TabKey = 'overview' | 'performance' | 'bots' | 'risk' | 'history' | 'webhooks';
-
-function Shimmer({ w = '100%', h = '16px' }: { w?: string; h?: string }) {
-  return <div className="shimmer" style={{ width: w, height: h, borderRadius: 'var(--radius-sm)' }} />;
-}
 
 function StatusDot({ ok, pulse = false }: { ok: boolean; pulse?: boolean }) {
   return (
@@ -63,21 +72,21 @@ function StatusDot({ ok, pulse = false }: { ok: boolean; pulse?: boolean }) {
       className={`status-dot ${ok ? 'status-dot-up' : 'status-dot-down'}`}
       style={{
         boxShadow: pulse && ok ? '0 0 8px rgba(16,185,129,0.6)' : pulse && !ok ? '0 0 8px rgba(239,68,68,0.6)' : 'none',
-        animation: pulse ? 'pulse 2s infinite' : 'none'
+        animation: pulse ? 'pulse 2s infinite' : 'none',
       }}
     />
   );
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
+function SeverityBadge({ severity }: { severity?: string }) {
   const colors: Record<string, string> = {
     INFO: 'badge-info',
     WARN: 'badge-warning',
     ERROR: 'badge-danger',
     CRITICAL: 'badge-danger',
   };
-  const cls = colors[severity] || 'badge-secondary';
-  return <span className={`badge ${cls}`}>{severity}</span>;
+  const cls = severity ? colors[severity] || 'badge-secondary' : 'badge-secondary';
+  return <span className={`badge ${cls}`}>{severity || 'INFO'}</span>;
 }
 
 export default function AdminDashboardPage() {
@@ -89,15 +98,15 @@ export default function AdminDashboardPage() {
   const backendUrl = getBackendUrl();
 
   const [tab, setTab] = useState<TabKey>('overview');
-  const [paperMode, setPaperMode] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  // Mocks and states
   const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [bots, setBots] = useState<BotStatus[]>([]);
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [risk, setRisk] = useState<RiskLimits | null>(null);
-  const [webhooks, setWebhooks] = useState<WebhookAlert[]>([]);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioRecord | null>(null);
+  const [bots, setBots] = useState<BotRecord[]>([]);
+  const [logs, setLogs] = useState<AuditRecord[]>([]);
+  const [riskEvaluations, setRiskEvaluations] = useState<RiskRecord[]>([]);
+  const [webhooks, setWebhooks] = useState<WebhookRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const showToast = useCallback((msg: string, type: 'success' | 'error') => {
@@ -108,69 +117,77 @@ export default function AdminDashboardPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [healthRes, botsRes, logsRes, configRes, webhooksRes] = await Promise.all([
+      const [
+        healthRes,
+        dashboardRes,
+        portfolioRes,
+        botsRes,
+        logsRes,
+        riskRes,
+        webhooksRes,
+      ] = await Promise.all([
         fetch(`${backendUrl}/health`).catch(() => null),
+        fetch(`${backendUrl}/v1/dashboard`).catch(() => null),
+        fetch(`${backendUrl}/v1/portfolio`).catch(() => null),
         fetch(`${backendUrl}/v1/bot`).catch(() => null),
         fetch(`${backendUrl}/v1/audit?limit=20`).catch(() => null),
-        fetch(`${backendUrl}/v1/config`).catch(() => null),
+        fetch(`${backendUrl}/v1/risk/evaluations?limit=20`).catch(() => null),
         fetch(`${backendUrl}/v1/tradingview/config`).catch(() => null),
       ]);
 
       if (healthRes && healthRes.ok) {
-        const healthData = await healthRes.json();
-        setHealth({
-          status: healthData.status || 'Operational',
-          uptime: '99.99%',
-          cpu_usage: 45,
-          memory_usage: 60,
-          services: { postgres: true, redis: true, backend: true, celery: true, frontend: true }
-        });
+        setHealth(await healthRes.json());
       }
-
+      if (dashboardRes && dashboardRes.ok) {
+        setDashboard(await dashboardRes.json());
+      }
+      if (portfolioRes && portfolioRes.ok) {
+        setPortfolio(await portfolioRes.json());
+      }
       if (botsRes && botsRes.ok) {
-        const botsData = await botsRes.json();
-        setBots(Array.isArray(botsData) ? botsData.map((b: any) => ({
-          id: b.bot_id || b.id,
-          strategy_name: b.strategy_name || 'Unknown',
-          symbol: b.symbol || '',
-          status: b.active ? 'Running' : 'Stopped',
-          execution_mode: 'Paper'
-        })) : []);
+        const data = await botsRes.json();
+        if (Array.isArray(data)) {
+          setBots(data.map((b: any) => ({
+            id: b.bot_id || b.id,
+            strategy_name: b.strategy_name || 'Unknown',
+            symbol: b.symbol || '',
+            status: typeof b.active === 'boolean' ? (b.active ? 'Running' : 'Stopped') : (b.state || 'Stopped'),
+            execution_mode: 'Paper',
+            last_error: b.last_error,
+            last_tick_at: b.last_tick_at,
+            signals_generated: b.signals_generated,
+            orders_submitted: b.orders_submitted,
+          })));
+        } else if (data && typeof data === 'object') {
+          const mapped: BotRecord = {
+            id: data.bot_id || data.id || 'bot-1',
+            strategy_name: data.config?.strategy_name || data.strategy_name || 'Unknown',
+            symbol: data.config?.symbol || data.symbol || '',
+            status: typeof data.active === 'boolean' ? (data.active ? 'Running' : 'Stopped') : (data.state || 'Stopped'),
+            execution_mode: 'Paper',
+            last_error: data.last_error,
+            last_tick_at: data.last_tick_at,
+            signals_generated: data.signals_generated,
+            orders_submitted: data.orders_submitted,
+          };
+          setBots([mapped]);
+        } else {
+          setBots([]);
+        }
       }
-
       if (logsRes && logsRes.ok) {
-        const logsData = await logsRes.json();
-        setLogs(Array.isArray(logsData) ? logsData.slice(0, 20).map((l: any) => ({
-          id: l.id || String(Math.random()),
-          timestamp: l.timestamp || l.created_at || new Date().toISOString(),
-          severity: l.severity || 'INFO',
-          message: l.message || l.event_type || 'Audit event'
-        })) : []);
+        setLogs(await logsRes.json());
       }
-
-      if (configRes && configRes.ok) {
-        const configData = await configRes.json();
-        setRisk({
-          kill_switch_active: configData.kill_switch_active || false,
-          max_notional: 100000,
-          allowed_symbols: configData.allowed_symbols || [],
-          current_exposure: 0,
-          position_limits: 100000,
-        });
+      if (riskRes && riskRes.ok) {
+        setRiskEvaluations(await riskRes.json());
       }
-
       if (webhooksRes && webhooksRes.ok) {
-        const webhooksData = await webhooksRes.json();
-        const items = Array.isArray(webhooksData?.items) ? webhooksData.items : [];
-        setWebhooks(items.map((item: any) => ({
-          id: item.symbol || String(Math.random()),
-          timestamp: item.created_at || new Date().toISOString(),
-          success: true,
-          payload: JSON.stringify(item)
-        })));
+        const data = await webhooksRes.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        setWebhooks(items.map((item: any) => ({ symbol: item.symbol, exchange: item.exchange, created_at: item.created_at })));
       }
     } catch (e) {
-      showToast('Failed to load data', 'error');
+      showToast('Failed to load admin data', 'error');
     } finally {
       setLoading(false);
     }
@@ -182,17 +199,292 @@ export default function AdminDashboardPage() {
     return () => clearInterval(intv);
   }, [fetchData]);
 
-  const toggleKillSwitch = () => {
-    if (risk) {
-      setRisk({ ...risk, kill_switch_active: !risk.kill_switch_active });
-      showToast(risk.kill_switch_active ? 'Kill Switch Deactivated' : 'Kill Switch ACTIVATED', risk.kill_switch_active ? 'success' : 'error');
+  const botControl = async (path: string, label: string) => {
+    try {
+      const res = await fetch(`${backendUrl}${path}`, { method: 'POST' });
+      if (res.ok) {
+        showToast(`${label} succeeded`, 'success');
+        fetchData();
+      } else {
+        showToast(`${label} failed: ${res.status}`, 'error');
+      }
+    } catch {
+      showToast(`${label} failed`, 'error');
     }
   };
 
-  const emergencyStopAll = () => {
-    showToast('Emergency Stop Triggered - All Bots Halted', 'error');
-    setBots(bots.map(b => ({ ...b, status: 'Stopped' })));
+  const emergencyStopAll = async () => {
+    await botControl('/v1/bot/stop', 'Emergency stop');
+    setBots((prev) => prev.map((b) => ({ ...b, status: 'Stopped', active: false })));
   };
+
+  const renderOverview = () => (
+    <div className="layout-grid animate-fade-in-up" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
+      <div className="glass-card layout-stats" style={{ gridColumn: 'span 2' }}>
+        <h2 className="h3">System Health Overview</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '16px' }}>
+          <div className="metric-card">
+            <div className="text-muted">Status</div>
+            <div className="h2" style={{ margin: '8px 0' }}>{health?.status || '—'}</div>
+            <div className="text-muted" style={{ fontSize: '12px' }}>{health?.environment || ''}</div>
+          </div>
+          <div className="metric-card">
+            <div className="text-muted">Execution Mode</div>
+            <div className="h2" style={{ margin: '8px 0' }}>{health?.execution_mode || '—'}</div>
+            <div className="text-muted" style={{ fontSize: '12px' }}>
+              Live Trading: {typeof health?.live_trading_enabled === 'boolean' ? (health.live_trading_enabled ? 'Enabled' : 'Disabled') : '—'}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          {health?.services && Object.entries(health.services).map(([srv, ok]) => (
+            <div key={srv} className={`badge ${ok ? 'badge-accent' : 'badge-danger'}`} style={{ padding: '8px 16px', fontSize: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <StatusDot ok={!!ok} pulse={!!ok} /> {srv.toUpperCase()}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="glass-card-accent">
+        <h2 className="h3">Dashboard Snapshot</h2>
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <strong>Total Bots</strong>
+              <span className="font-mono">{bots.length}</span>
+            </div>
+            <div className="text-muted" style={{ fontSize: '12px' }}>Active since last refresh</div>
+          </div>
+          <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <strong>Portfolio Equity</strong>
+              <span className="font-mono">${(portfolio?.total_equity ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="text-muted" style={{ fontSize: '12px' }}>Realized: ${(portfolio?.realized_pnl ?? 0).toFixed(2)}</div>
+          </div>
+          <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <strong>Kill Switch</strong>
+              <span className={`badge ${health?.kill_switch_active ? 'badge-danger' : 'badge-accent'}`}>{health?.kill_switch_active ? 'ACTIVE' : 'INACTIVE'}</span>
+            </div>
+            <div className="text-muted" style={{ fontSize: '12px' }}>System-wide trading halt</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPerformance = () => (
+    <div className="animate-fade-in-up">
+      <div className="glass-card" style={{ marginBottom: '24px' }}>
+        <h2 className="h3">Trading Performance Analytics</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginTop: '16px' }}>
+          <div className="metric-card">
+            <div className="text-muted">Portfolio Equity</div>
+            <div className="h2" style={{ color: 'var(--color-accent)', margin: '8px 0' }}>${(portfolio?.total_equity ?? 0).toFixed(2)}</div>
+            <div className="text-muted font-mono" style={{ fontSize: '12px' }}>Cash: ${(portfolio?.cash ?? 0).toFixed(2)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="text-muted">Realized P&L</div>
+            <div className="h2" style={{ color: (portfolio?.realized_pnl ?? 0) >= 0 ? 'var(--color-accent)' : 'var(--color-danger)', margin: '8px 0' }}>
+              ${(portfolio?.realized_pnl ?? 0).toFixed(2)}
+            </div>
+            <div className="text-muted font-mono" style={{ fontSize: '12px' }}>Unrealized: ${(portfolio?.unrealized_pnl ?? 0).toFixed(2)}</div>
+          </div>
+          <div className="metric-card">
+            <div className="text-muted">Positions Value</div>
+            <div className="h2" style={{ margin: '8px 0' }}>${(portfolio?.positions_value ?? 0).toFixed(2)}</div>
+            <div className="text-muted font-mono" style={{ fontSize: '12px' }}>Total equity includes cash</div>
+          </div>
+        </div>
+      </div>
+      <div className="glass-card">
+        <h3 className="h3" style={{ marginBottom: '16px' }}>Recent Account Snapshots</h3>
+        <div className="table-wrapper">
+          <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Equity</th>
+                <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Cash</th>
+                <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Positions</th>
+                <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Realized</th>
+                <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Unrealized</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>${(portfolio?.total_equity ?? 0).toFixed(2)}</td>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>${(portfolio?.cash ?? 0).toFixed(2)}</td>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>${(portfolio?.positions_value ?? 0).toFixed(2)}</td>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>${(portfolio?.realized_pnl ?? 0).toFixed(2)}</td>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>${(portfolio?.unrealized_pnl ?? 0).toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderBots = () => (
+    <div className="glass-card animate-fade-in-up">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 className="h3" style={{ margin: 0 }}>Bot Management Console</h2>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button className="btn-base btn-sm btn-ghost" onClick={fetchData}>Refresh</button>
+          <button className="btn-base btn-sm btn-danger" onClick={emergencyStopAll}>Emergency Stop</button>
+        </div>
+      </div>
+      <div className="table-wrapper">
+        <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>ID</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Strategy</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Symbol</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Status</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Signals</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Orders</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bots.map((b) => (
+              <tr key={b.id} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td className="table-td font-mono" style={{ padding: '12px' }}>{b.id}</td>
+                <td className="table-td" style={{ padding: '12px' }}>{b.strategy_name}</td>
+                <td className="table-td" style={{ padding: '12px' }}>{b.symbol}</td>
+                <td className="table-td" style={{ padding: '12px' }}>
+                  <span className={`badge ${b.status === 'Running' || b.status === 'running' ? 'badge-accent' : b.status === 'Stopped' || b.status === 'stopped' ? 'badge-secondary' : 'badge-danger'}`}>
+                    {b.status}
+                  </span>
+                </td>
+                <td className="table-td" style={{ padding: '12px' }}>{b.signals_generated ?? 0}</td>
+                <td className="table-td" style={{ padding: '12px' }}>{b.orders_submitted ?? 0}</td>
+                <td className="table-td" style={{ padding: '12px', textAlign: 'right', display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                  <button className="btn-base btn-sm" onClick={() => botControl('/v1/bot/start', 'Start bot')}>Start</button>
+                  <button className="btn-base btn-sm" onClick={() => botControl('/v1/bot/pause', 'Pause bot')}>Pause</button>
+                  <button className="btn-base btn-sm" onClick={() => botControl('/v1/bot/resume', 'Resume bot')}>Resume</button>
+                  <button className="btn-base btn-sm" onClick={() => botControl('/v1/bot/tick', 'Tick bot')}>Tick</button>
+                  <button className="btn-base btn-sm btn-danger" onClick={() => botControl('/v1/bot/stop', 'Stop bot')}>Stop</button>
+                </td>
+              </tr>
+            ))}
+            {bots.length === 0 && (
+              <tr><td className="table-td" style={{ padding: '16px', textAlign: 'center' }} colSpan={7}>No bots found</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderRisk = () => (
+    <div className="layout-2col animate-fade-in-up" style={{ gap: '24px' }}>
+      <div className="glass-card" style={{ borderColor: health?.kill_switch_active ? 'var(--color-danger)' : 'var(--border-card)', transition: 'all 0.3s' }}>
+        <h2 className="h3" style={{ color: health?.kill_switch_active ? 'var(--color-danger)' : 'inherit' }}>Kill Switch</h2>
+        <p className="text-muted" style={{ margin: '16px 0' }}>Immediately halts all trading activity, cancels open orders, and stops all bots.</p>
+        <button
+          className={`btn-base ${health?.kill_switch_active ? 'btn-danger' : 'btn-primary'}`}
+          style={{ width: '100%', padding: '16px', fontSize: '18px', fontWeight: 'bold' }}
+          onClick={async () => {
+            await botControl('/v1/risk/kill-switch', 'Kill switch');
+            fetchData();
+          }}
+        >
+          {health?.kill_switch_active ? 'DEACTIVATE KILL SWITCH' : 'ACTIVATE KILL SWITCH'}
+        </button>
+      </div>
+
+      <div className="glass-card">
+        <h2 className="h3">Risk Evaluations</h2>
+        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {riskEvaluations.length === 0 && <div className="text-muted">No risk evaluations yet</div>}
+          {riskEvaluations.slice(0, 20).map((r, idx) => {
+            const rawTimestamp = r.created_at || r.timestamp;
+            const safeTimestamp = rawTimestamp ? new Date(rawTimestamp).toLocaleString() : '—';
+            return (
+              <div key={r.id || idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                <div>
+                  <strong style={{ fontSize: '14px' }}>{r.symbol || 'PORTFOLIO'}</strong>
+                  <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <span className={`badge ${r.decision === 'APPROVED' ? 'badge-accent' : r.decision === 'REJECTED' ? 'badge-danger' : 'badge-secondary'}`}>{r.decision || 'PENDING'}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div className="font-mono" style={{ fontSize: '14px' }}>{(r.quantity || 0).toFixed(4)}</div>
+                  <div className="text-muted" style={{ fontSize: '11px' }}>{safeTimestamp}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderHistory = () => (
+    <div className="glass-card animate-fade-in-up">
+      <h2 className="h3" style={{ marginBottom: '16px' }}>Audit Log & History</h2>
+      <div className="table-wrapper">
+        <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Timestamp</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Severity</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.slice(0, 50).map((l, idx) => (
+              <tr key={l.id || idx} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td className="table-td text-muted font-mono" style={{ fontSize: '13px', padding: '12px' }}>{new Date(l.timestamp || l.created_at || Date.now()).toLocaleString()}</td>
+                <td className="table-td" style={{ padding: '12px' }}><SeverityBadge severity={l.severity} /></td>
+                <td className="table-td" style={{ padding: '12px' }}>{l.message || l.event_type || 'Audit event'}</td>
+              </tr>
+            ))}
+            {logs.length === 0 && (
+              <tr><td className="table-td" style={{ padding: '16px', textAlign: 'center' }} colSpan={3}>No audit logs</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  const renderWebhooks = () => (
+    <div className="glass-card animate-fade-in-up">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h2 className="h3">TradingView Webhook Monitor</h2>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <span className="text-muted">Configs: <span style={{ color: 'var(--color-accent)' }}>{webhooks.length}</span></span>
+        </div>
+      </div>
+      <div className="table-wrapper">
+        <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Symbol</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Exchange</th>
+              <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            {webhooks.map((w, idx) => (
+              <tr key={w.symbol + (w.exchange || '') + idx} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <td className="table-td" style={{ padding: '12px', fontWeight: '500' }}>{w.symbol}</td>
+                <td className="table-td" style={{ padding: '12px' }}>{w.exchange || 'default'}</td>
+                <td className="table-td text-muted font-mono" style={{ fontSize: '13px', padding: '12px' }}>{w.created_at ? new Date(w.created_at).toLocaleString() : '—'}</td>
+              </tr>
+            ))}
+            {webhooks.length === 0 && (
+              <tr><td className="table-td" style={{ padding: '16px', textAlign: 'center' }} colSpan={3}>No webhook configs</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '32px 24px', minHeight: '100vh', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -211,8 +503,8 @@ export default function AdminDashboardPage() {
           <h1 className="h2 font-mono" style={{ margin: 0 }}>zksato Admin</h1>
           <div className="divider" style={{ width: '1px', height: '24px' }} />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {['overview', 'performance', 'bots', 'risk', 'history', 'webhooks'].map((tKey) => (
-              <button key={tKey} className={`dashboard-tab ${tab === tKey ? 'active' : ''}`} onClick={() => setTab(tKey as TabKey)}>
+            {(['overview', 'performance', 'bots', 'risk', 'history', 'webhooks'] as TabKey[]).map((tKey) => (
+              <button key={tKey} className={`dashboard-tab ${tab === tKey ? 'active' : ''}`} onClick={() => setTab(tKey)}>
                 {tKey.charAt(0).toUpperCase() + tKey.slice(1)}
               </button>
             ))}
@@ -220,15 +512,15 @@ export default function AdminDashboardPage() {
         </div>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button className="btn-base btn-ghost" onClick={fetchData}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
             Refresh
           </button>
           <button className="btn-base btn-ghost" onClick={() => showToast('Report Exported', 'success')}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '8px'}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
             Export
           </button>
-          <button className="btn-base" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setPaperMode(!paperMode)}>
-            {paperMode ? 'Paper Mode' : 'Live Mode'}
+          <button className="btn-base" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => showToast('Mode toggle is informational in admin view', 'success')}>
+            Live Mode
           </button>
           <button className="btn-base btn-danger" onClick={emergencyStopAll}>
             Emergency Stop
@@ -237,246 +529,14 @@ export default function AdminDashboardPage() {
       </div>
 
       <div style={{ flex: 1 }}>
-        {/* ── OVERVIEW ── */}
-        {tab === 'overview' && health && (
-          <div className="layout-grid animate-fade-in-up" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
-            <div className="glass-card layout-stats" style={{ gridColumn: 'span 2' }}>
-              <h2 className="h3">System Health Overview</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginTop: '16px' }}>
-                <div className="metric-card">
-                  <div className="text-muted">CPU Usage</div>
-                  <div style={{ display: 'flex', alignItems: 'end', gap: '8px', margin: '8px 0' }}>
-                    <div className="h2">{health.cpu_usage}%</div>
-                  </div>
-                  <div className="metric-bar-bg">
-                    <div className="metric-bar-fill" style={{ width: `${health.cpu_usage}%`, background: 'var(--color-primary)' }} />
-                  </div>
-                </div>
-                <div className="metric-card">
-                  <div className="text-muted">Memory Usage</div>
-                  <div style={{ display: 'flex', alignItems: 'end', gap: '8px', margin: '8px 0' }}>
-                    <div className="h2">{health.memory_usage}%</div>
-                  </div>
-                  <div className="metric-bar-bg">
-                    <div className="metric-bar-fill" style={{ width: `${health.memory_usage}%`, background: 'var(--color-accent)' }} />
-                  </div>
-                </div>
-              </div>
-              <div style={{ marginTop: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                {Object.entries(health.services).map(([srv, ok]) => (
-                  <div key={srv} className="badge badge-secondary" style={{ padding: '8px 16px', fontSize: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <StatusDot ok={ok} pulse={ok} /> {srv.toUpperCase()}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="glass-card-accent">
-              <h2 className="h3">Exchange API Status</h2>
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong>Binance EN</strong>
-                    <StatusDot ok={true} pulse />
-                  </div>
-                  <div className="text-muted" style={{ fontSize: '12px' }}>Rate Limit: 45/1200</div>
-                  <div className="metric-bar-bg" style={{ marginTop: '4px' }}>
-                    <div className="metric-bar-fill" style={{ width: '15%', background: 'var(--color-accent)' }} />
-                  </div>
-                </div>
-                <div style={{ padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <strong>Binance TH</strong>
-                    <StatusDot ok={true} pulse />
-                  </div>
-                  <div className="text-muted" style={{ fontSize: '12px' }}>Rate Limit: 120/1200</div>
-                  <div className="metric-bar-bg" style={{ marginTop: '4px' }}>
-                    <div className="metric-bar-fill" style={{ width: '35%', background: 'var(--color-warning)' }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── PERFORMANCE ── */}
-        {tab === 'performance' && (
-          <div className="animate-fade-in-up">
-            <div className="glass-card" style={{ marginBottom: '24px' }}>
-              <h2 className="h3">Trading Performance Analytics</h2>
-              <div style={{ height: '300px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '16px' }}>
-                <span className="text-muted font-mono">[ Portfolio Value Chart Placeholder ]</span>
-              </div>
-            </div>
-            <div className="layout-3col">
-              <div className="metric-card">
-                <div className="text-muted">Total PnL</div>
-                <div className="h2" style={{ color: 'var(--color-accent)', margin: '8px 0' }}>+$12,450.00</div>
-                <div className="text-muted font-mono" style={{ fontSize: '12px' }}>Grid_BTC: +$8k | RSI_ETH: +$4.45k</div>
-              </div>
-              <div className="metric-card">
-                <div className="text-muted">Win Rate Gauge</div>
-                <div className="h2" style={{ margin: '8px 0' }}>68.5%</div>
-                <div className="metric-bar-bg">
-                  <div className="metric-bar-fill" style={{ width: '68.5%', background: 'var(--color-primary)' }} />
-                </div>
-              </div>
-              <div className="metric-card">
-                <div className="text-muted">Sharpe Ratio</div>
-                <div className="h2" style={{ color: 'var(--color-accent)', margin: '8px 0' }}>2.14</div>
-                <div className="text-muted font-mono" style={{ fontSize: '12px' }}>Excellent Risk-Adjusted Return</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── BOTS ── */}
-        {tab === 'bots' && (
-          <div className="glass-card animate-fade-in-up">
-            <h2 className="h3" style={{ marginBottom: '16px' }}>Bot Management Console</h2>
-            <div className="table-wrapper">
-              <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Strategy</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Symbol</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Status</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Mode</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bots.map(b => (
-                    <tr key={b.id} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td className="table-td font-mono" style={{ padding: '12px' }}>{b.strategy_name}</td>
-                      <td className="table-td" style={{ padding: '12px' }}>{b.symbol}</td>
-                      <td className="table-td" style={{ padding: '12px' }}>
-                        <span className={`badge ${b.status === 'Running' ? 'badge-accent' : b.status === 'Stopped' ? 'badge-secondary' : 'badge-danger'}`}>
-                          {b.status}
-                        </span>
-                      </td>
-                      <td className="table-td" style={{ padding: '12px' }}>{b.execution_mode}</td>
-                      <td className="table-td" style={{ padding: '12px', textAlign: 'right' }}>
-                        <button className="btn-base btn-sm" style={{ marginRight: '8px' }}>
-                          {b.status === 'Running' ? 'Stop' : 'Start'}
-                        </button>
-                        <button className="btn-base btn-ghost btn-sm">Configure</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ── RISK ── */}
-        {tab === 'risk' && risk && (
-          <div className="layout-2col animate-fade-in-up" style={{ gap: '24px' }}>
-            <div className="glass-card" style={{ borderColor: risk.kill_switch_active ? 'var(--color-danger)' : 'var(--border-card)', transition: 'all 0.3s' }}>
-              <h2 className="h3" style={{ color: risk.kill_switch_active ? 'var(--color-danger)' : 'inherit' }}>Kill Switch</h2>
-              <p className="text-muted" style={{ margin: '16px 0' }}>Immediately halts all trading activity, cancels open orders, and stops all bots.</p>
-              <button 
-                className={`btn-base ${risk.kill_switch_active ? 'btn-danger' : 'btn-primary'}`} 
-                style={{ width: '100%', padding: '16px', fontSize: '18px', fontWeight: 'bold' }}
-                onClick={toggleKillSwitch}
-              >
-                {risk.kill_switch_active ? 'DEACTIVATE KILL SWITCH' : 'ACTIVATE KILL SWITCH'}
-              </button>
-            </div>
-            
-            <div className="glass-card">
-              <h2 className="h3">Risk Parameters</h2>
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div className="metric-card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span className="text-muted">Current Exposure / Position Limits</span>
-                    <span className="font-mono">${risk.current_exposure.toLocaleString()} / ${risk.max_notional.toLocaleString()}</span>
-                  </div>
-                  <div className="metric-bar-bg">
-                    <div className="metric-bar-fill" style={{ width: `${(risk.current_exposure / risk.max_notional) * 100}%`, background: 'var(--color-warning)' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted" style={{ marginBottom: '8px' }}>Allowed Symbols</div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {risk.allowed_symbols.map(s => <span key={s} className="badge badge-primary">{s}</span>)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── HISTORY ── */}
-        {tab === 'history' && (
-          <div className="glass-card animate-fade-in-up">
-            <h2 className="h3" style={{ marginBottom: '16px' }}>Audit Log & Order History</h2>
-            <div className="table-wrapper">
-              <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Timestamp</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Severity</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Message</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map(l => (
-                    <tr key={l.id} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td className="table-td text-muted font-mono" style={{ fontSize: '13px', padding: '12px' }}>{new Date(l.timestamp).toLocaleString()}</td>
-                      <td className="table-td" style={{ padding: '12px' }}><SeverityBadge severity={l.severity} /></td>
-                      <td className="table-td" style={{ padding: '12px' }}>{l.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px', gap: '8px' }}>
-                <button className="btn-base btn-ghost btn-sm">Prev</button>
-                <button className="btn-base btn-ghost btn-sm">Next</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── WEBHOOKS ── */}
-        {tab === 'webhooks' && (
-          <div className="glass-card animate-fade-in-up">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 className="h3">TradingView Webhook Monitor</h2>
-              <div style={{ display: 'flex', gap: '16px' }}>
-                <span className="text-muted">Success: <span style={{color: 'var(--color-accent)'}}>{webhooks.filter(w => w.success).length}</span></span>
-                <span className="text-muted">Failed: <span style={{color: 'var(--color-danger)'}}>{webhooks.filter(w => !w.success).length}</span></span>
-              </div>
-            </div>
-            <div className="table-wrapper">
-              <table className="table-base" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Timestamp</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Status</th>
-                    <th className="table-th" style={{ padding: '12px', textAlign: 'left' }}>Payload Inspector</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {webhooks.map(w => (
-                    <tr key={w.id} className="table-tr" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <td className="table-td text-muted font-mono" style={{ fontSize: '13px', padding: '12px' }}>{new Date(w.timestamp).toLocaleString()}</td>
-                      <td className="table-td" style={{ padding: '12px' }}><StatusDot ok={w.success} /> <span style={{marginLeft:'8px'}}>{w.success ? 'Success' : 'Failed'}</span></td>
-                      <td className="table-td font-mono" style={{ fontSize: '12px', padding: '12px' }}>
-                        <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '4px' }}>
-                           {w.payload}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {tab === 'overview' && renderOverview()}
+        {tab === 'performance' && renderPerformance()}
+        {tab === 'bots' && renderBots()}
+        {tab === 'risk' && renderRisk()}
+        {tab === 'history' && renderHistory()}
+        {tab === 'webhooks' && renderWebhooks()}
       </div>
-      
+
       {toast && <Toast msg={toast.msg} type={toast.type} />}
     </div>
   );
