@@ -41,6 +41,17 @@ class Gate:
 
 GATES = [
     Gate(
+        name="Binance testnet connectivity",
+        owner="Operator",
+        evidence_artifact="secrets/testnet-binance-api-key.txt",
+        blocking=False,
+        internal_prerequisites=[
+            "CCXT sandbox mode enabled",
+            "Testnet API key/secret present in secrets/ or /run/secrets",
+            "Binance testnet endpoint reachable",
+        ],
+    ),
+    Gate(
         name="TFEX broker UAT certification",
         owner="Operator + broker",
         evidence_artifact="docs/templates/UAT-EVIDENCE.md",
@@ -106,6 +117,29 @@ def check_files_exist() -> list[str]:
     return missing
 
 
+def check_binance_testnet_credentials() -> tuple[bool, str]:
+    import os
+
+    api_key = os.getenv("ZKSATO_CCXT_BINANCE_TESTNET_API_KEY") or os.getenv(
+        "ZKSATO_CCXT_BINANCE_API_KEY"
+    )
+    api_secret = os.getenv("ZKSATO_CCXT_BINANCE_TESTNET_API_SECRET") or os.getenv(
+        "ZKSATO_CCXT_BINANCE_SECRET"
+    )
+
+    if not api_key or not api_secret:
+        secrets_dir = Path(os.getenv("ZKSATO_SECRET_DIR", "secrets"))
+        key_file = secrets_dir / "testnet-binance-api-key.txt"
+        secret_file = secrets_dir / "testnet-binance-api-secret.txt"
+        if key_file.exists() and secret_file.exists():
+            api_key = key_file.read_text(encoding="utf-8").strip()
+            api_secret = secret_file.read_text(encoding="utf-8").strip()
+
+    if api_key and api_secret:
+        return True, "present"
+    return False, "missing"
+
+
 def _extract_runtime_version(text: str) -> str | None:
     for line in text.splitlines():
         if "__version__ =" not in line:
@@ -128,11 +162,20 @@ def _extract_runtime_version(text: str) -> str | None:
 
 def _runtime_version() -> str | None:
     try:
-        from importlib.metadata import version as pkg_version
+        venv_python = _venv_python()
+        import subprocess
 
-        return pkg_version("zksato")
+        result = subprocess.run(
+            [venv_python, "-c", "from importlib.metadata import version; print(version('zksato'))"],
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
     except Exception:
-        return None
+        pass
+    return None
 
 
 def _venv_python() -> str:
@@ -157,13 +200,6 @@ def check_version_sync() -> tuple[bool, str, str]:
     return project_version == runtime_version, project_version, runtime_version
 
 
-def _venv_python() -> str:
-    venv = Path(".venv/bin/python")
-    if venv.exists():
-        return str(venv)
-    return sys.executable
-
-
 def check_tests_pass() -> bool:
     import subprocess
 
@@ -184,6 +220,7 @@ def main() -> int:
     missing_files = check_files_exist()
     version_ok, project_ver, runtime_ver = check_version_sync()
     tests_ok = check_tests_pass()
+    binance_testnet_ok, binance_testnet_status = check_binance_testnet_credentials()
 
     print("Internal prerequisites")
     print(f"  Documentation files: {'OK' if not missing_files else 'MISSING'}")
@@ -192,6 +229,7 @@ def main() -> int:
             print(f"    - {path}")
     print(f"  Version sync (pyproject={project_ver}, runtime={runtime_ver}): {'OK' if version_ok else 'MISMATCH'}")
     print(f"  Tests passing: {'OK' if tests_ok else 'FAILED'}")
+    print(f"  Binance testnet credentials: {'OK' if binance_testnet_ok else 'MISSING'} ({binance_testnet_status})")
 
     if missing_files or not version_ok or not tests_ok:
         print("\nFix internal prerequisites before requesting external evidence.")
