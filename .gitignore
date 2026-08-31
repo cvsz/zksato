@@ -16,3 +16,6 @@ settradev2_log/
 settrade_log/
 secrets/
 .zloop/
+deploy/.env.production
+deploy/secrets/
+deploy/data/
