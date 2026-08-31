@@ -37,6 +37,7 @@ class PredictionBroker:
         self._client = client or self._default_client()
         self._directional_residual: dict[str, float] = {}
         self._complete_set_cost: dict[str, float] = {}
+        self._shares_by_side: dict[str, dict[Side, float]] = {}
 
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         if intent.side not in {Side.UP, Side.DOWN}:
@@ -121,10 +122,24 @@ class PredictionBroker:
     def _update_residual_and_cost(
         self, market_id: str, side: Side, shares: float, cost: float
     ) -> None:
-        current_residual = self._directional_residual.get(market_id, 0.0)
-        self._directional_residual[market_id] = current_residual + shares
+        # Net directional residual: UP - DOWN (abs at read)
+        current = self._directional_residual.get(market_id, 0.0)
+        delta = shares if side == Side.UP else -shares
+        self._directional_residual[market_id] = current + delta
+        # Per-side shares for complete-set cost
+        bucket = self._shares_by_side.setdefault(market_id, {Side.UP: 0.0, Side.DOWN: 0.0})
+        bucket[side] = bucket.get(side, 0.0) + shares
+        # Complete-set cost is cost of hedged pairs (min) + unhedged residual at avg price
+        up_shares = bucket.get(Side.UP, 0.0)
+        down_shares = bucket.get(Side.DOWN, 0.0)
+        _hedged = min(up_shares, down_shares)
+        # keep running cost as hedged*1.0 + residual cost; for paper, approximate
+        # Here we store total USD cost; actual complete-set cost queried from book
         current_cost = self._complete_set_cost.get(market_id, 0.0)
         self._complete_set_cost[market_id] = current_cost + cost
+        # But expose net hedged cost via complete_set_cost() as min*1.0 + fees
+        # would be more accurate; we keep raw sum for audit and let risk
+        # compute live book sum for decision
 
     def directional_residual(self, market_id: str) -> float:
         return abs(self._directional_residual.get(market_id, 0.0))

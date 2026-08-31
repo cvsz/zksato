@@ -13,7 +13,7 @@ class TradingViewWebhookValidator:
 
     def validate(self, payload: bytes, signature: str | None) -> bool:
         if not self._secret:
-            return True
+            return False
         if not signature:
             return False
         expected = hmac.new(

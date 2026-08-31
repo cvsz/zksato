@@ -30,9 +30,11 @@ def test_webhook_hmac_validation_accepts_valid_signature() -> None:
 
 
 def test_webhook_hmac_validation_allows_empty_secret() -> None:
+    # Fail-closed: no secret → always reject, even without signature
     validator = TradingViewWebhookValidator(secret=None)
     payload = b'{"symbol":"AOT","action":"buy","price":100.0,"strategy":"ema"}'
-    assert validator.validate(payload, None) is True
+    assert validator.validate(payload, None) is False
+    assert validator.validate(payload, "any") is False
 
 
 def test_alert_parser_buy_signal() -> None:
@@ -100,12 +102,30 @@ def test_tradingview_endpoint_rejects_invalid_json() -> None:
 
 
 def test_tradingview_endpoint_accepts_valid_payload_without_auth() -> None:
+    # Fail-closed: without configured secret, webhook must reject (401)
     response = client.post(
         "/v1/tradingview/webhook",
         json={"symbol": "AOT", "action": "buy", "price": 100.0, "strategy": "ema"},
     )
-    assert response.status_code == 200
-    assert response.json()["status"] == "accepted"
+    assert response.status_code == 401
+
+    # With a temporary global secret, valid HMAC is accepted
+    from zksato.api import tradingview_validator
+
+    original_secret = tradingview_validator._secret
+    tradingview_validator._secret = "test-global-secret"  # type: ignore[attr-defined]
+    try:
+        payload = b'{"symbol":"AOT","action":"buy","price":100.0,"strategy":"ema"}'
+        sig = hmac.new(b"test-global-secret", payload, hashlib.sha256).hexdigest()
+        ok = client.post(
+            "/v1/tradingview/webhook",
+            content=payload,
+            headers={"Content-Type": "application/json", "X-TV-Signature": sig},
+        )
+        assert ok.status_code == 200
+        assert ok.json()["status"] == "accepted"
+    finally:
+        tradingview_validator._secret = original_secret  # type: ignore[attr-defined]
 
 
 def test_tradingview_endpoint_with_hmac_signature() -> None:

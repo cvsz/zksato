@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 
 from zksato.config import get_settings
@@ -51,6 +52,7 @@ class PaperBroker:
             for order in store.list_orders()
             if order.client_order_id is not None
         }
+        self._lock = asyncio.Lock()
 
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         if intent.client_order_id and intent.client_order_id in self._client_order_ids:
@@ -81,50 +83,56 @@ class PaperBroker:
 
         if not self.match_resting_limits:
             return []
-        changed: list[OrderRecord] = []
-        for order in self.store.list_orders():
-            if order.symbol != quote.symbol or order.order_type != OrderType.LIMIT:
-                continue
-            if order.status not in {OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED}:
-                continue
-            if order.price is None or not self._limit_marketable(order.side, order.price, quote):
-                continue
-            remaining = max(order.quantity - order.filled_quantity, 0)
-            if remaining <= 0:
-                continue
-            fill_quantity = remaining
-            if self.max_fill_quantity_per_quote > 0:
-                fill_quantity = min(fill_quantity, self.max_fill_quantity_per_quote)
-            fill_price = self._limit_fill_price(order.side, order.price, quote)
-            try:
-                changed.append(
-                    self._apply_fill(
-                        order,
-                        fill_quantity,
-                        fill_price,
-                        event_type="paper_resting_limit_fill",
+        async with self._lock:
+            changed: list[OrderRecord] = []
+            for order in self.store.list_orders():
+                if order.symbol != quote.symbol or order.order_type != OrderType.LIMIT:
+                    continue
+                if order.status not in {OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED}:
+                    continue
+                if order.price is None or not self._limit_marketable(
+                    order.side, order.price, quote
+                ):
+                    continue
+                remaining = max(float(order.quantity) - float(order.filled_quantity), 0)
+                if remaining <= 0:
+                    continue
+                fill_quantity = float(remaining)
+                if self.max_fill_quantity_per_quote > 0:
+                    fill_quantity = min(
+                        float(fill_quantity),
+                        float(self.max_fill_quantity_per_quote),
                     )
-                )
-            except ValueError as exc:
-                order.status = OrderStatus.CANCELLED
-                order.message = f"paper resting order cancelled before fill: {exc}"
-                order.updated_at = datetime.now(UTC)
-                self.store.upsert_order(order)
-                self.store.add_order_event(
-                    OrderEvent(
-                        order_id=order.id,
-                        event_type="paper_resting_limit_cancelled",
-                        status=order.status,
-                        data={"reason": str(exc)},
+                fill_price = self._limit_fill_price(order.side, order.price, quote)
+                try:
+                    changed.append(
+                        self._apply_fill(
+                            order,
+                            float(fill_quantity),
+                            fill_price,
+                            event_type="paper_resting_limit_fill",
+                        )
                     )
-                )
-                self.store.add_audit(
-                    "order.paper_cancelled",
-                    order.message,
-                    {"order_id": str(order.id), "symbol": order.symbol},
-                )
-                changed.append(order)
-        return changed
+                except ValueError as exc:
+                    order.status = OrderStatus.CANCELLED
+                    order.message = f"paper resting order cancelled before fill: {exc}"
+                    order.updated_at = datetime.now(UTC)
+                    self.store.upsert_order(order)
+                    self.store.add_order_event(
+                        OrderEvent(
+                            order_id=order.id,
+                            event_type="paper_resting_limit_cancelled",
+                            status=order.status,
+                            data={"reason": str(exc)},
+                        )
+                    )
+                    self.store.add_audit(
+                        "order.paper_cancelled",
+                        order.message,
+                        {"order_id": str(order.id), "symbol": order.symbol},
+                    )
+                    changed.append(order)
+            return changed
 
     def _new_order(self, intent: OrderIntent) -> OrderRecord:
         now = datetime.now(UTC)
@@ -163,13 +171,13 @@ class PaperBroker:
     def _apply_fill(
         self,
         order: OrderRecord,
-        quantity: int,
+        quantity: float,
         price: float,
         *,
         event_type: str,
     ) -> OrderRecord:
-        remaining = order.quantity - order.filled_quantity
-        if quantity <= 0 or quantity > remaining:
+        remaining = float(order.quantity) - float(order.filled_quantity)
+        if quantity <= 0 or quantity - remaining > 1e-9:
             raise ValueError("invalid paper fill quantity")
         self.account.apply_fill(order.symbol, order.side, quantity, float(price))
         previous_quantity = order.filled_quantity
@@ -225,7 +233,7 @@ class PaperBroker:
         return float(max(limit_price, executable))
 
     async def cancel_order(self, order_id: str) -> OrderRecord:
-        for order in self.store.orders:
+        for order in self.store.list_orders():
             if str(order.id) == order_id:
                 if order.status not in {
                     OrderStatus.ACCEPTED,

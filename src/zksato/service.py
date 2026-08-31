@@ -226,6 +226,46 @@ class TradingService:
                 "actor": actor,
             },
         )
+        # TOCTOU re-check: only if quote exists and is stale; resting limits
+        # without quote are allowed
+        fresh_age = self.store.quote_age_seconds(submission.intent.symbol)
+        if fresh_age is not None and fresh_age > self.settings.market_data_stale_seconds:
+            if client_order_id and claimed:
+                self.store.release_client_order_id(client_order_id)
+            self.store.add_audit(
+                "risk.rejected",
+                f"stale market data at execution for {submission.intent.symbol}",
+                {
+                    "quote_age_seconds": fresh_age,
+                    "threshold": self.settings.market_data_stale_seconds,
+                },
+            )
+            raise RiskRejectedError(
+                RiskDecision(
+                    approved=False,
+                    reasons=["stale market data at execution"],
+                    estimated_notional=decision.estimated_notional,
+                )
+            )
+        ref_price = submission.risk.reference_price
+        if submission.intent.price is not None and ref_price not in (None, 0):
+            ref = float(ref_price)
+            deviation = abs(float(submission.intent.price) - ref) / ref * 100
+            if deviation > self.settings.max_price_deviation_pct:
+                if client_order_id and claimed:
+                    self.store.release_client_order_id(client_order_id)
+                self.store.add_audit(
+                    "risk.rejected",
+                    f"price deviation {deviation:.2f}% exceeds limit at execution",
+                    {"deviation": deviation, "limit": self.settings.max_price_deviation_pct},
+                )
+                raise RiskRejectedError(
+                    RiskDecision(
+                        approved=False,
+                        reasons=[f"price deviation {deviation:.2f}% exceeds limit"],
+                        estimated_notional=decision.estimated_notional,
+                    )
+                )
         try:
             order = await self.broker.place_order(submission.intent)
         except BrokerAmbiguousError as exc:
