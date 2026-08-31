@@ -24,6 +24,8 @@ services:
     pids_limit: 256
     restart: unless-stopped
     stop_grace_period: 30s
+    volumes:
+      - /run/secrets:/run/secrets:ro
 
   frontend:
     build:

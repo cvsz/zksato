@@ -46,6 +46,17 @@ class RiskEngine:
                 and intent.quantity > context.available_quantity
             ):
                 reasons.append("sell quantity exceeds available position")
+            if (
+                intent.side in {Side.BUY, Side.SELL}
+                and self.settings.strict_reference_data
+                and "/" not in intent.symbol
+            ):
+                # SET board lot 100 enforced only when strict reference data is on
+                # (odd-lot market uses separate flow)
+                if float(intent.quantity) != int(intent.quantity):
+                    reasons.append("SET quantity must be integer")
+                elif int(intent.quantity) % 100 != 0:
+                    reasons.append("SET quantity must be multiple of 100 (board lot)")
             if opening_risk and context.daily_pnl_pct <= -abs(self.settings.max_daily_loss_pct):
                 reasons.append("maximum daily loss threshold reached")
             if opening_risk and context.drawdown_pct >= self.settings.max_drawdown_pct:
