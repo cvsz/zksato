@@ -14,3 +14,4 @@ build/
 .vscode/
 settradev2_log/
 settrade_log/
+secrets/
