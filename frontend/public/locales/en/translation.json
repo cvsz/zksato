@@ -258,5 +258,11 @@
   "tradingview.no_alerts": "No webhook alerts captured yet.",
   "tradingview.recent_signals": "Recent Webhook Signals",
   "tradingview.title": "TradingView Webhook",
-  "tradingview.webhook_url": "Webhook URL"
+  "tradingview.webhook_url": "Webhook URL",
+  "orders.title": "Recent Orders",
+  "fills.title": "Recent Fills",
+  "signals.title": "Active Signals",
+  "alerts.title": "Alert Rules",
+  "dashboard.scanner_title": "Market Scanner",
+  "dashboard.bot_controls": "Bot Controls"
 }

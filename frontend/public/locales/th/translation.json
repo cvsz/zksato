@@ -255,5 +255,11 @@
   "tradingview.no_alerts": "ยังไม่มีการจับการแจ้งเตือน Webhook",
   "tradingview.recent_signals": "สัญญาณ Webhook ล่าสุด",
   "tradingview.title": "TradingView Webhook",
-  "tradingview.webhook_url": "URL Webhook"
+  "tradingview.webhook_url": "URL Webhook",
+  "orders.title": "Recent Orders",
+  "fills.title": "Recent Fills",
+  "signals.title": "Active Signals",
+  "alerts.title": "Alert Rules",
+  "dashboard.scanner_title": "Market Scanner",
+  "dashboard.bot_controls": "Bot Controls"
 }

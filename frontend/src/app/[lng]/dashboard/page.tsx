@@ -50,6 +50,54 @@ interface TickerItem {
   changePercent: number;
 }
 
+interface OrderRow {
+  id: string;
+  symbol: string;
+  side: string;
+  status: string;
+  quantity: number;
+  filled_quantity: number;
+  order_type: string;
+  created_at?: string;
+}
+
+interface FillRow {
+  id: string;
+  order_id?: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  price: number;
+  realized_pnl?: number;
+  created_at?: string;
+}
+
+interface SignalRow {
+  id: string;
+  symbol: string;
+  side: string;
+  strategy_id: string;
+  strength: number;
+  created_at?: string;
+}
+
+interface AlertRow {
+  id: string;
+  symbol?: string;
+  alert_type: string;
+  severity: string;
+  active: boolean;
+  created_at?: string;
+}
+
+interface ScannerRow {
+  symbol: string;
+  signal: string;
+  strength: number;
+  price: number;
+  change_percent?: number;
+}
+
 function useAnimatedValue(target: number, duration = 800): number {
   const [current, setCurrent] = useState(target);
   const rafRef = useRef<number>(0);
@@ -125,11 +173,22 @@ export default function DashboardPage() {
     startBot: false,
     killSwitch: false,
     backtest: false,
+    pauseBot: false,
+    resumeBot: false,
+    tickBot: false,
+    cancelOrders: false,
+    deleteAlert: false,
   });
 
   const [tickerData, setTickerData] = useState<TickerItem[]>([]);
   const [tickerOffline, setTickerOffline] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [fills, setFills] = useState<FillRow[]>([]);
+  const [signals, setSignals] = useState<SignalRow[]>([]);
+  const [alerts, setAlerts] = useState<AlertRow[]>([]);
+  const [scanner, setScanner] = useState<ScannerRow[]>([]);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -285,6 +344,242 @@ export default function DashboardPage() {
       };
     }
   }, [bots, backendUrl]);
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendUrl}/v1/orders`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setOrders(
+            data.map((o: any) => ({
+              id: o.id || o.client_order_id || '',
+              symbol: o.symbol || '',
+              side: o.side || '',
+              status: o.status || '',
+              quantity: Number(o.quantity || 0),
+              filled_quantity: Number(o.filled_quantity || 0),
+              order_type: o.order_type || '',
+              created_at: o.created_at || o.timestamp,
+            })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [backendUrl]);
+
+  const fetchFills = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendUrl}/v1/fills`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setFills(
+            data.map((f: any) => ({
+              id: f.id || '',
+              order_id: f.order_id,
+              symbol: f.symbol || '',
+              side: f.side || '',
+              quantity: Number(f.quantity || 0),
+              price: Number(f.price || 0),
+              realized_pnl: f.realized_pnl ? Number(f.realized_pnl) : undefined,
+              created_at: f.created_at || f.timestamp,
+            })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [backendUrl]);
+
+  const fetchSignals = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendUrl}/v1/signals`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setSignals(
+            data.map((s: any) => ({
+              id: s.id || '',
+              symbol: s.symbol || '',
+              side: s.side || '',
+              strategy_id: s.strategy_id || '',
+              strength: Number(s.strength || 0),
+              created_at: s.created_at || s.timestamp,
+            })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [backendUrl]);
+
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendUrl}/v1/alerts`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAlerts(
+            data.map((a: any) => ({
+              id: a.id || '',
+              symbol: a.symbol,
+              alert_type: a.alert_type || '',
+              severity: a.severity || '',
+              active: Boolean(a.active),
+              created_at: a.created_at || a.timestamp,
+            })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [backendUrl]);
+
+  const fetchScanner = useCallback(async () => {
+    try {
+      const res = await fetch(`${backendUrl}/v1/scanner`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setScanner(
+            data.map((s: any) => ({
+              symbol: s.symbol || '',
+              signal: s.signal || '',
+              strength: Number(s.strength || 0),
+              price: Number(s.price || 0),
+              change_percent: s.change_percent ? Number(s.change_percent) : undefined,
+            })),
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [backendUrl]);
+
+  useEffect(() => {
+    fetchOrders();
+    fetchFills();
+    fetchSignals();
+    fetchAlerts();
+    fetchScanner();
+    const interval = setInterval(() => {
+      fetchOrders();
+      fetchFills();
+      fetchSignals();
+      fetchAlerts();
+      fetchScanner();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchOrders, fetchFills, fetchSignals, fetchAlerts, fetchScanner]);
+
+  const handlePauseBot = async (botId: string) => {
+    setLoading((prev) => ({ ...prev, pauseBot: true }));
+    try {
+      const res = await fetch(`${backendUrl}/v1/bot/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_id: botId }),
+      });
+      if (res.ok) {
+        showToast(`Bot ${botId.slice(0, 12)}… paused`, 'success');
+        await fetchData();
+      } else {
+        showToast(`Failed to pause bot ${botId.slice(0, 12)}…`, 'error');
+      }
+    } catch {
+      showToast('Bot service unavailable', 'error');
+    } finally {
+      setLoading((prev) => ({ ...prev, pauseBot: false }));
+    }
+  };
+
+  const handleResumeBot = async (botId: string) => {
+    setLoading((prev) => ({ ...prev, resumeBot: true }));
+    try {
+      const res = await fetch(`${backendUrl}/v1/bot/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_id: botId }),
+      });
+      if (res.ok) {
+        showToast(`Bot ${botId.slice(0, 12)}… resumed`, 'success');
+        await fetchData();
+      } else {
+        showToast(`Failed to resume bot ${botId.slice(0, 12)}…`, 'error');
+      }
+    } catch {
+      showToast('Bot service unavailable', 'error');
+    } finally {
+      setLoading((prev) => ({ ...prev, resumeBot: false }));
+    }
+  };
+
+  const handleTickBot = async (botId: string) => {
+    setLoading((prev) => ({ ...prev, tickBot: true }));
+    try {
+      const res = await fetch(`${backendUrl}/v1/bot/tick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_id: botId }),
+      });
+      if (res.ok) {
+        showToast(`Bot ${botId.slice(0, 12)}… ticked`, 'success');
+        await fetchData();
+      } else {
+        showToast(`Failed to tick bot ${botId.slice(0, 12)}…`, 'error');
+      }
+    } catch {
+      showToast('Bot service unavailable', 'error');
+    } finally {
+      setLoading((prev) => ({ ...prev, tickBot: false }));
+    }
+  };
+
+  const handleCancelOpenOrders = async () => {
+    setLoading((prev) => ({ ...prev, cancelOrders: true }));
+    try {
+      const res = await fetch(`${backendUrl}/v1/orders/cancel-open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        showToast('Open orders cancelled', 'success');
+        await fetchOrders();
+      } else {
+        showToast(`Cancel failed (${res.status})`, 'error');
+      }
+    } catch {
+      showToast('Order service unavailable', 'error');
+    } finally {
+      setLoading((prev) => ({ ...prev, cancelOrders: false }));
+    }
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    setLoading((prev) => ({ ...prev, deleteAlert: true }));
+    try {
+      const res = await fetch(`${backendUrl}/v1/alerts/${encodeURIComponent(alertId)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        showToast('Alert deleted', 'success');
+        await fetchAlerts();
+      } else {
+        showToast(`Delete failed (${res.status})`, 'error');
+      }
+    } catch {
+      showToast('Alert service unavailable', 'error');
+    } finally {
+      setLoading((prev) => ({ ...prev, deleteAlert: false }));
+    }
+  };
 
   const handleStartBot = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -983,6 +1278,43 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Bot Controls */}
+          <div className="glass-card animate-fade-in">
+            <h3 className="h3" style={{ marginBottom: '20px' }}>
+              {t('dashboard.bot_controls', 'Bot Controls')}
+            </h3>
+            {activeBots.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {activeBots.map((bot) => (
+                  <div key={bot.bot_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                    <div>
+                      <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{bot.bot_id}</strong>
+                      <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <span className="badge badge-primary">{bot.symbol}</span>
+                        <span className="badge badge-secondary">{bot.strategy_name}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => handlePauseBot(bot.bot_id)} disabled={loading.pauseBot} className="btn-base btn-secondary btn-sm">
+                        {loading.pauseBot ? '...' : 'Pause'}
+                      </button>
+                      <button onClick={() => handleResumeBot(bot.bot_id)} disabled={loading.resumeBot} className="btn-base btn-secondary btn-sm">
+                        {loading.resumeBot ? '...' : 'Resume'}
+                      </button>
+                      <button onClick={() => handleTickBot(bot.bot_id)} disabled={loading.tickBot} className="btn-base btn-primary btn-sm">
+                        {loading.tickBot ? '...' : 'Tick'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                No active bots to control
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column */}
@@ -1261,6 +1593,53 @@ export default function DashboardPage() {
             )}
           </div>
 
+          {/* Scanner Results */}
+          <div className="glass-card animate-fade-in">
+            <h3 className="h3" style={{ marginBottom: '20px' }}>
+              {t('dashboard.scanner_title', 'Market Scanner')}
+            </h3>
+            {scanner.length > 0 ? (
+              <div className="table-wrapper">
+                <table className="table-base">
+                  <thead>
+                    <tr>
+                      <th scope="col" className="table-th">Symbol</th>
+                      <th scope="col" className="table-th">Signal</th>
+                      <th scope="col" className="table-th">Strength</th>
+                      <th scope="col" className="table-th">Price</th>
+                      <th scope="col" className="table-th">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scanner.slice(0, 20).map((item) => (
+                      <tr key={item.symbol} className="table-tr">
+                        <td className="table-td" style={{ fontWeight: '500' }}>{item.symbol}</td>
+                        <td className="table-td">
+                          <span className={`badge ${item.signal.toLowerCase().includes('buy') ? 'badge-accent' : item.signal.toLowerCase().includes('sell') ? 'badge-danger' : 'badge-secondary'}`}>
+                            {item.signal}
+                          </span>
+                        </td>
+                        <td className="table-td font-mono">{(item.strength * 100).toFixed(0)}%</td>
+                        <td className="table-td font-mono">${item.price.toFixed(2)}</td>
+                        <td className="table-td">
+                          {item.change_percent !== undefined ? (
+                            <span style={{ color: item.change_percent >= 0 ? 'var(--color-accent)' : 'var(--color-danger)' }}>
+                              {item.change_percent >= 0 ? '+' : ''}{item.change_percent.toFixed(2)}%
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                No scanner signals available
+              </div>
+            )}
+          </div>
+
           {/* Risk Engine */}
           <div className="glass-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '20px' }}>
@@ -1322,6 +1701,157 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* ── Orders, Fills, Signals, Alerts ── */}
+      <div className="layout-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {/* Orders */}
+        <div className="glass-card animate-fade-in">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 className="h3" style={{ marginBottom: 0 }}>{t('orders.title', 'Orders')}</h3>
+            <button onClick={handleCancelOpenOrders} disabled={loading.cancelOrders} className="btn-base btn-danger btn-sm">
+              {loading.cancelOrders ? 'Cancelling...' : 'Cancel Open'}
+            </button>
+          </div>
+          {orders.length > 0 ? (
+            <div className="table-wrapper">
+              <table className="table-base">
+                <thead>
+                  <tr>
+                    <th scope="col" className="table-th">Symbol</th>
+                    <th scope="col" className="table-th">Side</th>
+                    <th scope="col" className="table-th">Status</th>
+                    <th scope="col" className="table-th">Qty</th>
+                    <th scope="col" className="table-th">Filled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.slice(0, 10).map((order) => (
+                    <tr key={order.id} className="table-tr">
+                      <td className="table-td" style={{ fontWeight: '500' }}>{order.symbol}</td>
+                      <td className="table-td">
+                        <span className={`badge ${order.side.toLowerCase() === 'buy' ? 'badge-accent' : 'badge-danger'}`}>
+                          {order.side}
+                        </span>
+                      </td>
+                      <td className="table-td">
+                        <span className={`badge ${order.status === 'FILLED' ? 'badge-accent' : order.status === 'REJECTED' || order.status === 'CANCELLED' ? 'badge-danger' : 'badge-secondary'}`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="table-td font-mono">{order.quantity}</td>
+                      <td className="table-td font-mono">{order.filled_quantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No orders
+            </div>
+          )}
+        </div>
+
+        {/* Fills */}
+        <div className="glass-card animate-fade-in">
+          <h3 className="h3" style={{ marginBottom: '20px' }}>{t('fills.title', 'Fills')}</h3>
+          {fills.length > 0 ? (
+            <div className="table-wrapper">
+              <table className="table-base">
+                <thead>
+                  <tr>
+                    <th scope="col" className="table-th">Symbol</th>
+                    <th scope="col" className="table-th">Side</th>
+                    <th scope="col" className="table-th">Qty</th>
+                    <th scope="col" className="table-th">Price</th>
+                    <th scope="col" className="table-th">P&L</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fills.slice(0, 10).map((fill) => (
+                    <tr key={fill.id} className="table-tr">
+                      <td className="table-td" style={{ fontWeight: '500' }}>{fill.symbol}</td>
+                      <td className="table-td">
+                        <span className={`badge ${fill.side.toLowerCase() === 'buy' ? 'badge-accent' : 'badge-danger'}`}>
+                          {fill.side}
+                        </span>
+                      </td>
+                      <td className="table-td font-mono">{fill.quantity}</td>
+                      <td className="table-td font-mono">${fill.price.toFixed(2)}</td>
+                      <td className="table-td font-mono" style={{ color: fill.realized_pnl !== undefined && fill.realized_pnl >= 0 ? 'var(--color-accent)' : 'var(--color-danger)' }}>
+                        {fill.realized_pnl !== undefined ? `${fill.realized_pnl >= 0 ? '+' : ''}$${fill.realized_pnl.toFixed(2)}` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No fills
+            </div>
+          )}
+        </div>
+
+        {/* Signals */}
+        <div className="glass-card animate-fade-in">
+          <h3 className="h3" style={{ marginBottom: '20px' }}>{t('signals.title', 'Signals')}</h3>
+          {signals.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {signals.slice(0, 10).map((signal) => (
+                <div key={signal.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                  <div>
+                    <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{signal.symbol}</strong>
+                    <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span className={`badge ${signal.side.toLowerCase() === 'buy' ? 'badge-accent' : 'badge-danger'}`}>{signal.side}</span>
+                      <span className="badge badge-secondary">{signal.strategy_id}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="font-mono" style={{ fontSize: '14px', color: 'var(--color-primary)' }}>{(signal.strength * 100).toFixed(0)}%</div>
+                    <div className="text-muted" style={{ fontSize: '11px' }}>{signal.created_at ? new Date(signal.created_at).toLocaleTimeString() : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No signals
+            </div>
+          )}
+        </div>
+
+        {/* Alerts */}
+        <div className="glass-card animate-fade-in">
+          <h3 className="h3" style={{ marginBottom: '20px' }}>{t('alerts.title', 'Alerts')}</h3>
+          {alerts.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {alerts.slice(0, 10).map((alert) => (
+                <div key={alert.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)' }}>
+                  <div>
+                    <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{alert.symbol || 'Global'}</strong>
+                    <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <span className={`badge ${alert.severity === 'critical' ? 'badge-danger' : alert.severity === 'warning' ? 'badge-warning' : 'badge-info'}`}>
+                        {alert.alert_type}
+                      </span>
+                      <span className={`badge ${alert.active ? 'badge-accent' : 'badge-secondary'}`}>
+                        {alert.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                  <button onClick={() => handleDeleteAlert(alert.id)} disabled={loading.deleteAlert} className="btn-base btn-danger btn-sm" style={{ padding: '6px 10px', fontSize: '12px' }}>
+                    {loading.deleteAlert ? '...' : 'Delete'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              No alerts
+            </div>
+          )}
         </div>
       </div>
 
