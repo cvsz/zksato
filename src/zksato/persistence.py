@@ -298,6 +298,25 @@ class SqlStateStore(StateStore):
         key: str,
         values: dict[str, object],
     ) -> None:
+        # Use native ON CONFLICT for Postgres to avoid SELECT→INSERT race;
+        # fallback to SELECT→INSERT for SQLite (tests) which lacks pg_insert
+        try:
+            dialect = self.engine.dialect.name
+        except Exception:
+            dialect = "sqlite"
+        if dialect == "postgresql":
+            try:
+                from sqlalchemy.dialects.postgresql import insert as pg_insert  # type: ignore
+
+                stmt = pg_insert(table).values(**values)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[key_column], set_=values
+                )
+                with self.engine.begin() as conn:
+                    conn.execute(stmt)
+                return
+            except Exception:
+                pass
         with self.engine.begin() as conn:
             exists = conn.execute(select(key_column).where(key_column == key)).first()
             if exists:
