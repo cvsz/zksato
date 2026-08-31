@@ -5,6 +5,19 @@ from typing import Any
 import httpx
 
 
+def _escape_md(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace("_", "\\_")
+        .replace("*", "\\*")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("`", "\\`")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+    )
+
+
 class TelegramNotifier:
     def __init__(self, bot_token: str | None, chat_id: str | None) -> None:
         self._bot_token = bot_token
@@ -44,10 +57,10 @@ class TelegramNotifier:
         price_str = f" @ ${price:.2f}" if price else " @ MARKET"
         text = (
             f"⚡ *[ORDER SUBMITTED]*\n"
-            f"• *Strategy:* `{strategy}`\n"
-            f"• *Symbol:* `{symbol}`\n"
-            f"• *Side:* *{side.upper()}* {quantity} contracts{price_str}\n"
-            f"• *Type:* `{order_type.upper()}`\n"
+            f"• *Strategy:* `{_escape_md(strategy)}`\n"
+            f"• *Symbol:* `{_escape_md(symbol)}`\n"
+            f"• *Side:* *{_escape_md(side.upper())}* {quantity} contracts{price_str}\n"
+            f"• *Type:* `{_escape_md(order_type.upper())}`\n"
             f"• *Mode:* `Paper Execution`"
         )
         return await self.send(text)
@@ -62,8 +75,8 @@ class TelegramNotifier:
     ) -> bool:
         text = (
             f"✅ *[FILL EXECUTED]*\n"
-            f"• *Symbol:* `{symbol}`\n"
-            f"• *Side:* *{side.upper()}* {quantity} contracts\n"
+            f"• *Symbol:* `{_escape_md(symbol)}`\n"
+            f"• *Side:* *{_escape_md(side.upper())}* {quantity} contracts\n"
             f"• *Execution Price:* `${fill_price:.4f}`\n"
             f"• *Commission:* `${commission:.2f}`"
         )
@@ -146,9 +159,9 @@ class TelegramNotifier:
         price_str = f" @ ${price:.2f}" if price else ""
         text = (
             f"📡 *[TRADINGVIEW WEBHOOK SIGNAL RECEIVED]*\n"
-            f"• *Strategy:* `{strategy}`\n"
-            f"• *Ticker:* `{ticker}` ({interval})\n"
-            f"• *Signal:* *{action.upper()}*{price_str}\n"
+            f"• *Strategy:* `{_escape_md(strategy)}`\n"
+            f"• *Ticker:* `{_escape_md(ticker)}` ({_escape_md(interval)})\n"
+            f"• *Signal:* *{_escape_md(action.upper())}*{price_str}\n"
             f"• *Status:* Routed to RiskEngine"
         )
         return await self.send(text)

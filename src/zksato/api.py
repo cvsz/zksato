@@ -211,6 +211,8 @@ LiveApprovalHeader = Annotated[str | None, Header(alias="X-Live-Approval-Id")]
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.environment == "prod" and not settings.auth_required:
+        raise RuntimeError("auth_required must be true in prod")
     if settings.trading_mode != "paper" and settings.reconciliation_enabled:
         reconciliation_worker.start()
     outbox_dispatcher.start()
