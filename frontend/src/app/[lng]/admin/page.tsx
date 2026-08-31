@@ -108,41 +108,73 @@ export default function AdminDashboardPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Simulate API fetches
-      setHealth({
-        status: 'Operational',
-        uptime: '99.99%',
-        cpu_usage: 45,
-        memory_usage: 60,
-        services: { postgres: true, redis: true, backend: true, celery: true, frontend: true }
-      });
-      setBots([
-        { id: '1', strategy_name: 'Grid_BTC', symbol: 'BTC/USDT', status: 'Running', execution_mode: 'Live' },
-        { id: '2', strategy_name: 'RSI_ETH', symbol: 'ETH/USDT', status: 'Stopped', execution_mode: 'Paper' },
-        { id: '3', strategy_name: 'MACD_SOL', symbol: 'SOL/USDT', status: 'Error', execution_mode: 'Live' },
+      const [healthRes, botsRes, logsRes, configRes, webhooksRes] = await Promise.all([
+        fetch(`${backendUrl}/health`).catch(() => null),
+        fetch(`${backendUrl}/v1/bot`).catch(() => null),
+        fetch(`${backendUrl}/v1/audit?limit=20`).catch(() => null),
+        fetch(`${backendUrl}/v1/config`).catch(() => null),
+        fetch(`${backendUrl}/v1/tradingview/config`).catch(() => null),
       ]);
-      setRisk({
-        kill_switch_active: false,
-        max_notional: 100000,
-        allowed_symbols: ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
-        current_exposure: 45000,
-        position_limits: 50000,
-      });
-      setLogs([
-        { id: '1', timestamp: new Date().toISOString(), severity: 'INFO', message: 'Bot Grid_BTC started' },
-        { id: '2', timestamp: new Date(Date.now() - 3600000).toISOString(), severity: 'WARN', message: 'API rate limit nearing' },
-        { id: '3', timestamp: new Date(Date.now() - 7200000).toISOString(), severity: 'ERROR', message: 'Failed to execute order MACD_SOL' },
-      ]);
-      setWebhooks([
-        { id: '1', timestamp: new Date().toISOString(), success: true, payload: '{"action": "buy", "symbol": "BTC/USDT"}' },
-        { id: '2', timestamp: new Date(Date.now() - 1800000).toISOString(), success: false, payload: '{"action": "sell", "symbol": "INVALID"}' },
-      ]);
+
+      if (healthRes && healthRes.ok) {
+        const healthData = await healthRes.json();
+        setHealth({
+          status: healthData.status || 'Operational',
+          uptime: '99.99%',
+          cpu_usage: 45,
+          memory_usage: 60,
+          services: { postgres: true, redis: true, backend: true, celery: true, frontend: true }
+        });
+      }
+
+      if (botsRes && botsRes.ok) {
+        const botsData = await botsRes.json();
+        setBots(Array.isArray(botsData) ? botsData.map((b: any) => ({
+          id: b.bot_id || b.id,
+          strategy_name: b.strategy_name || 'Unknown',
+          symbol: b.symbol || '',
+          status: b.active ? 'Running' : 'Stopped',
+          execution_mode: 'Paper'
+        })) : []);
+      }
+
+      if (logsRes && logsRes.ok) {
+        const logsData = await logsRes.json();
+        setLogs(Array.isArray(logsData) ? logsData.slice(0, 20).map((l: any) => ({
+          id: l.id || String(Math.random()),
+          timestamp: l.timestamp || l.created_at || new Date().toISOString(),
+          severity: l.severity || 'INFO',
+          message: l.message || l.event_type || 'Audit event'
+        })) : []);
+      }
+
+      if (configRes && configRes.ok) {
+        const configData = await configRes.json();
+        setRisk({
+          kill_switch_active: configData.kill_switch_active || false,
+          max_notional: 100000,
+          allowed_symbols: configData.allowed_symbols || [],
+          current_exposure: 0,
+          position_limits: 100000,
+        });
+      }
+
+      if (webhooksRes && webhooksRes.ok) {
+        const webhooksData = await webhooksRes.json();
+        const items = Array.isArray(webhooksData?.items) ? webhooksData.items : [];
+        setWebhooks(items.map((item: any) => ({
+          id: item.symbol || String(Math.random()),
+          timestamp: item.created_at || new Date().toISOString(),
+          success: true,
+          payload: JSON.stringify(item)
+        })));
+      }
     } catch (e) {
       showToast('Failed to load data', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [backendUrl, showToast]);
 
   useEffect(() => {
     fetchData();
