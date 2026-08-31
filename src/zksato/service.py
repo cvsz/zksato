@@ -130,7 +130,7 @@ class TradingService:
             drawdown_pct=drawdown,
             position_pct_after_trade=min(max(position_pct, 0.0), 100.0),
             line_available=max(float(portfolio.cash), 0.0),
-            available_quantity=holding_qty,
+            available_quantity=int(holding_qty) if holding_qty > 0 else 0,
             reference_price=reference_price,
             orders_today=orders_today,
             open_orders=open_orders,

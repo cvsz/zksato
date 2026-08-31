@@ -123,7 +123,7 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
         if self._http_client is not None:
             return self._http_client, False
         try:
-            import httpx  # type: ignore[import-not-found]
+            import httpx
         except ImportError as exc:  # pragma: no cover - httpx is a declared dep
             raise RuntimeError("httpx is required for PolymarketClobAdapter") from exc
         client = httpx.AsyncClient(timeout=self.timeout, headers=self._auth_headers())
@@ -147,20 +147,20 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
                     params={"token_id": market_id},
                 )
                 if hasattr(resp, "status_code") and resp.status_code == 200:
-                    data = resp.json() if callable(getattr(resp, "json", None)) else resp  # type: ignore[no-untyped-call]
+                    data = resp.json() if callable(getattr(resp, "json", None)) else resp
                     if isinstance(data, dict):
                         # Normalize to our contract: up_ask / down_ask or bids/asks
                         if "up_ask" in data or "down_ask" in data:
                             return {
                                 "market_id": market_id,
-                                "up_ask": float(data.get("up_ask", 0.5)),  # type: ignore[arg-type]
-                                "down_ask": float(data.get("down_ask", 0.5)),  # type: ignore[arg-type]
-                                "up_bid": float(data.get("up_bid", 0.45)),  # type: ignore[arg-type]
-                                "down_bid": float(data.get("down_bid", 0.45)),  # type: ignore[arg-type]
+                                "up_ask": float(data.get("up_ask", 0.5)),
+                                "down_ask": float(data.get("down_ask", 0.5)),
+                                "up_bid": float(data.get("up_bid", 0.45)),
+                                "down_bid": float(data.get("down_bid", 0.45)),
                             }
                         if "bids" in data or "asks" in data:
-                            asks = data.get("asks") or []  # type: ignore[assignment]
-                            bids = data.get("bids") or []  # type: ignore[assignment]
+                            asks = data.get("asks") or []
+                            bids = data.get("bids") or []
                             ask_price = float(asks[0].get("price", 0.51)) if asks else 0.51
                             bid_price = float(bids[0].get("price", 0.49)) if bids else 0.49
                             return {
@@ -189,11 +189,13 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
                         continue
                 # If both succeed we can build a quote
                 if hasattr(up_resp, "json") and hasattr(down_resp, "json"):
-                    up_data = up_resp.json()  # type: ignore[no-untyped-call]
-                    down_data = down_resp.json()  # type: ignore[no-untyped-call]
+                    up_data = up_resp.json()
+                    down_data = down_resp.json()
                     if isinstance(up_data, dict) and isinstance(down_data, dict):
-                        up_price = float(up_data.get("price", up_data.get("up_ask", 0.51)))  # type: ignore[arg-type]
-                        down_price = float(down_data.get("price", down_data.get("down_ask", 0.49)))  # type: ignore[arg-type]
+                        up_price = float(up_data.get("price") or up_data.get("up_ask", 0.51))
+                        down_price = float(
+                            down_data.get("price") or down_data.get("down_ask", 0.49)
+                        )
                         return {
                             "market_id": market_id,
                             "up_ask": up_price,
@@ -211,17 +213,17 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
                     raise RuntimeError(f"market not found: {market_id}")
                 if resp.status_code >= 400:
                     raise RuntimeError(f"quote fetch failed: HTTP {resp.status_code}")
-                data = resp.json()  # type: ignore[no-untyped-call]
+                data = resp.json()
             else:
                 # Injected fake client may return dict directly
-                data = resp  # type: ignore[assignment]
+                data = resp
             if isinstance(data, dict):
                 return {
                     "market_id": str(data.get("market_id", market_id)),
-                    "up_ask": float(data.get("up_ask", data.get("price", 0.51))),  # type: ignore[arg-type]
-                    "up_bid": float(data.get("up_bid", 0.49)),  # type: ignore[arg-type]
-                    "down_ask": float(data.get("down_ask", 0.49)),  # type: ignore[arg-type]
-                    "down_bid": float(data.get("down_bid", 0.47)),  # type: ignore[arg-type]
+                    "up_ask": float(data.get("up_ask") or data.get("price", 0.51)),
+                    "up_bid": float(data.get("up_bid", 0.49)),
+                    "down_ask": float(data.get("down_ask", 0.49)),
+                    "down_bid": float(data.get("down_bid", 0.47)),
                 }
             raise RuntimeError("unexpected quote payload")
         except (ValueError, RuntimeError):
@@ -278,11 +280,11 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
             if status_code is not None and int(status_code) >= 400:
                 body = None
                 try:
-                    body = resp.json()  # type: ignore[no-untyped-call]
+                    body = resp.json()
                 except Exception:
                     body = getattr(resp, "text", "")
                 raise RuntimeError(f"order rejected: HTTP {status_code} {body}")
-            data = resp.json() if hasattr(resp, "json") and callable(resp.json) else resp  # type: ignore[no-untyped-call]
+            data = resp.json() if hasattr(resp, "json") and callable(resp.json) else resp
             if not isinstance(data, dict):
                 raise RuntimeError("unexpected order payload")
             # Normalize to internal contract
@@ -330,7 +332,7 @@ class PolymarketClobAdapter(PredictionVenueAdapter):
             # Success: true for 200, also parse body when present
             if hasattr(resp, "json") and callable(resp.json):
                 try:
-                    data = resp.json()  # type: ignore[no-untyped-call]
+                    data = resp.json()
                     if isinstance(data, dict) and "success" in data:
                         return bool(data["success"])
                 except Exception:

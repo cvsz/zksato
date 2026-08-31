@@ -306,12 +306,10 @@ class SqlStateStore(StateStore):
             dialect = "sqlite"
         if dialect == "postgresql":
             try:
-                from sqlalchemy.dialects.postgresql import insert as pg_insert  # type: ignore
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
 
                 stmt = pg_insert(table).values(**values)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=[key_column], set_=values
-                )
+                stmt = stmt.on_conflict_do_update(index_elements=[key_column], set_=values)
                 with self.engine.begin() as conn:
                     conn.execute(stmt)
                 return

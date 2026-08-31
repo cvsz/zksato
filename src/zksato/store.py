@@ -151,10 +151,12 @@ class StateStore:
 
     def filled_quantity_recorded(self, order_id: str) -> int:
         with self._lock:
-            return sum(
-                item.quantity
-                for item in self.fills
-                if item.order_id is not None and str(item.order_id) == order_id
+            return int(
+                sum(
+                    item.quantity
+                    for item in self.fills
+                    if item.order_id is not None and str(item.order_id) == order_id
+                )
             )
 
     def record_order_fill(self, order: OrderRecord, *, source: str) -> FillRecord | None:
