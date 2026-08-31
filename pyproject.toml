@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zksato"
-version = "1.0.0"
+version = "1.0.1"
 description = "Risk-first automated trading platform and dashboard for SET / TFEX"
 readme = "README.md"
 requires-python = ">=3.11"

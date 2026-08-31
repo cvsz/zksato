@@ -2,6 +2,13 @@
 
 All notable changes to zksato are documented here.
 
+## [1.0.1] - 2026-08-31
+
+### Post-release fixes
+- **Quality:** Resolved mypy type errors across 58 source files; removed stale `# type: ignore` comments; fixed `available_quantity` and `filled_quantity_recorded` type mismatches.
+- **Testing:** Eliminated skipped PostgreSQL integration test by configuring `ZKSATO_TEST_DATABASE_URL` for Dockerized Postgres; 327 tests passing with 71.25% coverage.
+- **Documentation:** Updated external-gate evidence templates (`PRODUCTION-READINESS-EVIDENCE.md`, `UAT-EVIDENCE.md`), enhanced DR runbook with quarterly drill checklist, added operator handoff document, and marked release evidence complete.
+
 ## [1.0.0] - 2026-08-31
 
 ### Final Production Release & USDT Self-Hosting
