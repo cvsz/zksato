@@ -32,7 +32,8 @@ services:
     ports:
       - "3016:3000"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_BACKEND_URL: "http://localhost:9569"
@@ -51,8 +52,17 @@ services:
     ports:
       - "5174:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
 
   postgres:
     image: postgres:16-alpine

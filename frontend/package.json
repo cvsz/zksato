@@ -4,9 +4,9 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "dev": "next dev --hostname ${HOST:-127.0.0.1} -p ${PORT:-3016}",
-    "build": "next build --webpack",
-    "start": "next start --hostname ${HOST:-127.0.0.1} -p ${PORT:-3016}",
+    "dev": "next dev --hostname 127.0.0.1 -p 3016",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 -p 3016",
     "test:e2e": "playwright test"
   },
   "dependencies": {

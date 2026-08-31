@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['html', { outputFolder: 'playwright-report' }], ['list']],
   use: {
-    baseURL: 'http://localhost:3017',
+    baseURL: 'http://localhost:3016',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -19,9 +19,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'PORT=3017 pnpm dev',
-    url: 'http://localhost:3017/en/login',
-    env: { PORT: '3017' },
+    command: 'PORT=3016 npm run dev',
+    url: 'http://localhost:3016/en/login',
+    env: { PORT: '3016' },
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },
