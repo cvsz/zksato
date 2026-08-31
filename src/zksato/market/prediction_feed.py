@@ -134,6 +134,12 @@ class PredictionMarketFeed:
                     self._http = None
         self._last_error = None
 
+    @property
+    def _binance_rest_base(self) -> str:
+        if self.settings.ccxt_sandbox:
+            return "https://testnet.binance.vision/api"
+        return "https://api.binance.com/api"
+
     async def _refresh_reference_prices(self) -> None:
         if self._http is None:
             return
@@ -145,7 +151,7 @@ class PredictionMarketFeed:
                     if exchange_id == "binance":
                         binance_symbol = _BINANCE_SYMBOL_MAP.get(symbol, f"{symbol}USDT")
                         resp = await self._http.get(
-                            "https://api.binance.com/api/v3/ticker/price",
+                            f"{self._binance_rest_base}/v3/ticker/price",
                             params={"symbol": binance_symbol},
                         )
                         if resp.status_code == 200:

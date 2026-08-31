@@ -92,6 +92,18 @@ class CcxtMarketFeed:
         self._connected = False
         self._symbols: list[str] = []
 
+    @property
+    def _binance_rest_base(self) -> str:
+        if self.settings.ccxt_sandbox:
+            return "https://testnet.binance.vision/api"
+        return "https://api.binance.com/api"
+
+    @property
+    def _binance_ws_base(self) -> str:
+        if self.settings.ccxt_sandbox:
+            return "wss://stream.testnet.binance.vision/stream"
+        return "wss://stream.binance.com:9443/stream"
+
     def start(self, symbols: list[str]) -> None:
         if self.running:
             return
@@ -185,7 +197,7 @@ class CcxtMarketFeed:
             if exchange_id == "binance":
                 binance_symbol = _BINANCE_SYMBOL_MAP.get(symbol, f"{symbol}USDT")
                 resp = await self._http.get(
-                    "https://api.binance.com/api/v3/depth",
+                    f"{self._binance_rest_base}/v3/depth",
                     params={"symbol": binance_symbol, "limit": 1000},
                 )
                 if resp.status_code == 200:
@@ -232,7 +244,7 @@ class CcxtMarketFeed:
             f"{binance_symbol}@trade",
             f"{binance_symbol}@ticker",
         ]
-        url = f"wss://stream.binance.com:9443/stream?streams={'/'.join(streams)}"
+        url = f"{self._binance_ws_base}?streams={'/'.join(streams)}"
         backoff = 1.0
         while not self._stop.is_set():
             try:
