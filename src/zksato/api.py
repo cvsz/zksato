@@ -438,7 +438,7 @@ async def create_session(
         issued.token,
         max_age=settings.session_ttl_seconds,
         httponly=True,
-        secure=settings.environment == "prod",
+        secure=settings.environment in ("prod", "uat"),
         samesite="strict",
         path="/",
     )
