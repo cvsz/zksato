@@ -120,6 +120,8 @@ Server-side pre-trade controls:
 - reference-price deviation guard
 - per-trade stop-risk budget
 - complete-set cost risk and directional residual limits (prediction markets)
+- Historical VaR and CVaR with linear interpolation
+- Concentration proxy check (renamed from correlation for accuracy)
 
 This module has no LLM or strategy dependencies.
 
@@ -158,6 +160,10 @@ Event-loop backtester using the same strategy engine as automation, with transac
 ### `persistence.py` & `store.py`
 
 PostgreSQL durable state store using SQLAlchemy for orders, events, fills, risk evaluations, quotes, account snapshots, and outbox, alongside Redis for distributed rate-limiting and coordination.
+
+**Order archival:** The in-memory orders list is capped at a configurable maximum (default 10,000) to prevent unbounded memory growth in long-running sessions. Older orders are archived with a counter for observability.
+
+**SQLite concurrency:** Uses native `ON CONFLICT DO UPDATE` for both PostgreSQL and SQLite dialects to avoid SELECT→INSERT race conditions.
 
 ## Execution modes
 

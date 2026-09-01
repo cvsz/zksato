@@ -50,10 +50,13 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Research | Drift/promotion evidence gates | Implemented | no broker authority |
 | Research | Trading-video evidence extractor | Implemented | ffprobe metadata + deterministic timestamped frames; no media committed |
 | Risk | Deterministic trusted pre-trade RiskEngine | Implemented | stale feed/exposure/inventory/loss/session/reference controls |
+| Risk | Portfolio VaR/CVaR with interpolation | Implemented | Historical VaR + Expected Shortfall |
+| Risk | Concentration proxy check | Implemented | flags symbols exceeding portfolio ratio |
 | Risk | Property-based fail-closed invariants | Implemented | safety properties in CI |
-| Security | RBAC/session/CSRF/browser hardening | Implemented | server-side authorization |
+| Security | RBAC/session/CSRF/browser hardening | Implemented | server-side authorization, session pruning |
 | Security | Intent-bound four-eyes approval | Implemented | live boundary |
 | Security | Tamper-evident/redacted audit trail | Implemented | readiness verifies chain |
+| Security | Env file validation | Implemented | permission + injection pattern checks |
 | Operations | Bot start/pause/resume/stop/tick | Implemented | live auto-execute prohibited |
 | Operations | Liveness/readiness | Implemented | persistence/coordination/reconciliation/audit checks |
 | Operations | Request correlation response ID | Implemented | generated or propagated `X-Request-ID` |
@@ -64,6 +67,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | TFEX | Isolated domain/risk/UAT mutation | Implemented | production mutation unavailable |
 | TFEX | Real broker UAT certification | External gate | credentials/account/broker evidence required |
 | Persistence | PostgreSQL durable system of record | Implemented | migrations validated on PostgreSQL 16 |
+| Persistence | Order archival (bounded memory) | Implemented | configurable max orders (default 10,000) |
+| Persistence | SQLite concurrency safety | Implemented | native ON CONFLICT DO UPDATE |
 | Coordination | Redis distributed coordination | Implemented | PostgreSQL remains correctness boundary |
 | Observability | Metrics/logging/optional OTel/SLO | Implemented | production delivery evidence external |
 | DR | Backup/restore automation and ephemeral drill | Implemented | checksum/corruption/sentinel/timing evidence |
@@ -71,7 +76,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Performance | Bounded hardened-container SLO probe | Implemented | JSON evidence |
 | CI | Python 3.11-3.14 + Postgres/Redis | Implemented | migrations/dependencies/tests |
 | CI | Branch coverage ratchet | Implemented | floor 65% |
-| Quality | Ruff format/lint and mypy | Implemented | source/scripts |
+| Quality | Ruff format/lint and mypy | Implemented | mypy enforced in CI (no `\|\| true`) |
+| Quality | Concurrency tests | Implemented | order ID uniqueness, archival, session pruning |
 | Quality | OpenAPI safety contract | Implemented | critical control paths required; research EA controls paper-only; live TFEX rejected |
 | Quality | Package/twine/version identity | Implemented | clean installation verified |
 | Quality | Runtime dependency license policy | Implemented | isolated inventory |

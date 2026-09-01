@@ -6,7 +6,7 @@ zksato treats automated trading software as a safety-critical control plane. Sou
 
 | Layer | Repository control | Evidence |
 | --- | --- | --- |
-| Source correctness | Ruff, full-repo format, mypy, compile, pytest | CI/Quality runs |
+| Source correctness | Ruff, full-repo format, mypy, compile, pytest | CI/Quality runs (mypy enforced, no `\|\| true`) |
 | Behavioral safety | deterministic risk tests, Hypothesis properties, OpenAPI safety contract | JUnit/coverage and test logs |
 | Compatibility | Python 3.11-3.14 matrix | CI matrix |
 | Durable state | PostgreSQL 16 migrations and integration tests | CI database service |

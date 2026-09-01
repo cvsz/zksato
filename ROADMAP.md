@@ -41,6 +41,21 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 - [x] persistent paper cash/holdings/P&L, durable lifecycle events and reconciliation readiness
 - [x] optional Redis coordination with PostgreSQL correctness boundary
 
+### Audit & Hardening (2026-09-01)
+- [x] Fixed mypy CI gate: removed `|| true` so type errors fail CI
+- [x] Added env file validation in deploy scripts (permission + injection checks)
+- [x] Extended session cookie secure flag to uat environment
+- [x] Added expired session pruning in AuthManager
+- [x] Fixed SQLite upsert race condition (native ON CONFLICT DO UPDATE)
+- [x] Added order archival in StateStore (configurable max_orders)
+- [x] Fixed drawdown source with callable() check
+- [x] Improved VaR calculation with linear interpolation
+- [x] Fixed prediction broker complete-set cost calculation
+- [x] Renamed check_correlation to check_concentration for accuracy
+- [x] Fixed CCXT _resolve_exchange error handling
+- [x] Added concurrency tests (order ID uniqueness, archival, session pruning)
+- [x] Updated documentation (ARCHITECTURE, RISK, TESTING, DEPLOYMENT, FEATURE-MATRIX, SECURITY-ARCHITECTURE)
+
 ### P1 — Trusted market data and deterministic risk
 - [x] supervised Settrade realtime subscriptions with reconnect/freshness/gap diagnostics
 - [x] trusted portfolio/account/quote/reference-derived risk context

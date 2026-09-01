@@ -51,7 +51,8 @@ Research supports durable OHLCV bars, deterministic replay, commission/slippage-
 
 - server-derived pre-trade context for money-moving order mutation
 - stale-feed/session/spread/position/notional/open-order/daily-order/loss/drawdown/gross/net/symbol/sector/account/tick/price-band checks
-- API-key RBAC, HMAC-signed HttpOnly sessions, CSRF, CORS/trusted hosts, CSP/HSTS, secret-file loading, redaction, hash-linked audit
+- portfolio VaR/CVaR with linear interpolation, concentration proxy, allocation limits
+- API-key RBAC, HMAC-signed HttpOnly sessions with automatic pruning, CSRF, CORS/trusted hosts, CSP/HSTS, secret-file loading, redaction, hash-linked audit
 - one-time intent-bound live approvals with optional four-eyes separation
 - bot start/pause/resume/stop/tick controls
 - order detail/filtering and safe cancel-all-open-by-symbol operation
@@ -59,6 +60,7 @@ Research supports durable OHLCV bars, deterministic replay, commission/slippage-
 - liveness `/livez`, readiness `/readyz`, health `/health`, metrics `/metrics`
 - propagated/generated `X-Request-ID` correlation identifiers
 - durable notification outbox that does not let one poison message block unrelated notifications
+- order archival (bounded memory with configurable max)
 - Prometheus + JSON logs + optional OpenTelemetry + SLO/DR/performance/release assurance
 - separate TFEX domain with UAT-only mutation
 

@@ -49,6 +49,8 @@ Paper holdings are persisted in the paper-account runtime payload; independent d
 
 PostgreSQL unique constraints provide restart-safe idempotency. Redis may coordinate cross-process work such as reconciliation locks and abuse protection, but Redis is not the trading system of record. Correctness must remain recoverable from PostgreSQL plus broker state.
 
+**SQLite concurrency:** Uses native `ON CONFLICT DO UPDATE` for both PostgreSQL and SQLite dialects to avoid SELECT→INSERT race conditions in the upsert path.
+
 ## Backup and recovery
 
 Use `scripts/backup_postgres.sh` and `scripts/restore_postgres.sh` only against an explicitly selected database. After restore, apply every migration, start with broker-facing operation disabled, verify health/audit state, and complete reconciliation before normal operation. The full procedure is in `docs/DR-RUNBOOK.md`.

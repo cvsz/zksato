@@ -14,5 +14,11 @@ Reverse proxy/TLS → app/API replicas → PostgreSQL → Redis → workers/reco
 ## Deployment steps
 Build immutable image; scan/test; backup/check DB; run migrations; deploy; readiness/health; smoke `/health` on 9569; verify broker/feed connectivity; verify risk/kill switch/config; monitor; rollback on gate failure.
 
+## Environment file validation
+The `deploy/deploy.sh` script validates environment files before sourcing:
+- Permission check (recommends 600 or 400)
+- Injection pattern detection (rejects `;`, `$()`, backticks, `&&`, `||`, pipes)
+- Required secrets validation (postgres_password, redis_password, session_secret, api_keys)
+
 ## Rollback
 Application rollback must account for schema compatibility. If a broker-mutating release is rolled back, reconcile broker state before resuming automation.

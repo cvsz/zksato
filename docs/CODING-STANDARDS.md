@@ -9,7 +9,7 @@
 - No provider/broker secrets in client code, logs, exceptions, tests, fixtures, or snapshots.
 
 ## Quality gates
-`ruff check .`, `ruff format --check .`, mypy, compile checks, pytest/branch coverage, OpenAPI contract checks, package validation, dependency/security checks, and relevant Docker/SQL validation.
+`ruff check .`, `ruff format --check .`, mypy (enforced in CI, no `|| true`), compile checks, pytest/branch coverage, OpenAPI contract checks, package validation, dependency/security checks, and relevant Docker/SQL validation.
 
 ## Error handling
 Fail closed for execution prerequisites. Preserve causal errors without leaking secrets. Distinguish retryable transport errors, validation errors, ambiguous broker outcomes, and permanent policy rejection.

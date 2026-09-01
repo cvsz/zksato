@@ -10,7 +10,7 @@ Internet attacker, compromised operator browser, malicious/buggy dependency, ins
 Credential exfiltration; unauthorized live order; risk bypass; replay/duplicate order; CSRF/session theft; stale/tampered quote driving execution; log/trace secret leak; compromised build; audit tampering; broker/local reconciliation drift.
 
 ## Controls
-Server-side secrets; RBAC/step-up approval; deterministic risk; durable idempotency; TLS; secure sessions/CSRF; stale-feed breaker; signed/provenanced builds where available; redaction; append-oriented audit; reconciliation; least-privilege CI; managed secret rotation.
+Server-side secrets; RBAC/step-up approval; deterministic risk; durable idempotency; TLS; secure sessions/CSRF (secure flag in prod/uat); stale-feed breaker; signed/provenanced builds where available; redaction; append-oriented audit; reconciliation; least-privilege CI; managed secret rotation; env file validation (permission + injection checks); automatic session pruning.
 
 ## Residual risk
 Broker/provider outages and market gaps cannot be eliminated. System design must bound exposure, detect uncertainty, fail closed where possible, and support independent broker-side intervention.

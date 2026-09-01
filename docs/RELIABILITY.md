@@ -13,6 +13,9 @@ Database, Redis coordination, broker API, realtime market feed, notification end
 - stale/unknown market data fails closed;
 - background retries are bounded and observable;
 - recovery is idempotent and tested.
+- order archival prevents unbounded memory growth (configurable max_orders).
+- expired sessions are automatically pruned to prevent unbounded growth.
+- SQLite upsert uses native ON CONFLICT DO UPDATE to avoid race conditions.
 
 ## Evidence
 Use resilience tests, DR drill, backup/restore checksum, readiness/health metrics, incident reports, and measured RTO/RPO. See `SLO.md`, `DR-RUNBOOK.md`, and `CAPACITY-PLANNING.md`.
