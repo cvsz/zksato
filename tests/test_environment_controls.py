@@ -64,9 +64,7 @@ async def test_sandbox_mode_requires_settrade_credentials() -> None:
     from zksato.broker.paper import PaperBroker
     from zksato.service import TradingService
 
-    service = TradingService(
-        settings, PaperBroker(store=store, initial_cash=500_000), store
-    )
+    service = TradingService(settings, PaperBroker(store=store, initial_cash=500_000), store)
     submission = OrderSubmission(
         intent=OrderIntent(
             symbol="AOT",
@@ -94,9 +92,7 @@ async def test_paper_mode_does_not_require_settrade_credentials() -> None:
     from zksato.broker.paper import PaperBroker
     from zksato.service import TradingService
 
-    service = TradingService(
-        settings, PaperBroker(store=store, initial_cash=500_000), store
-    )
+    service = TradingService(settings, PaperBroker(store=store, initial_cash=500_000), store)
     submission = OrderSubmission(
         intent=OrderIntent(
             symbol="AOT",
@@ -133,9 +129,7 @@ async def test_live_mode_without_enabled_flag_blocks_orders() -> None:
     from zksato.broker.paper import PaperBroker
     from zksato.service import TradingService
 
-    service = TradingService(
-        settings, PaperBroker(store=store, initial_cash=500_000), store
-    )
+    service = TradingService(settings, PaperBroker(store=store, initial_cash=500_000), store)
     submission = OrderSubmission(
         intent=OrderIntent(
             symbol="AOT",
@@ -172,9 +166,7 @@ async def test_live_mode_with_kill_switch_active_rejects_orders() -> None:
     from zksato.broker.paper import PaperBroker
     from zksato.service import TradingService
 
-    service = TradingService(
-        settings, PaperBroker(store=store, initial_cash=500_000), store
-    )
+    service = TradingService(settings, PaperBroker(store=store, initial_cash=500_000), store)
     submission = OrderSubmission(
         intent=OrderIntent(
             symbol="AOT",

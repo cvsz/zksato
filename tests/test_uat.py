@@ -155,8 +155,7 @@ async def test_uat_order_rejection_returns_understandable_error() -> None:
 
     exc = exc_info.value
     assert hasattr(exc, "code") or hasattr(exc, "status_code"), (
-        f"Expected SettradeError with code/status_code, "
-        f"got {type(exc).__name__}: {exc}"
+        f"Expected SettradeError with code/status_code, got {type(exc).__name__}: {exc}"
     )
     if hasattr(exc, "code"):
         assert exc.code is not None

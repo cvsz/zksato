@@ -45,12 +45,12 @@ async def run_load_test(base_url: str, concurrency: int, requests: int) -> None:
     print(f"Total requests: {requests}")
     print(f"Successful: {len(successful)}")
     print(f"Failed: {failed}")
-    print(f"Min: {min(successful)*1000:.2f} ms")
-    print(f"Max: {max(successful)*1000:.2f} ms")
-    print(f"Mean: {statistics.mean(successful)*1000:.2f} ms")
-    print(f"Median: {statistics.median(successful)*1000:.2f} ms")
-    print(f"P95: {statistics.quantiles(successful, n=20)[18]*1000:.2f} ms")
-    print(f"P99: {statistics.quantiles(successful, n=100)[98]*1000:.2f} ms")
+    print(f"Min: {min(successful) * 1000:.2f} ms")
+    print(f"Max: {max(successful) * 1000:.2f} ms")
+    print(f"Mean: {statistics.mean(successful) * 1000:.2f} ms")
+    print(f"Median: {statistics.median(successful) * 1000:.2f} ms")
+    print(f"P95: {statistics.quantiles(successful, n=20)[18] * 1000:.2f} ms")
+    print(f"P99: {statistics.quantiles(successful, n=100)[98] * 1000:.2f} ms")
 
 
 def main() -> None:

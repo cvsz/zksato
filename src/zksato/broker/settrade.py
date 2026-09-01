@@ -122,6 +122,7 @@ class SettradeBroker:
         raw_rows = await asyncio.to_thread(get_portfolios) if get_portfolios else []
         if isinstance(raw_rows, str):
             import json
+
             raw_rows = json.loads(raw_rows) if raw_rows.strip() else []
         rows = raw_rows if isinstance(raw_rows, list) else []
         positions: list[Position] = []

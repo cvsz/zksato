@@ -1,4 +1,5 @@
 """Concurrency and race condition tests for zksato."""
+
 from __future__ import annotations
 
 import asyncio

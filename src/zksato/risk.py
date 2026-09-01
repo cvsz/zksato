@@ -170,9 +170,7 @@ class PortfolioRiskManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    def check_concentration(
-        self, symbol: str, portfolio_positions: list[str]
-    ) -> list[str]:
+    def check_concentration(self, symbol: str, portfolio_positions: list[str]) -> list[str]:
         """Warn if adding a symbol would exceed concentration threshold.
 
         This is a simplified concentration check: it flags if the symbol
@@ -234,8 +232,13 @@ class PortfolioRiskManager:
         lower_idx = int(rank)
         upper_idx = min(lower_idx + 1, n - 1)
         fraction = rank - lower_idx
-        loss_pct = abs(min(0.0, sorted_returns[lower_idx] + fraction * (
-            sorted_returns[upper_idx] - sorted_returns[lower_idx])))
+        loss_pct = abs(
+            min(
+                0.0,
+                sorted_returns[lower_idx]
+                + fraction * (sorted_returns[upper_idx] - sorted_returns[lower_idx]),
+            )
+        )
         return loss_pct * portfolio_value
 
     def calculate_expected_shortfall(
