@@ -78,12 +78,21 @@ The money-moving order endpoint ignores client-supplied `RiskContext` for execut
 
 `client_order_id` is the durable idempotency key. Ambiguous broker outcomes become `needs_reconciliation` and are not blindly retried. Cumulative broker fill snapshots are converted into incremental durable fills.
 
+**Environment behavior:**
+- `dev`/`test`: live orders return `403`; only paper/sandbox orders are accepted.
+- `uat`: sandbox orders only; production credentials are rejected.
+- `prod`: live orders require `X-Live-Approval-Id` header from a valid `/v1/live-approvals` approval.
+
 ## Live approvals
 
 - `POST /v1/live-approvals` — `risk_admin`; fresh preflight then short-lived exact-intent approval
 - `GET /v1/live-approvals` — `risk_admin`
 
 Approvals are single-use and can require a distinct creator/executor. Approval never bypasses a later risk check.
+
+**Environment behavior:**
+- `dev`/`test`/`uat`: returns `409` unless `ZKSATO_TRADING_MODE=live`; live mode is forbidden in these environments.
+- `prod`: requires `ZKSATO_LIVE_TRADING_ENABLED=true`, `ZKSATO_TRADING_MODE=live`, and `ZKSATO_KILL_SWITCH=false`.
 
 ## Evidence and audit
 
@@ -132,6 +141,10 @@ Research endpoints have no broker submission authority. Video-EA operator contro
 - `POST /v1/production/canary-plan`
 
 These are evidence/reporting endpoints only; they do not submit orders or certify external broker/legal/deployment facts.
+
+**Environment behavior:**
+- `dev`/`test`/`uat`: returns readiness evaluation but `ready_for_manual_canary` remains `false`; live promotion is forbidden.
+- `prod`: requires all external gates (broker, legal, TLS, secrets, monitoring, backup/restore, reconciliation, UAT evidence, manual canary authorization) before `ready_for_manual_canary=true`.
 
 ## TFEX
 

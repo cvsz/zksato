@@ -1,0 +1,4 @@
+# Settrade SDK v2 environment selection.
+# zksato reads broker credentials from .env / /run/secrets and passes them
+# directly to settrade_v2.Investor, so this file only sets the environment.
+environment=uat

@@ -32,14 +32,36 @@ class SettradeBroker:
         broker_id = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_broker_id
         app_code = "SANDBOX" if settings.trading_mode == "sandbox" else settings.settrade_app_code
 
-        self._investor = Investor(
-            app_id=settings.settrade_app_id,
-            app_secret=settings.settrade_app_secret,
-            broker_id=broker_id,
-            app_code=app_code,
-            is_auto_queue=False,
-        )
-        self._equity = self._investor.Equity(account_no=settings.settrade_account_no)
+        try:
+            self._investor = Investor(
+                app_id=settings.settrade_app_id,
+                app_secret=settings.settrade_app_secret,
+                broker_id=broker_id,
+                app_code=app_code,
+                is_auto_queue=False,
+            )
+        except Exception as exc:
+            self._raise_settrade_error(exc, "login")
+
+        try:
+            self._equity = self._investor.Equity(account_no=settings.settrade_account_no)
+        except Exception as exc:
+            self._raise_settrade_error(exc, "initialize equity account")
+
+    @staticmethod
+    def _raise_settrade_error(exc: Exception, context: str) -> None:
+        try:
+            from settrade_v2.errors import SettradeError
+
+            if isinstance(exc, SettradeError):
+                raise SettradeError(
+                    message=f"[{context}] {exc.message}",
+                    code=exc.code,
+                    status_code=exc.status_code,
+                ) from exc
+        except ImportError:
+            pass
+        raise RuntimeError(f"[{context}] {exc}") from exc
 
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         price_type = "Limit" if intent.order_type == OrderType.LIMIT else "MP-MKT"
@@ -91,10 +113,17 @@ class SettradeBroker:
         rows = await asyncio.to_thread(self._equity.get_orders)
         return [self._map_order(row) for row in rows or []]
 
+    async def account(self) -> dict[str, Any]:
+        return await asyncio.to_thread(self._equity.get_account_info)
+
     async def portfolio(self) -> PortfolioSnapshot:
-        account = await asyncio.to_thread(self._equity.get_account_info)
+        account = await self.account()
         get_portfolios = getattr(self._equity, "get_portfolios", None)
-        rows = await asyncio.to_thread(get_portfolios) if get_portfolios else []
+        raw_rows = await asyncio.to_thread(get_portfolios) if get_portfolios else []
+        if isinstance(raw_rows, str):
+            import json
+            raw_rows = json.loads(raw_rows) if raw_rows.strip() else []
+        rows = raw_rows if isinstance(raw_rows, list) else []
         positions: list[Position] = []
         market_value = 0.0
         unrealized = 0.0

@@ -8,7 +8,7 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Trading | Paper price improvement / per-quote partial-fill cap | Implemented | deterministic simulator; not exchange queue simulation |
 | Trading | Restart-safe paper recovery/client IDs | Implemented | durable with SQL store |
 | Trading | Portfolio/P&L recovery | Implemented | persistent cash/holdings/realized P&L |
-| Trading | Settrade v2 equity adapter | Implemented | broker UAT certification remains external |
+| Trading | Settrade v2 equity adapter | Implemented | broker UAT certification remains external; see `tests/test_uat.py` and `docs/UAT-CERTIFICATION.md` |
 | Trading | CCXT multi-exchange adapter | Implemented | Binance, Binance TH, KuCoin, OKX, Bybit spot paper/sandbox |
 | Trading | Prediction market engine & risk | Implemented | synthetic feeds, directional residuals, complete set cost |
 | Trading | Prediction CLOB adapter (Polymarket) | Implemented | httpx-wired quote/order/cancel with HMAC, injected-client testable, fail-closed guards via PredictionLiveGate |

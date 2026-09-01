@@ -169,6 +169,19 @@ Default. No broker credentials are required. The synthetic demo feed is availabl
 
 Uses `SettradeBroker` and server-side credentials. Designed for Settrade UAT/simulation. Automated execution is permitted only after UAT configuration is intentionally supplied.
 
+**Sandbox schedule:**
+- Best availability: Thursday and Friday, 09:00-17:00 Thailand time
+- Supports Equity (Day Session) and Derivatives (Day & Night Session)
+- Does not support Offline Order
+- No guarantee outside the above hours
+
+**Configuration:**
+- `.env` provides credentials directly to the SDK via `SettradeBroker`
+- `settradesdkv2_config.txt` should set `environment=uat` for standalone SDK tools
+- `ZKSATO_TRADING_MODE=sandbox` hardcodes `broker_id="SANDBOX"` and `app_code="SANDBOX"`
+
+See `docs/UNLOCK-RELEASE.md` for environment-specific unlock procedures.
+
 ### Live
 
 Uses `SettradeBroker`, but the automation engine cannot submit live orders. Explicit live order requests require:

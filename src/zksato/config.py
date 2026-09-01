@@ -33,7 +33,7 @@ class Settings(BaseSettings):
         )
 
     app_name: str = "zksato"
-    environment: Literal["dev", "test", "prod"] = "dev"
+    environment: Literal["dev", "test", "uat", "prod"] = "dev"
     trading_mode: Literal["paper", "sandbox", "live"] = "paper"
     live_trading_enabled: bool = False
     live_requires_confirmation: bool = True

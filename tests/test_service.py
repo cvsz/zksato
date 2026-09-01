@@ -78,7 +78,17 @@ async def test_risk_rejection_prevents_execution() -> None:
 
 @pytest.mark.asyncio
 async def test_non_paper_mode_requires_settrade_configuration() -> None:
-    service = make_service(Settings(trading_mode="sandbox", live_trading_enabled=False))
+    service = make_service(
+        Settings(
+            trading_mode="sandbox",
+            live_trading_enabled=False,
+            settrade_app_id="",
+            settrade_app_secret="",
+            settrade_broker_id="",
+            settrade_account_no="",
+            settrade_pin="",
+        )
+    )
     submission = OrderSubmission(
         intent=OrderIntent(symbol="AOT", side=Side.BUY, quantity=100, price=40.0, stop_loss=38.0),
         risk=RiskContext(

@@ -62,6 +62,15 @@ Research supports durable OHLCV bars, deterministic replay, commission/slippage-
 - Prometheus + JSON logs + optional OpenTelemetry + SLO/DR/performance/release assurance
 - separate TFEX domain with UAT-only mutation
 
+## Environments
+
+- **dev** — local development, paper mode by default, optional sandbox credentials
+- **test** — CI/ephemeral, paper/sandbox only, no production secrets
+- **uat** — broker sandbox certification, Thu/Fri 09:00-17:00 Thailand time, Equity Day + Derivatives Day/Night only
+- **prod** — production live trading, requires full external evidence and operator authorization
+
+For environment-specific unlock/release procedures, see [`docs/UNLOCK-RELEASE.md`](docs/UNLOCK-RELEASE.md).
+
 ## Quick start
 
 ```bash

@@ -83,6 +83,7 @@
 - `DEPLOYMENT.md`
 - `PRODUCTION-READINESS.md`
 - `PRODUCTION-CHECKLIST.md`
+- `UNLOCK-RELEASE.md` — environment-specific unlock/release procedures (dev/test/uat/prod)
 - `UAT-CERTIFICATION.md`
 - `RELEASE.md`
 - `RELEASE-CHECKLIST.md`

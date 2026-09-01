@@ -59,24 +59,33 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 - [x] TFEX account/portfolio/order reads, contract registry and deterministic risk
 - [x] sandbox/UAT-only TFEX mutation boundary
 - [ ] installed-SDK and broker-account behavior certified in Settrade UAT — **external**
+  - Status: UAT test framework and SDK v2 integration complete (`tests/test_uat.py`, `src/zksato/broker/settrade.py`)
+  - Blocker: Valid broker-provided UAT credentials and external certification evidence required
+  - Note: Sandbox available Thu/Fri 09:00-17:00 Thailand time; supports Equity Day + Derivatives Day/Night; no Offline Order
 
 ### P4 — Observability, resilience and recovery
 - [x] Prometheus, correlation/JSON logging and optional OpenTelemetry
 - [x] SLO/alert configuration, load probe and resilience matrix
 - [x] backup/checksum/corruption/restore automation and DR runbook
 - [ ] production alert delivery, restore/RPO/RTO and sustained-load evidence — **external**
+  - Status: Infrastructure and runbooks in place (`docs/DR-RUNBOOK.md`, `deploy/docker-compose.prod.yml`, backup container)
+  - Blocker: Production monitoring/alert delivery verification, restore drill evidence, and sustained-load testing require production environment
 
 ### P5 — Strategy research and promotion
 - [x] durable OHLCV, replay, cost/slippage backtesting and session-aware walk-forward/OOS
 - [x] strategy/version registry, run history, config hash, drift and promotion gates
 - [x] deterministic indicator/strategy test coverage
 - [ ] strategy-specific investment-performance evidence — **research evidence, not source completion**
+  - Status: Backtesting framework, strategy registry, and deterministic indicators implemented
+  - Blocker: Live/paper performance evidence requires strategy validation runs and historical market data
 
 ### P6 — Controlled production rollout
 - [x] machine-readable readiness report and one-order non-autonomous canary plan
 - [x] fail-closed runtime/external evidence requirements
 - [x] protected non-mutating UAT/readiness workflows
 - [ ] broker/legal/UAT/TLS/secrets/monitoring/backup and authorized manual canary — **external**
+  - Status: Code-level controls complete (kill switch, live approvals, reconciliation, audit chain, production readiness endpoint)
+  - Blocker: External evidence required — broker permission, legal/operational review, UAT certification, TLS verification, managed secrets, backup/restore drill, monitoring alerts, incident response, and explicit operator-authorized manual canary
 
 ### P7 — Repository assurance and software supply chain
 - [x] Python 3.11-3.14, PostgreSQL/Redis integration and branch coverage ratchet
@@ -86,6 +95,8 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 - [x] multi-arch GHCR release, digest/checksums/provenance and release verification
 - [x] repository health, PR policy, safe labeler and Dependabot
 - [ ] protected environments/ruleset/merge queue/native code-security capabilities — **GitHub plan/settings dependent**
+  - Status: GitHub Environments configured (`uat`, `production`) with protected secrets/reviewers in workflow YAML
+  - Blocker: Repository plan/settings changes required for protected environments, rulesets, merge queue, and native code-security (CodeQL advanced) features
 
 ### P8 — Execution simulator, calendar, research and operator API completion
 - [x] resting paper limits match on later quotes

@@ -3,12 +3,12 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    expose:
-      - "9569"
+    ports:
+      - "127.0.0.1:9569:9569"
     env_file:
       - ../.env
     environment:
-      ZKSATO_ENVIRONMENT: production
+      ZKSATO_ENVIRONMENT: prod
       ZKSATO_AUTH_REQUIRED: "true"
       ZKSATO_LIVE_TRADING_ENABLED: "false"
       ZKSATO_LOG_JSON: "true"
@@ -20,7 +20,7 @@ services:
       - postgres_password
       - redis_password
       - session_secret
-      - api_keys
+      - zksato_api_keys
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
     ulimits:
@@ -44,8 +44,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
-    expose:
-      - "3000"
+    ports:
+      - "127.0.0.1:3016:3000"
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_BACKEND_URL: "https://zksato.zeaz.dev"
@@ -64,19 +64,11 @@ services:
   dashboard:
     build:
       context: ../dashboard
-    expose:
-      - "80"
+    ports:
+      - "127.0.0.1:5174:80"
     depends_on:
       - api
     restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    pids_limit: 256
 
   postgres:
     image: postgres:16-alpine
@@ -105,6 +97,12 @@ services:
     restart: unless-stopped
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+      - FOWNER
     security_opt:
       - no-new-privileges:true
 
@@ -128,6 +126,10 @@ services:
     restart: unless-stopped
     cap_drop:
       - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
     security_opt:
       - no-new-privileges:true
 
@@ -150,34 +152,6 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
-    depends_on:
-      - api
-      - frontend
-      - dashboard
-    restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-      - /var/cache/nginx:rw,noexec,nosuid,size=64m
-      - /var/run:rw,noexec,nosuid,size=32m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
 
 secrets:
   postgres_password:
@@ -186,7 +160,7 @@ secrets:
     file: ./secrets/redis_password.txt
   session_secret:
     file: ./secrets/session_secret.txt
-  api_keys:
+  zksato_api_keys:
     file: ./secrets/api_keys.txt
 
 volumes:
@@ -195,11 +169,11 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./data/postgres
+      device: /mnt/zksato_data/postgres
   redis_data:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: ./data/redis
+      device: /mnt/zksato_data/redis
   certbot_www:

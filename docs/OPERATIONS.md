@@ -97,6 +97,8 @@ The confirmation token is an execution control secret. Do not embed it in fronte
 
 Before live use, also require deployment-level authentication/RBAC and durable order reconciliation; these remain production-hardening roadmap items.
 
+For environment-specific unlock/release procedures, see `UNLOCK-RELEASE.md`.
+
 ## 6. Emergency stop
 
 Immediate application-level stop sequence:
@@ -108,6 +110,8 @@ Immediate application-level stop sequence:
 5. Preserve logs/audit evidence before changing configuration.
 
 The application kill switch blocks new risk-approved submissions; it does not claim to cancel an order that has already reached the broker.
+
+For environment-specific re-lock procedures, see `UNLOCK-RELEASE.md`.
 
 ## 7. Observability checks
 
