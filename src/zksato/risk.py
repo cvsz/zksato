@@ -184,7 +184,8 @@ class PortfolioRiskManager:
         same_count = sum(1 for s in portfolio_positions if s == symbol)
         if total > 0 and (same_count + 1) / total > self.settings.max_correlation:
             reasons.append(
-                f"symbol {symbol} correlation proxy exceeds max {self.settings.max_correlation:.2f}"
+                f"symbol {symbol} concentration proxy exceeds "
+                f"max {self.settings.max_correlation:.2f}"
             )
         return reasons
 
