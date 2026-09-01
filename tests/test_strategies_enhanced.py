@@ -246,9 +246,9 @@ def test_strategy_config_accepts_new_parameters() -> None:
 def test_portfolio_risk_correlation_check() -> None:
     settings = Settings(max_correlation=0.5)
     manager = PortfolioRiskManager(settings)
-    reasons = manager.check_correlation("AOT", ["AOT", "AOT", "PTT"])
+    reasons = manager.check_concentration("AOT", ["AOT", "AOT", "PTT"])
     assert len(reasons) == 1
-    assert "correlation" in reasons[0].lower()
+    assert "concentration" in reasons[0].lower()
 
 
 def test_portfolio_risk_allocation_check() -> None:
@@ -280,7 +280,7 @@ def test_portfolio_risk_evaluate_combines_checks() -> None:
     manager = PortfolioRiskManager(settings)
     reasons = manager.evaluate("AOT", "scalp", ["AOT", "PTT"], ["swing"])
     assert len(reasons) == 3
-    assert any("correlation" in r.lower() for r in reasons)
+    assert any("concentration" in r.lower() for r in reasons)
     assert any("allocation" in r.lower() for r in reasons)
     assert any("conflicts" in r for r in reasons)
 
