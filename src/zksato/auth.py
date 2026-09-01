@@ -63,6 +63,14 @@ class AuthManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._revoked_sessions: set[str] = set()
+        self._session_expiry: dict[str, int] = {}
+
+    def _prune_revoked_sessions(self) -> None:
+        now_ts = int(datetime.now(UTC).timestamp())
+        expired = [sid for sid, exp in self._session_expiry.items() if exp < now_ts]
+        for sid in expired:
+            self._revoked_sessions.discard(sid)
+            self._session_expiry.pop(sid, None)
 
     def authenticate(
         self,
@@ -139,8 +147,11 @@ class AuthManager:
         session_id = str(payload.get("sid", ""))
         if session_id:
             self._revoked_sessions.add(session_id)
+            raw_exp = payload.get("exp", 0)
+            self._session_expiry[session_id] = int(raw_exp) if isinstance(raw_exp, int) else 0
 
     def _authenticate_session(self, token: str) -> Principal:
+        self._prune_revoked_sessions()
         payload = self._decode_session(token)
         session_id = str(payload.get("sid", ""))
         if not session_id or session_id in self._revoked_sessions:

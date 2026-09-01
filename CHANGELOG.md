@@ -4,7 +4,28 @@ All notable changes to zksato are documented here.
 
 ## [Unreleased]
 
-### Environment & UAT
+### Security & Hardening
+- Fixed mypy CI gate: removed `|| true` so type errors now fail CI.
+- Added env file validation in `deploy/deploy.sh`: permission checks and injection pattern detection.
+- Extended session cookie `secure` flag to `uat` environment (not just `prod`).
+- Added expired session pruning in `AuthManager` to prevent unbounded `_revoked_sessions` growth.
+
+### Reliability & Data Integrity
+- Fixed SQLite upsert race condition: added native `ON CONFLICT DO UPDATE` for SQLite dialect.
+- Added order archival in `StateStore`: orders list capped at `max_orders` (default 10,000) to prevent unbounded growth.
+- Fixed drawdown source in `TradingService.risk_context_for`: now uses `callable()` check with exception handling.
+
+### Risk & Prediction
+- Improved VaR calculation: uses linear interpolation for accurate percentile estimation.
+- Fixed prediction broker complete-set cost: now properly calculates hedged sets + unhedged residual.
+- Renamed `check_correlation` to `check_concentration` for accuracy (was a concentration proxy, not correlation).
+- Clarified SET board lot enforcement comment: odd-lot flow limitation documented.
+
+### Testing
+- Added `tests/test_concurrency.py` with 6 tests: concurrent order ID uniqueness, order archival, session pruning, VaR/CVaR validation.
+
+### Broker Integration
+- Fixed CCXT `_resolve_exchange`: wrapped in try/except to handle missing symbol markets gracefully.
 - Added environment-specific unlock/release runbook (`docs/UNLOCK-RELEASE.md`) covering dev/test/uat/prod.
 - Added `uat` to `Settings.environment` Literal.
 - Added `tests/test_uat.py` with Settrade UAT integration tests and schedule guard (Thu/Fri 09:00-17:00 Thailand time).

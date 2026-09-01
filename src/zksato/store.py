@@ -29,11 +29,13 @@ from zksato.outbox_delivery import OutboxDeliveryState, ensure_utc
 class StateStore:
     """Thread-safe state adapter used by the paper runtime and as a persistence contract."""
 
-    def __init__(self, history_size: int = 1000) -> None:
+    def __init__(self, history_size: int = 1000, max_orders: int = 10_000) -> None:
         self._lock = RLock()
         self.quotes: dict[str, Quote] = {}
         self.price_history: dict[str, deque[float]] = {}
         self.orders: list[OrderRecord] = []
+        self._max_orders = max_orders
+        self._archived_order_count: int = 0
         self.order_events: deque[OrderEvent] = deque(maxlen=history_size * 4)
         self.fills: deque[FillRecord] = deque(maxlen=history_size * 4)
         self.risk_evaluations: deque[RiskEvaluation] = deque(maxlen=history_size * 4)
@@ -93,11 +95,20 @@ class StateStore:
                     self.orders[index] = order
                     return order
             self.orders.append(order)
+            # Archive oldest orders if exceeding max to prevent unbounded growth
+            if len(self.orders) > self._max_orders:
+                overflow = len(self.orders) - self._max_orders
+                self._archived_order_count += overflow
+                self.orders = self.orders[overflow:]
             return order
 
     def list_orders(self) -> list[OrderRecord]:
         with self._lock:
             return list(reversed(self.orders))
+
+    def order_count(self) -> int:
+        with self._lock:
+            return len(self.orders) + self._archived_order_count
 
     def find_order(self, order_id: str) -> OrderRecord | None:
         with self._lock:

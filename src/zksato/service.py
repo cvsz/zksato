@@ -102,8 +102,13 @@ class TradingService:
         daily_pnl_pct = (portfolio.daily_pnl / equity * 100) if equity else 0.0
         drawdown = 0.0
         account = getattr(self.broker, "account", None)
-        if account is not None and hasattr(account, "drawdown_pct"):
-            drawdown = float(account.drawdown_pct())
+        if account is not None:
+            drawdown_fn = getattr(account, "drawdown_pct", None)
+            if callable(drawdown_fn):
+                try:
+                    drawdown = float(drawdown_fn())
+                except (TypeError, ValueError):
+                    drawdown = 0.0
         orders = self.store.list_orders()
         today = datetime.now(UTC).date()
         orders_today = sum(item.created_at.date() == today for item in orders)

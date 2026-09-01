@@ -299,7 +299,7 @@ class SqlStateStore(StateStore):
         values: dict[str, object],
     ) -> None:
         # Use native ON CONFLICT for Postgres to avoid SELECT→INSERT race;
-        # fallback to SELECT→INSERT for SQLite (tests) which lacks pg_insert
+        # fallback to INSERT OR REPLACE for SQLite which is atomic
         try:
             dialect = self.engine.dialect.name
         except Exception:
@@ -315,12 +315,25 @@ class SqlStateStore(StateStore):
                 return
             except Exception:
                 pass
-        with self.engine.begin() as conn:
-            exists = conn.execute(select(key_column).where(key_column == key)).first()
-            if exists:
-                conn.execute(update(table).where(key_column == key).values(**values))
-            else:
-                conn.execute(insert(table).values(**values))
+        # SQLite: use INSERT OR REPLACE to avoid SELECT→INSERT race
+        # This is atomic and handles concurrent access correctly
+        try:
+            from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+            sqlite_stmt = sqlite_insert(table).values(**values)
+            sqlite_stmt = sqlite_stmt.on_conflict_do_update(
+                index_elements=[key_column], set_=values
+            )
+            with self.engine.begin() as conn:
+                conn.execute(sqlite_stmt)
+        except Exception:
+            # Final fallback: within a transaction for safety
+            with self.engine.begin() as conn:
+                exists = conn.execute(select(key_column).where(key_column == key)).first()
+                if exists:
+                    conn.execute(update(table).where(key_column == key).values(**values))
+                else:
+                    conn.execute(insert(table).values(**values))
 
     def _persist_outbox_delivery_state(self, message_id: str) -> None:
         state = self.get_outbox_delivery_state(message_id)

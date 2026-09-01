@@ -129,17 +129,16 @@ class PredictionBroker:
         # Per-side shares for complete-set cost
         bucket = self._shares_by_side.setdefault(market_id, {Side.UP: 0.0, Side.DOWN: 0.0})
         bucket[side] = bucket.get(side, 0.0) + shares
-        # Complete-set cost is cost of hedged pairs (min) + unhedged residual at avg price
+        # Complete-set cost: hedged pairs (min of up/down) cost ~$1 per set,
+        # plus unhedged residual at average price
         up_shares = bucket.get(Side.UP, 0.0)
         down_shares = bucket.get(Side.DOWN, 0.0)
-        _hedged = min(up_shares, down_shares)
-        # keep running cost as hedged*1.0 + residual cost; for paper, approximate
-        # Here we store total USD cost; actual complete-set cost queried from book
-        current_cost = self._complete_set_cost.get(market_id, 0.0)
-        self._complete_set_cost[market_id] = current_cost + cost
-        # But expose net hedged cost via complete_set_cost() as min*1.0 + fees
-        # would be more accurate; we keep raw sum for audit and let risk
-        # compute live book sum for decision
+        hedged_shares = min(up_shares, down_shares)
+        residual_shares = abs(up_shares - down_shares)
+        # Average price per share for this market
+        avg_price = cost / shares if shares > 0 else 0.5
+        # Complete-set cost = hedged sets * 1.0 + residual * avg_price
+        self._complete_set_cost[market_id] = hedged_shares * 1.0 + residual_shares * avg_price
 
     def directional_residual(self, market_id: str) -> float:
         return abs(self._directional_residual.get(market_id, 0.0))

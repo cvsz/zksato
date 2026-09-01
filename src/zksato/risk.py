@@ -51,8 +51,9 @@ class RiskEngine:
                 and self.settings.strict_reference_data
                 and "/" not in intent.symbol
             ):
-                # SET board lot 100 enforced only when strict reference data is on
-                # (odd-lot market uses separate flow)
+                # SET board lot 100 enforced only when strict reference data is on.
+                # Odd-lot orders (quantity not multiple of 100) are rejected here;
+                # the odd-lot market requires a separate order flow not yet implemented.
                 if float(intent.quantity) != int(intent.quantity):
                     reasons.append("SET quantity must be integer")
                 elif int(intent.quantity) % 100 != 0:
@@ -169,12 +170,14 @@ class PortfolioRiskManager:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
-    def check_correlation(self, symbol: str, portfolio_positions: list[str]) -> list[str]:
-        """Warn if adding a symbol would exceed correlation threshold.
+    def check_concentration(
+        self, symbol: str, portfolio_positions: list[str]
+    ) -> list[str]:
+        """Warn if adding a symbol would exceed concentration threshold.
 
-        This is a simplified check: it flags if the symbol appears more than
-        a configured ratio of the portfolio. Real correlation requires price
-        history, so this acts as a concentration proxy.
+        This is a simplified concentration check: it flags if the symbol
+        appears more than a configured ratio of the portfolio. Real correlation
+        requires price history, so this acts as a concentration proxy.
         """
         reasons: list[str] = []
         total = len(portfolio_positions) + 1
@@ -220,12 +223,18 @@ class PortfolioRiskManager:
         confidence_level: float = 0.95,
         portfolio_value: float = 100_000.0,
     ) -> float:
-        """Computes Historical Value-at-Risk (VaR) in USD."""
+        """Computes Historical Value-at-Risk (VaR) in USD using linear interpolation."""
         if not returns:
             return 0.0
         sorted_returns = sorted(returns)
-        idx = max(0, int((1.0 - confidence_level) * len(sorted_returns)))
-        loss_pct = abs(min(0.0, sorted_returns[idx]))
+        n = len(sorted_returns)
+        # Use linear interpolation for the percentile
+        rank = (1.0 - confidence_level) * (n - 1)
+        lower_idx = int(rank)
+        upper_idx = min(lower_idx + 1, n - 1)
+        fraction = rank - lower_idx
+        loss_pct = abs(min(0.0, sorted_returns[lower_idx] + fraction * (
+            sorted_returns[upper_idx] - sorted_returns[lower_idx])))
         return loss_pct * portfolio_value
 
     def calculate_expected_shortfall(
@@ -252,7 +261,7 @@ class PortfolioRiskManager:
     ) -> list[str]:
         """Run all portfolio checks and return combined reasons."""
         reasons: list[str] = []
-        reasons.extend(self.check_correlation(symbol, portfolio_positions))
+        reasons.extend(self.check_concentration(symbol, portfolio_positions))
         reasons.extend(
             self.check_allocation(symbol, portfolio_positions, self.settings.max_allocation_pct)
         )

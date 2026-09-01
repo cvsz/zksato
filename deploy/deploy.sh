@@ -18,6 +18,19 @@ if [ ! -f "$DEPLOY_DIR/.env.$ENVIRONMENT" ]; then
   exit 1
 fi
 
+# Validate env file permissions and content (no executable content, no shell injection)
+if [ "$(stat -c %a "$DEPLOY_DIR/.env.$ENVIRONMENT" 2>/dev/null || stat -f %Lp "$DEPLOY_DIR/.env.$ENVIRONMENT")" != "600" ] && \
+   [ "$(stat -c %a "$DEPLOY_DIR/.env.$ENVIRONMENT" 2>/dev/null || stat -f %Lp "$DEPLOY_DIR/.env.$ENVIRONMENT")" != "644" ] && \
+   [ "$(stat -c %a "$DEPLOY_DIR/.env.$ENVIRONMENT" 2>/dev/null || stat -f %Lp "$DEPLOY_DIR/.env.$ENVIRONMENT")" != "400" ]; then
+  echo "WARNING: Environment file has overly permissive permissions. Recommended: 600 or 400."
+fi
+
+# Validate no executable content or shell injection patterns
+if grep -qE '(;|\$\(|`|\||&&|\|\|)' "$DEPLOY_DIR/.env.$ENVIRONMENT" 2>/dev/null; then
+  echo "ERROR: Environment file contains potentially dangerous characters"
+  exit 1
+fi
+
 # Load environment
 set -a
 source "$DEPLOY_DIR/.env.$ENVIRONMENT"

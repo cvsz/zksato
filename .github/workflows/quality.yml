@@ -38,7 +38,7 @@ jobs:
       - name: Format check
         run: ruff format --check .
       - name: Type check
-        run: mypy src/zksato scripts || true
+        run: mypy src/zksato scripts
       - name: Test
         run: pytest -q -m "not uat and not performance" --cov=zksato --cov-report=xml
       - name: Upload coverage

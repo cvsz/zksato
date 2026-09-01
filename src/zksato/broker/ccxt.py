@@ -163,9 +163,12 @@ class CcxtBroker:
 
     def _resolve_exchange(self, symbol: str) -> str:
         for exchange_id in self.settings.ccxt_exchange_list:
-            market = self._exchanges[exchange_id].market(symbol)
-            if market:
-                return exchange_id
+            try:
+                market = self._exchanges[exchange_id].market(symbol)
+                if market:
+                    return exchange_id
+            except (Exception, AttributeError):
+                continue
         return self.settings.ccxt_exchange_list[0]
 
     @staticmethod
