@@ -2,6 +2,28 @@
 
 All notable changes to zksato are documented here.
 
+## [Unreleased]
+
+### Environment & UAT
+- Added environment-specific unlock/release runbook (`docs/UNLOCK-RELEASE.md`) covering dev/test/uat/prod.
+- Added `uat` to `Settings.environment` Literal.
+- Added `tests/test_uat.py` with Settrade UAT integration tests and schedule guard (Thu/Fri 09:00-17:00 Thailand time).
+- Added `tests/test_environment_controls.py` with API boundary tests for sandbox/live/kill-switch/production-readiness.
+- Updated `docs/ENVIRONMENTS.md` with exact credential/secret requirements per environment.
+- Updated `docs/UAT-CERTIFICATION.md` with sandbox availability, test suite reference, and SDK config.
+- Updated `docs/API-SPEC.md` with environment-specific behavior for `/v1/live-approvals`, `/v1/production/readiness`, and `/v1/orders`.
+- Updated `ROADMAP.md` with detailed status and blockers for incomplete external-gate items.
+- Fixed `tests/test_postgres_integration.py` to load `.env` via `python-dotenv`.
+
+### Broker Integration
+- Added `SettradeError` propagation in `SettradeBroker.__init__` preserving `.code` and `.status_code`.
+- Fixed `portfolio()` to handle string-encoded portfolio rows from Settrade SDK.
+- Added `account()` wrapper for `get_account_info`.
+
+### Infrastructure
+- Installed global PostgreSQL 18 on port 5433 for integration testing.
+- Configured `docker compose` restart policy to `unless-stopped` for zksato stack.
+
 ## [1.0.1] - 2026-08-31
 
 ### Post-release fixes
