@@ -2,9 +2,12 @@ import os
 from uuid import uuid4
 
 import pytest
+from dotenv import load_dotenv
 
 from zksato.domain import OrderRecord, OrderStatus, OrderType, Side
 from zksato.persistence import SqlStateStore
+
+load_dotenv()
 
 
 def test_postgres_round_trip_and_idempotency() -> None:
