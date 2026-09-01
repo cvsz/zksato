@@ -40,4 +40,9 @@ jobs:
       - name: Type check
         run: mypy src/zksato scripts || true
       - name: Test
-        run: pytest -q -m "not uat and not performance"
+        run: pytest -q -m "not uat and not performance" --cov=zksato --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@5.1.2
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false

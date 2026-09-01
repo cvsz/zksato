@@ -6,6 +6,15 @@
 - Revision:
 - SDK version:
 - Date/operator:
+- Sandbox schedule: Thu/Fri 09:00-17:00 Thailand time; Equity Day + Derivatives Day/Night; no Offline Order
+
+## Automated test evidence
+Run `tests/test_uaa t.py` during sandbox availability and attach results:
+- [ ] `test_uat_account_lookup` — account info retrieved
+- [ ] `test_uat_portfolio_lookup` — portfolio positions retrieved
+- [ ] `test_uat_limit_buy_and_cancel` — order accepted and cancelled
+- [ ] `test_uat_order_rejection_returns_understandable_error` — structured error code returned
+- [ ] `test_uat_duplicate_client_order_id_is_idempotent` — duplicate client order ID handled
 
 ## Required cases
 - [ ] authentication/read portfolio
@@ -45,3 +54,7 @@ For each case record:
 
 ## Limitations
 UAT does not imply production permission. Live equity mutation requires separate broker/legal authorization and a manually authorized canary.
+
+## SDK configuration
+- `settradesdkv2_config.txt` must set `environment=uat`
+- zksato reads credentials from `.env` / `/run/secrets` and passes them directly to `settrade_v2.Investor`

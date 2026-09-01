@@ -59,6 +59,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Operations | Request correlation response ID | Implemented | generated or propagated `X-Request-ID` |
 | Operations | Notification durable outbox | Implemented | failed item does not block unrelated batch items |
 | Operations | Account snapshot history | Implemented | auditor/admin endpoint |
+| Operations | Environment-specific unlock/release procedures | Implemented | dev/test/uat/prod matrices in `docs/UNLOCK-RELEASE.md` |
+| Operations | UAT integration test suite | Implemented | schedule-guarded tests in `tests/test_uat.py`; sandbox Thu/Fri 09:00-17:00 Thailand time |
 | TFEX | Isolated domain/risk/UAT mutation | Implemented | production mutation unavailable |
 | TFEX | Real broker UAT certification | External gate | credentials/account/broker evidence required |
 | Persistence | PostgreSQL durable system of record | Implemented | migrations validated on PostgreSQL 16 |

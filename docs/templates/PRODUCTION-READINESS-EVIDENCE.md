@@ -1,5 +1,7 @@
 # Production readiness evidence
 
+For environment-specific unlock/release procedures, see [`docs/UNLOCK-RELEASE.md`](docs/UNLOCK-RELEASE.md).
+
 ## Release identity
 - Commit SHA/tag:
 - Container/image digest:
