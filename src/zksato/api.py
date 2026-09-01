@@ -363,6 +363,18 @@ async def _health_payload() -> dict[str, object]:
         MARKET_FEED_AGE.set(min(usable_ages))
     OUTBOX_BACKLOG.set(len(store.pending_outbox(10_000)))
     audit_chain_valid = store.verify_audit_chain()
+
+    settrade_sdk_version = None
+    if settings.settrade_configured or settings.settrade_tfex_configured:
+        try:
+            from settrade_v2 import __version__ as sdk_version
+
+            settrade_sdk_version = sdk_version
+        except ImportError:
+            settrade_sdk_version = "not-installed"
+        except Exception as exc:
+            settrade_sdk_version = f"error: {exc}"
+
     healthy = (
         database_healthy and coordination_healthy and reconciliation_ready and audit_chain_valid
     )
@@ -372,6 +384,7 @@ async def _health_payload() -> dict[str, object]:
         "automation": automation.status.state,
         "settrade_configured": settings.settrade_configured,
         "settrade_tfex_configured": settings.settrade_tfex_configured,
+        "settrade_sdk_version": settrade_sdk_version,
         "persistence": "sql" if settings.database_url else "memory",
         "persistence_healthy": database_healthy,
         "coordination": "redis" if settings.redis_url else "local",
