@@ -95,6 +95,7 @@ from zksato.tfex import (
     TfexRiskDecision,
     TfexRiskEngine,
 )
+from zksato.ztrader import ZTraderAdvisoryIntent, ZTraderPreflightResponse
 from zksato.tradingview import (
     TradingViewAlertParser,
     TradingViewConfigStore,
@@ -688,6 +689,57 @@ async def risk_check(submission: OrderSubmission, _principal: ReadPrincipal) -> 
 async def risk_preflight(intent: OrderIntent, _principal: ReadPrincipal) -> RiskDecision:
     context = await service.risk_context_for(intent)
     return service.risk_engine.evaluate(intent, context)
+
+
+@app.post("/v1/integrations/ztrader/preflight", response_model=ZTraderPreflightResponse)
+async def ztrader_preflight(
+    payload: ZTraderAdvisoryIntent,
+    _principal: ReadPrincipal,
+) -> ZTraderPreflightResponse:
+    intent = payload.to_order_intent()
+    context = await service.risk_context_for(intent)
+    decision = service.risk_engine.evaluate(intent, context)
+    return ZTraderPreflightResponse(
+        trace_id=payload.trace_id,
+        intent=intent,
+        decision=decision,
+    )
+
+
+@app.post(
+    "/v1/integrations/ztrader/paper-orders",
+    response_model=OrderRecord,
+    status_code=201,
+)
+async def ztrader_submit_paper_order(
+    payload: ZTraderAdvisoryIntent,
+    principal: OrderPrincipal,
+) -> OrderRecord:
+    if settings.trading_mode != "paper":
+        raise HTTPException(
+            status_code=409,
+            detail="zTrader integration is restricted to paper mode",
+        )
+
+    intent = payload.to_order_intent()
+    context = await service.risk_context_for(intent)
+    submission = OrderSubmission(intent=intent, risk=context)
+    try:
+        return await service.submit(
+            submission,
+            automated=True,
+            actor=f"ztrader:{principal.subject}"[:128],
+        )
+    except RiskRejectedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "zTrader advisory intent rejected by deterministic risk",
+                "reasons": exc.decision.reasons,
+            },
+        ) from exc
+    except TradingModeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/v1/live-approvals", response_model=LiveApproval, status_code=201)
