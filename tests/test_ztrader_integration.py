@@ -1,7 +1,7 @@
 # ruff: noqa: I001
 from fastapi.testclient import TestClient
 
-from zksato.api import app
+from zksato.api import _ztrader_advisory_key, app, store
 
 
 client = TestClient(app)
@@ -48,6 +48,12 @@ def test_ztrader_advisory_intake_is_non_executing() -> None:
     assert body["risk_review_required"] is True
     assert body["canonical_executor"] == "zksato"
     assert body["mode"] == "paper"
+    persisted = store.get_runtime_state(_ztrader_advisory_key("signal-ztrader-001"))
+    assert persisted is not None
+    assert persisted["intent"]["account_ref"] == "paper-account-1"
+    assert persisted["intent"]["proposed_trade"]["mode"] == "paper"
+    assert persisted["review_state"] == "pending_risk_review"
+    assert persisted["submitted_by"]
 
 
 def test_ztrader_advisory_intake_rejects_live_mode() -> None:
@@ -62,3 +68,11 @@ def test_ztrader_advisory_intake_rejects_market_order() -> None:
     payload["proposed_trade"]["order_type"] = "market"  # type: ignore[index]
     response = client.post("/v1/integrations/ztrader/advisory-intents", json=payload)
     assert response.status_code == 422
+
+
+def test_ztrader_advisory_intake_returns_conflict_outside_paper(monkeypatch) -> None:
+    from zksato.api import settings
+
+    monkeypatch.setattr(settings, "trading_mode", "sandbox")
+    response = client.post("/v1/integrations/ztrader/advisory-intents", json=_payload())
+    assert response.status_code == 409
