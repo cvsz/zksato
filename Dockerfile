@@ -1,5 +1,9 @@
 FROM python:3.14-slim AS builder
 
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     VIRTUAL_ENV=/opt/venv
@@ -14,6 +18,10 @@ RUN python -m pip install --upgrade pip \
     && python -m pip install .
 
 FROM python:3.14-slim AS runtime
+
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 
 LABEL org.opencontainers.image.title="zksato" \
       org.opencontainers.image.description="Risk-first SET/TFEX trading control plane" \
