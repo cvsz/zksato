@@ -12,6 +12,15 @@ When `ZKSATO_AUTH_REQUIRED=true`, versioned endpoints require an authorized API 
 
 Session-authenticated mutations require `X-CSRF-Token` when enabled. Secrets/broker credentials are never returned.
 
+
+## zTrader advisory integration
+
+- `POST /v1/integrations/ztrader/advisory-intents` — authenticated `strategy_operator` (or higher) intake for canonical zTrader advisory intent v1.1.
+
+The route accepts **paper-only, limit-only advisory intent** and never grants broker execution permission. A valid accepted intent is durably persisted in runtime state by `signal_id` before HTTP 202 is returned, including the complete validated intent and authenticated submitter identity for later deterministic risk review.
+
+If the server is not in `paper` mode, the route fails with HTTP 409. `sandbox` or `live` therefore cannot be mistaken for queued acceptance. The response invariant remains `execution_allowed=false`; a separate trusted zksato risk/order path is required for any later paper-order lifecycle.
+
 ## Platform and health
 
 - `GET /livez` — process liveness
