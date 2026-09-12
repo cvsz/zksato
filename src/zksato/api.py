@@ -124,16 +124,16 @@ from zksato.video_ea_research import (
     rolling_walk_forward,
     sensitivity_analysis,
 )
-from zksato.ztrader_integration import (
-    ZTraderAdvisoryDecision,
-    ZTraderAdvisoryIntent,
-    evaluate_advisory_intent,
-)
 from zksato.video_ea_runtime import (
     VideoEaArmRequest,
     VideoEaCycleRuntime,
     VideoEaPriceObservation,
     VideoEaRuntimeControlResponse,
+)
+from zksato.ztrader_integration import (
+    ZTraderAdvisoryDecision,
+    ZTraderAdvisoryIntent,
+    evaluate_advisory_intent,
 )
 
 settings = get_settings()
