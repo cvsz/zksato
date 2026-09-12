@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import hashlib
 from threading import Lock, RLock
 from time import monotonic
 from typing import Annotated, Any
@@ -353,6 +354,27 @@ def _persist_video_ea_runtime(symbol: str, runtime: VideoEaCycleRuntime) -> None
     )
 
 
+
+def _ztrader_advisory_key(signal_id: str) -> str:
+    digest = hashlib.sha256(signal_id.encode("utf-8")).hexdigest()
+    return f"ztrader-advisory:{digest}"
+
+
+def _persist_ztrader_advisory(
+    intent: ZTraderAdvisoryIntent,
+    principal: Principal,
+) -> None:
+    store.save_runtime_state(
+        _ztrader_advisory_key(intent.signal_id),
+        {
+            "intent": intent.model_dump(mode="json"),
+            "submitted_by": principal.subject,
+            "auth_method": principal.auth_method,
+            "received_at": datetime.now(UTC).isoformat(),
+            "review_state": "pending_risk_review",
+        },
+    )
+
 async def _health_payload() -> dict[str, object]:
     database_healthy = store.health()
     coordination_healthy = await coordination.health()
@@ -486,14 +508,30 @@ async def auth_me(principal: ReadPrincipal) -> dict[str, str]:
 )
 async def ztrader_advisory_intake(
     intent: ZTraderAdvisoryIntent,
-    _principal: StrategyPrincipal,
+    principal: StrategyPrincipal,
 ) -> ZTraderAdvisoryDecision:
-    """Accept a paper-only advisory intent without granting execution permission."""
+    """Persist a paper-only advisory for deterministic risk review."""
     decision = evaluate_advisory_intent(
         intent,
         trading_mode=settings.trading_mode,
         kill_switch=settings.kill_switch,
     )
+    if not decision.accepted:
+        store.add_audit(
+            "ztrader.advisory_rejected",
+            f"zTrader advisory rejected for {intent.symbol}",
+            {
+                "signal_id": intent.signal_id,
+                "trace_id": intent.trace_id,
+                "tenant_id": intent.tenant_id,
+                "symbol": intent.symbol,
+                "submitted_by": principal.subject,
+                "reason": decision.reason,
+            },
+        )
+        raise HTTPException(status_code=409, detail=decision.reason)
+
+    _persist_ztrader_advisory(intent, principal)
     store.add_audit(
         "ztrader.advisory_received",
         f"zTrader advisory received for {intent.symbol}",
@@ -501,8 +539,11 @@ async def ztrader_advisory_intake(
             "signal_id": intent.signal_id,
             "trace_id": intent.trace_id,
             "tenant_id": intent.tenant_id,
+            "account_ref": intent.account_ref,
             "symbol": intent.symbol,
-            "accepted": decision.accepted,
+            "submitted_by": principal.subject,
+            "auth_method": principal.auth_method,
+            "accepted": True,
             "execution_allowed": False,
             "action": intent.action,
             "risk_score": intent.scores.risk,
