@@ -1,7 +1,7 @@
 # ruff: noqa: I001
 from fastapi.testclient import TestClient
 
-from zksato.api import _ztrader_advisory_key, app, store
+from zksato.api import _ztrader_advisory_key, app, settings, store
 
 
 client = TestClient(app)
@@ -71,8 +71,6 @@ def test_ztrader_advisory_intake_rejects_market_order() -> None:
 
 
 def test_ztrader_advisory_intake_returns_conflict_outside_paper(monkeypatch) -> None:
-    from zksato.api import settings
-
     monkeypatch.setattr(settings, "trading_mode", "sandbox")
     response = client.post("/v1/integrations/ztrader/advisory-intents", json=_payload())
     assert response.status_code == 409
