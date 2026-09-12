@@ -355,7 +355,6 @@ def _persist_video_ea_runtime(symbol: str, runtime: VideoEaCycleRuntime) -> None
     )
 
 
-
 def _ztrader_advisory_key(signal_id: str) -> str:
     digest = hashlib.sha256(signal_id.encode("utf-8")).hexdigest()
     return f"ztrader-advisory:{digest}"
@@ -375,6 +374,7 @@ def _persist_ztrader_advisory(
             "review_state": "pending_risk_review",
         },
     )
+
 
 async def _health_payload() -> dict[str, object]:
     database_healthy = store.health()
