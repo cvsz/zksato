@@ -22,7 +22,7 @@ class ProposedPaperTrade(BaseModel):
     max_position_usd: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_entry_band(self) -> "ProposedPaperTrade":
+    def validate_entry_band(self) -> ProposedPaperTrade:
         if (
             self.entry_low is not None
             and self.entry_high is not None
