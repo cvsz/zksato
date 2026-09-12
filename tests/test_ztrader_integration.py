@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 import zksato.api as api_module
 from zksato.api import app
