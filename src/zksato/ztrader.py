@@ -25,7 +25,7 @@ class ZTraderProposedTrade(BaseModel):
     max_position_usd: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_entry(self) -> "ZTraderProposedTrade":
+    def validate_entry(self) -> ZTraderProposedTrade:
         if self.entry_low is None and self.entry_high is None:
             raise ValueError("paper advisory intent requires entry_low or entry_high")
         if (
