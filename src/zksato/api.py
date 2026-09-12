@@ -124,6 +124,11 @@ from zksato.video_ea_research import (
     rolling_walk_forward,
     sensitivity_analysis,
 )
+from zksato.ztrader_integration import (
+    ZTraderAdvisoryDecision,
+    ZTraderAdvisoryIntent,
+    evaluate_advisory_intent,
+)
 from zksato.video_ea_runtime import (
     VideoEaArmRequest,
     VideoEaCycleRuntime,
@@ -472,6 +477,39 @@ async def auth_me(principal: ReadPrincipal) -> dict[str, str]:
         "role": principal.role.value,
         "auth_method": principal.auth_method,
     }
+
+
+@app.post(
+    "/v1/integrations/ztrader/advisory-intents",
+    response_model=ZTraderAdvisoryDecision,
+    status_code=202,
+)
+async def ztrader_advisory_intake(
+    intent: ZTraderAdvisoryIntent,
+    _principal: StrategyPrincipal,
+) -> ZTraderAdvisoryDecision:
+    """Accept a paper-only advisory intent without granting execution permission."""
+    decision = evaluate_advisory_intent(
+        intent,
+        trading_mode=settings.trading_mode,
+        kill_switch=settings.kill_switch,
+    )
+    store.add_audit(
+        "ztrader.advisory_received",
+        f"zTrader advisory received for {intent.symbol}",
+        {
+            "signal_id": intent.signal_id,
+            "trace_id": intent.trace_id,
+            "tenant_id": intent.tenant_id,
+            "symbol": intent.symbol,
+            "accepted": decision.accepted,
+            "execution_allowed": False,
+            "action": intent.action,
+            "risk_score": intent.scores.risk,
+            "confidence_score": intent.scores.confidence,
+        },
+    )
+    return decision
 
 
 @app.get("/v1/config")
