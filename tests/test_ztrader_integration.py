@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 from fastapi.testclient import TestClient
 
 from zksato.api import app
