@@ -95,7 +95,6 @@ from zksato.tfex import (
     TfexRiskDecision,
     TfexRiskEngine,
 )
-from zksato.ztrader import ZTraderAdvisoryIntent, ZTraderPreflightResponse
 from zksato.tradingview import (
     TradingViewAlertParser,
     TradingViewConfigStore,
@@ -131,6 +130,7 @@ from zksato.video_ea_runtime import (
     VideoEaPriceObservation,
     VideoEaRuntimeControlResponse,
 )
+from zksato.ztrader import ZTraderAdvisoryIntent, ZTraderPreflightResponse
 
 settings = get_settings()
 configure_logging(settings.log_level, json_logs=settings.log_json)
