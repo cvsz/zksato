@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-import zksato.api as api_module
+from zksato import api as api_module
 from zksato.api import app
 from zksato.ztrader import ZTraderAdvisoryIntent
 
