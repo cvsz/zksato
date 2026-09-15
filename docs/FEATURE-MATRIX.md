@@ -16,6 +16,7 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Trading | Native Agent OS & sandboxed sub-accounts | Implemented | isolated collateral budgets, zero-withdrawal enforcement, skill hub |
 | Trading | Confirmed manual live equity boundary | Implemented | deterministic risk + one-time approval |
 | Trading | Autonomous live-money execution | Intentionally unsupported | permanent safety invariant |
+| Integration | zTrader paper-only advisory intake | Implemented | authenticated strategy-operator; complete intent persisted by signal ID; execution permission always false; non-paper modes return 409 |
 | Execution | Durable idempotency | Implemented | `client_order_id` uniqueness |
 | Execution | Incremental fill ledger | Implemented | cumulative broker snapshots converted to new-fill deltas |
 | Execution | Reconciliation fail-closed gate | Implemented | unresolved orders keep execution gate closed |
