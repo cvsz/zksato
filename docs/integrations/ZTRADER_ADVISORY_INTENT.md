@@ -1,6 +1,6 @@
 # zTrader Advisory Intent Contract v1
 
-This contract is the only supported boundary from zTrader intelligence into deterministic execution.
+This document defines the planned contract boundary from zTrader intelligence into deterministic execution. The v1 schema is contract-only until a zksato API/adapter explicitly validates and accepts it; clients must not assume a submission endpoint or execution path exists solely because this contract is present.
 
 ## Identity invariants
 
@@ -18,12 +18,13 @@ Every crypto instrument is unambiguous:
 
 - The payload is advisory only.
 - `mode` is fixed to `paper` in v1.
+- `side` is explicit and limited to `buy` or `sell`; receivers must never infer trade direction from narrative or whale evidence.
 - zTrader cannot enable live execution.
 - zksato remains authoritative for risk, sizing, approvals, kill switches, broker state and reconciliation.
 - Missing/stale evidence lowers confidence; it is never treated as safe evidence.
 - Every request should carry a trace identifier when available.
 
-## Flow
+## Planned flow
 
 ```text
 cvsz/zworkforce/packages/ztrader
@@ -32,7 +33,7 @@ cvsz/zworkforce/packages/ztrader
   -> paper execution or deny
 ```
 
-Live execution requires a separately governed policy after backtest, OOS, paper and forward-validation evidence.
+The flow above becomes supported only after the receiving zksato route/adapter, validation, risk handoff and regression coverage are implemented and verified. Live execution requires a separately governed policy after backtest, OOS, paper and forward-validation evidence.
 
 ## Canonical dependencies
 
