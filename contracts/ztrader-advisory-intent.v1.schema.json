@@ -135,11 +135,18 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "mode"
+        "mode",
+        "side"
       ],
       "properties": {
         "mode": {
           "const": "paper"
+        },
+        "side": {
+          "enum": [
+            "buy",
+            "sell"
+          ]
         },
         "entry_low": {
           "type": [
