@@ -80,3 +80,42 @@ A feature is done only when it has: implementation, validation, failure behavior
 
 ## Documentation precedence
 When docs conflict, use this order: `SECURITY.md` and live-execution invariants → `AGENTS.md` → accepted ADRs → `docs/API-SPEC.md`/`docs/DATABASE.md`/`docs/DOMAIN-MODEL.md` → implementation notes. Fix the conflict in the same PR.
+
+## Multi-Account Git Governance & Sign-Off Workflow
+
+All automated agents and developers **must** strictly follow the authenticated multi-account separation of duties below. Credentials are managed via `/home/cvsz/.git-credentials`; account switching is performed exclusively through `gh auth switch`.
+
+> **Never commit, push, or merge under a different account than specified. Never skip GPG signing on commits.**
+
+### Step 1 — Author, GPG-Sign, and Open PR as `cvsz`
+
+```bash
+gh auth switch -u cvsz
+git checkout -b <feature-or-fix-branch>
+# Implement changes, run full validation suite
+python -m pip install -e '.[dev]'
+ruff check .
+pytest
+# Stage and sign-commit
+git add -A
+git commit -S -m "<type>(<scope>): <summary>"
+git push -u origin <feature-or-fix-branch>
+gh pr create --title "<title>" --body "<body>"
+```
+
+### Step 2 — Independent Audit, Review, & Approval as `policedbc`
+
+```bash
+gh auth switch -u policedbc
+# Review PR diff, security posture, CI status, and test evidence
+gh pr review <pr-number> --approve -b "Independent audit: <review-summary>"
+```
+
+### Step 3 — Squash Merge and Sync as `cvsz`
+
+```bash
+gh auth switch -u cvsz
+gh pr merge <pr-number> --squash --delete-branch
+git checkout main && git pull origin main
+```
+
