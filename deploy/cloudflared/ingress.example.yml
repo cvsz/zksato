@@ -1,0 +1,38 @@
+# zksato Cloudflare Tunnel ingress rule (example/documentation only).
+#
+# This file documents the intended ingress shape for adding zksato.zeaz.dev
+# to the shared `zwslcore` tunnel. Real tunnel credentials live in
+# /etc/cloudflared/token (managed by systemd cloudflared.service) and are
+# NEVER committed here.
+#
+# Architecture:
+#   Cloudflare Edge
+#     → zwslcore tunnel (45667e7e-7383-4265-b53e-6a9e770a8554)
+#       → zksato.zeaz.dev → http://127.0.0.1:8089 (NGINX)
+#                              ├─ /                     → Frontend :3016
+#                              ├─ /v1/* /health /livez  → API      :9569
+#                              ├─ /readyz /metrics       → API      :9569
+#                              └─ /dash/                 → Dashboard:5174
+#
+# To apply, merge this rule into the tunnel's remote configuration via:
+#   scripts/cloudflare-tunnel-update.sh
+# Or manually via the Cloudflare Zero Trust dashboard.
+#
+# Insert BEFORE the final catch-all `service: http_status:404` rule.
+# Preserve all existing ingress rules unchanged.
+
+ingress:
+  # --- Existing rules (preserve as-is) ---
+  # - hostname: moopiew.zeaz.dev
+  #   ...all existing routes unchanged...
+
+  # --- New: zksato ---
+  - hostname: zksato.zeaz.dev
+    service: http://127.0.0.1:8089
+    originRequest:
+      noTLSVerify: false
+      connectTimeout: 10s
+      tcpKeepAlive: 30s
+
+  # --- Catch-all (must remain last) ---
+  - service: http_status:404
