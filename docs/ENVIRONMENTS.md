@@ -3,6 +3,23 @@
 ## Local development (`dev`)
 Default `paper`, local/memory or Docker PostgreSQL/Redis, no production credentials. Port `9569`.
 
+**Local infrastructure services:**
+- Dedicated Docker Compose: launches ephemeral `postgres` and `redis` containers locally.
+- Shared local infrastructure (`zpostgresql` & `zredis`):
+  - Shared PostgreSQL container: `zpostgresql` on `zPostgreSQL_network` (or `172.26.0.5:5432`)
+    - `ZKSATO_DATABASE_URL=postgresql+psycopg://<username>:<password>@zpostgresql:5432/<db_name>` (in-docker) or `postgresql+psycopg://<username>:<password>@172.26.0.5:5432/<db_name>` (host)
+  - Shared Redis container: `zredis` (`zRedis`) on `zPostgreSQL_network` (or `172.26.0.3:6379`)
+    - Requires Redis ACL credentials (e.g. `repo` or dedicated user).
+    - `ZKSATO_REDIS_URL=redis://<acl_user>:<password>@zredis:6379/0` (in-docker) or `redis://<acl_user>:<password>@172.26.0.3:6379/0` (host)
+
+**Public Ingress Routing (`https://zksato.zeaz.dev/*`):**
+When routed through production/staging reverse proxies (NGINX/Cloudflare):
+- Frontend: `https://zksato.zeaz.dev/`
+- API / Engine: `https://zksato.zeaz.dev/v1/*` (or `https://zksato-api.zeaz.dev`)
+- Health / Readiness: `https://zksato.zeaz.dev/health`, `/livez`, `/readyz`
+- Market Terminal: `https://zksato.zeaz.dev/v1/market/terminal`
+- Dashboard: `https://zksato.zeaz.dev/dash/` (or `https://zksato-dash.zeaz.dev`)
+
 **Required secrets/credentials:**
 - None for paper mode
 - `ZKSATO_SETTRADE_APP_ID`, `ZKSATO_SETTRADE_APP_SECRET`, `ZKSATO_SETTRADE_BROKER_ID`, `ZKSATO_SETTRADE_ACCOUNT_NO`, `ZKSATO_SETTRADE_PIN` — sandbox only, never production

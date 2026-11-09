@@ -51,6 +51,29 @@ PostgreSQL unique constraints provide restart-safe idempotency. Redis may coordi
 
 **SQLite concurrency:** Uses native `ON CONFLICT DO UPDATE` for both PostgreSQL and SQLite dialects to avoid SELECT→INSERT race conditions in the upsert path.
 
+## Shared Local Infrastructure (`zpostgresql` and `zredis`)
+
+When integrating with local shared infrastructure:
+- **PostgreSQL (`zpostgresql`)**: Accessible over container network `zPostgreSQL_network` (or host bridge at `172.26.0.5:5432` / `localhost:5432` if port forwarded).
+  - Database URL format: `postgresql+psycopg://<user>:<password>@zpostgresql:5432/<db_name>` (in Docker) or `postgresql+psycopg://<user>:<password>@172.26.0.5:5432/<db_name>` (from host).
+- **Redis (`zredis` / `zRedis`)**: Accessible over `zPostgreSQL_network` (or host bridge at `172.26.0.3:6379`). Uses Redis 7.4 ACL authentication.
+  - Redis URL format: `redis://<username>:<password>@zredis:6379/<db_index>` (in Docker) or `redis://<username>:<password>@172.26.0.3:6379/<db_index>` (from host).
+
+## Public Ingress and Endpoints (`https://zksato.zeaz.dev/*`)
+
+In production and reverse-proxy deployment environments:
+- **Operator Portal / UI**: `https://zksato.zeaz.dev/`
+- **TradingView Market Terminal**: `https://zksato.zeaz.dev/v1/market/terminal`
+- **Health Check & Readiness**: `https://zksato.zeaz.dev/health`, `https://zksato.zeaz.dev/livez`, `https://zksato.zeaz.dev/readyz`
+- **Native Agent OS Skills & Execution**: `https://zksato.zeaz.dev/v1/agent-os/skills`, `https://zksato.zeaz.dev/v1/agent-os/execute`
+- **Prometheus Telemetry**: `https://zksato.zeaz.dev/metrics`
+- **Vite Lite Dashboard**: `https://zksato.zeaz.dev/dash/`
+- **API Documentation**: `https://zksato.zeaz.dev/docs`, `https://zksato.zeaz.dev/openapi.json`
+- **Auth Session & RBAC**: `https://zksato.zeaz.dev/v1/auth/session`, `https://zksato.zeaz.dev/v1/auth/me`
+- **TradingView Webhooks**: `https://zksato.zeaz.dev/v1/webhooks/tradingview`
+
+Ensure `ZKSATO_ALLOWED_ORIGINS` and `ZKSATO_ALLOWED_HOSTS` include `https://zksato.zeaz.dev` and `zksato.zeaz.dev`.
+
 ## Backup and recovery
 
 Use `scripts/backup_postgres.sh` and `scripts/restore_postgres.sh` only against an explicitly selected database. After restore, apply every migration, start with broker-facing operation disabled, verify health/audit state, and complete reconciliation before normal operation. The full procedure is in `docs/DR-RUNBOOK.md`.
