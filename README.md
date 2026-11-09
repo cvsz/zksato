@@ -20,6 +20,7 @@ zksato separates **market data → deterministic strategy/research → determini
 - TradingView webhook ingestion with HMAC-SHA256 signature verification and automated alert/signal dispatching
 - Telegram asynchronous alert and trade notification delivery
 - Dark TradingView Market Terminal with read-only sandbox mode and CSP headers
+- Native Agent OS with isolated sub-accounts, non-bypassable `WITHDRAW = False` invariant, and financial intelligence skill hub (real-time quotes, technical indicators, account telemetry, order cancellation, and risk-checked order submission)
 - restart-safe paper cash/holdings/P&L and client-order identity
 - paper market orders plus resting limit orders that can match on later quotes
 - configurable deterministic per-quote partial fills and quote-side price improvement
@@ -42,6 +43,17 @@ Deterministic strategy catalog:
 - momentum
 - MACD cross
 - breakout
+- scalp
+- swing
+- position
+- VWAP
+- stochastic
+- Williams %R
+- ATR channel
+- statistical arbitrage (z-score dispersion)
+- TFEX calendar / basis spread
+- LLM sentiment
+- multi-factor
 
 Indicator library includes SMA, EMA, RSI, ATR, ADX, Bollinger Bands, VWAP, MACD, rate-of-change, and realized volatility.
 
@@ -134,6 +146,7 @@ Machine clients can use `X-API-Key` or Bearer credentials. Browsers can exchange
 - Market/reference: `/v1/market/*`, `/v1/market-terminal`, `/v1/reference/instruments`, `/v1/scanner`
 - Automation: `/v1/bot/start|pause|resume|stop|tick`, `/v1/bot`
 - Risk/orders: `/v1/risk/*`, `/v1/orders*`, `/v1/reconcile`, `/v1/portfolio`
+- Native Agent OS: `/v1/agent-os/subaccounts*`, `/v1/agent-os/skills*`, `/v1/agent-os/execute`
 - Prediction markets: `/v1/prediction/*`
 - CCXT / External feeds: `/v1/ccxt/*`
 - Integrations/webhooks: `/v1/webhooks/tradingview`, `/v1/notifications/telegram`
