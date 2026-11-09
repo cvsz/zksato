@@ -39,21 +39,30 @@ This checklist tracks complete system verification, financial safety guarantees,
 
 - [x] **PR #46** (`feat(security): comprehensive audit, financial invariants, and workflow security hardening`): Approved by `policedbc` & Merged into `main` (`91ddd0e`).
 - [x] **PR #47** (`fix(deploy): resolve shellcheck warnings and harden environment loading in deploy.sh`): Approved by `policedbc` & Merged into `main` (`934e938`).
+- [x] **PR #48** (`docs: add implementation-checklist.md covering complete audit and release validation`): Approved by `policedbc` & Merged into `main` (`6d1e471`).
+- [x] **PR #49** (`chore(agents): add/update multi-account Git governance workflow in all agent instruction files`): Approved by `policedbc` & Merged into `main` (`60e661e`).
+- [x] **PR #51** (`chore(makefile): expand Makefile to cover all project features`): Approved by `policedbc` & Merged into `main` (`41d06ee`).
+- [x] **PR #52** (`feat(strategy): add statistical arbitrage and TFEX calendar spread strategies`): Approved by `policedbc` & Merged into `main` (`b38d675`).
+- [x] **PR #53** (`build(deps-dev): bump ruff to 0.16.6 and zizmor to 1.30.0`): Approved by `policedbc` & Merged into `main` (`4646633`).
+- [x] **PR #54** (`docs(strategy): update feature matrix and strategy catalog`): Approved by `policedbc` & Merged into `main` (`1e177a6`).
+- [x] **PR #55** (`docs: update README.md with Agent OS endpoints, full strategy catalog, and system capabilities`): Approved by `policedbc` & Merged into `main` (`e8f679c`).
 - [x] **PR #43** (Unsafe reviewer workflow removal): Closed (superceded by PR #46).
+- [x] **PR #36** (next bump): Closed (superceded by PR #46).
 - [x] **PR #32** (zTrader paper integration): Closed (superceded by PR #46).
 - [x] **PR #31** (zTrader advisory boundary docs): Closed (superceded by PR #46).
+- [x] **PR #26** (python deps bump): Closed (superceded by PR #53).
 
 ---
 
 ## 4. Verification & Quality Gates
 
-- [x] **Ruff Linter**: `ruff check .` passes with 0 errors and 0 warnings.
+- [x] **Ruff Linter**: `ruff check .` passes with 0 errors and 0 warnings (ruff 0.16.6).
 - [x] **ShellCheck**: `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` passes with 0 warnings.
-- [x] **Python Pytest Suite**: 358 passed, 6 skipped.
+- [x] **Python Pytest Suite**: 360 passed, 1 skipped, 5 deselected.
 - [x] **Financial Invariants Suite**: `pytest tests/test_financial_invariants.py` passes all property-based tests.
 - [x] **Workflow Security Suite**: `pytest tests/test_workflow_security.py` passes.
+- [x] **Zizmor Security Audit**: `zizmor .github/workflows` passes with 0 findings.
 - [x] **Performance Probe Suite**: `pytest tests/test_performance_probe.py` passes.
-- [x] **Frontend Production Build**: `cd frontend && npm run build` compiles Next.js 16.3.3 static and dynamic routes cleanly.
 - [x] **Docker Compose Validation**: `docker compose config` validates cleanly.
 
 ---
