@@ -1,7 +1,7 @@
 # Strategy framework
 
 ## Current strategies
-EMA crossover, RSI mean reversion, breakout.
+EMA crossover, RSI mean reversion, breakout, Bollinger reversion, MACD crossover, momentum, scalp, swing, position, VWAP, stochastic, Williams %R, ATR channel, statistical arbitrage (z-score dispersion), and TFEX calendar/basis spread.
 
 ## Target plugin contract
 Typed `StrategyConfig` + immutable strategy version + required lookback + `evaluate(history, context) -> Signal/Hold`.
