@@ -4,7 +4,8 @@ services:
     ports:
       - "9569:9569"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       ZKSATO_DATABASE_URL: "postgresql+psycopg://zksato:${POSTGRES_PASSWORD:-zksato_dev_only}@postgres:5432/zksato"
       ZKSATO_REDIS_URL: "redis://redis:6379/0"
