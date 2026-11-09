@@ -62,6 +62,7 @@ packages = ["src/zksato"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [

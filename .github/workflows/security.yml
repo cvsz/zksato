@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/gitleaks.tar.gz"
-          curl --fail --silent --show-error --location \
+          curl --fail --silent --show-error --location --retry 5 --retry-connrefused \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             --output "$archive"
           printf '%s  %s\n' "$GITLEAKS_SHA256" "$archive" | sha256sum --check --strict
@@ -107,11 +107,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           languages: python
           build-mode: none
       - name: Analyze
-        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: /language:python
