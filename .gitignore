@@ -20,3 +20,4 @@ deploy/.env.production
 deploy/secrets/
 deploy/data/
 docker-compose.override.yml
+.env.bak
