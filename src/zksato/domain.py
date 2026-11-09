@@ -289,6 +289,10 @@ class StrategyConfig(BaseModel):
     williams_r_period: int = Field(default=14, ge=2, le=200)
     williams_r_overbought: float = Field(default=-20.0, ge=-50.0, le=0.0)
     williams_r_oversold: float = Field(default=-80.0, ge=-100.0, le=-50.0)
+    stat_arb_period: int = Field(default=20, ge=3, le=500)
+    stat_arb_zscore_entry: float = Field(default=2.0, ge=0.5, le=10.0)
+    stat_arb_zscore_exit: float = Field(default=0.5, ge=0.0, le=5.0)
+    tfex_spread_threshold: float = Field(default=2.0, ge=0.1, le=100.0)
 
 
 class StrategyVersion(BaseModel):

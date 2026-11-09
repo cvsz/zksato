@@ -72,6 +72,10 @@ class StrategyEngine:
             return self._williams_r_strategy(symbol, prices, config, candles)
         if config.name == "atr_channel":
             return self._atr_channel(symbol, prices, config, candles)
+        if config.name == "stat_arb":
+            return self._stat_arb(symbol, prices, config)
+        if config.name == "tfex_spread":
+            return self._tfex_spread(symbol, prices, config)
 
         raise ValueError(f"unknown strategy: {config.name}")
 
@@ -787,4 +791,102 @@ class StrategyEngine:
             SignalAction.HOLD,
             0.25,
             f"inside ATR channel [{lower_channel:.2f}, {upper_channel:.2f}]",
+        )
+
+    def _stat_arb(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
+        """Statistical arbitrage / mean-reversion via price rolling z-score.
+
+        BUY when normalized price is severely depressed (z-score <= -entry).
+        SELL when normalized price is stretched above mean (z-score >= entry).
+        HOLD otherwise or when within mean exit threshold.
+        """
+        price = prices[-1]
+        period = config.stat_arb_period
+        if len(prices) < period:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "insufficient history for stat_arb"
+            )
+        window = prices[-period:]
+        mean = sum(window) / period
+        variance = sum((p - mean) ** 2 for p in window) / period
+        std = variance**0.5
+        if std < 1e-9:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "zero price dispersion"
+            )
+        zscore = (price - mean) / std
+
+        if zscore <= -config.stat_arb_zscore_entry:
+            confidence = min(0.95, 0.5 + abs(zscore) * 0.1)
+            reason = f"stat_arb oversold z={zscore:.2f} <= -{config.stat_arb_zscore_entry}"
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                confidence,
+                reason,
+            )
+        if zscore >= config.stat_arb_zscore_entry:
+            confidence = min(0.95, 0.5 + abs(zscore) * 0.1)
+            reason = f"stat_arb overbought z={zscore:.2f} >= {config.stat_arb_zscore_entry}"
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                confidence,
+                reason,
+            )
+        return self._signal(
+            symbol,
+            config,
+            price,
+            SignalAction.HOLD,
+            0.25,
+            f"stat_arb neutral z-score={zscore:.2f}",
+        )
+
+    def _tfex_spread(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
+        """TFEX series basis / calendar spread deviation strategy.
+
+        Uses difference between current price and rolling short EMA to represent basis deviation.
+        Reverts when deviation exceeds threshold in points.
+        """
+        price = prices[-1]
+        period = config.fast_period
+        ema_val = ema(prices, period)
+        if ema_val is None:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "unable to compute basis EMA"
+            )
+        basis = price - ema_val
+        threshold = config.tfex_spread_threshold
+        if basis <= -threshold:
+            confidence = min(0.9, 0.5 + abs(basis) / (threshold * 2))
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.BUY,
+                confidence,
+                f"TFEX basis discount {basis:.2f} pts <= -{threshold:.2f} pts",
+            )
+        if basis >= threshold:
+            confidence = min(0.9, 0.5 + abs(basis) / (threshold * 2))
+            return self._signal(
+                symbol,
+                config,
+                price,
+                SignalAction.SELL,
+                confidence,
+                f"TFEX basis premium {basis:.2f} pts >= {threshold:.2f} pts",
+            )
+        return self._signal(
+            symbol,
+            config,
+            price,
+            SignalAction.HOLD,
+            0.25,
+            f"TFEX basis normal ({basis:.2f} pts)",
         )
