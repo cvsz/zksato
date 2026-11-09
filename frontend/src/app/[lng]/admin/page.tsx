@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { Toast } from '../../../components/Toast';
+import { EnvControlPanel } from '../../../components/admin/EnvControlPanel';
 import { getBackendUrl } from '../../../utils/api';
 
 interface SystemHealth {
@@ -64,7 +65,7 @@ interface WebhookRecord {
   created_at?: string;
 }
 
-type TabKey = 'overview' | 'performance' | 'bots' | 'risk' | 'history' | 'webhooks';
+type TabKey = 'overview' | 'performance' | 'bots' | 'risk' | 'history' | 'webhooks' | 'env';
 
 function StatusDot({ ok, pulse = false }: { ok: boolean; pulse?: boolean }) {
   return (
@@ -503,9 +504,9 @@ export default function AdminDashboardPage() {
           <h1 className="h2 font-mono" style={{ margin: 0 }}>zksato Admin</h1>
           <div className="divider" style={{ width: '1px', height: '24px' }} />
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {(['overview', 'performance', 'bots', 'risk', 'history', 'webhooks'] as TabKey[]).map((tKey) => (
+            {(['overview', 'performance', 'bots', 'risk', 'history', 'webhooks', 'env'] as TabKey[]).map((tKey) => (
               <button key={tKey} className={`dashboard-tab ${tab === tKey ? 'active' : ''}`} onClick={() => setTab(tKey)}>
-                {tKey.charAt(0).toUpperCase() + tKey.slice(1)}
+                {tKey === 'env' ? '.ENV Config' : tKey.charAt(0).toUpperCase() + tKey.slice(1)}
               </button>
             ))}
           </div>
@@ -535,6 +536,7 @@ export default function AdminDashboardPage() {
         {tab === 'risk' && renderRisk()}
         {tab === 'history' && renderHistory()}
         {tab === 'webhooks' && renderWebhooks()}
+        {tab === 'env' && <EnvControlPanel />}
       </div>
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}

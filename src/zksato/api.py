@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from threading import Lock, RLock
 from time import monotonic
 from typing import Annotated, Any
@@ -208,11 +209,13 @@ strategy_access = require_roles(auth, Role.STRATEGY_OPERATOR)
 order_access = require_roles(auth, Role.ORDER_APPROVER)
 risk_access = require_roles(auth, Role.RISK_ADMIN)
 auditor_access = require_roles(auth, Role.AUDITOR, Role.PLATFORM_ADMIN)
+platform_access = require_roles(auth, Role.PLATFORM_ADMIN)
 ReadPrincipal = Annotated[Principal, Depends(read_access)]
 StrategyPrincipal = Annotated[Principal, Depends(strategy_access)]
 OrderPrincipal = Annotated[Principal, Depends(order_access)]
 RiskPrincipal = Annotated[Principal, Depends(risk_access)]
 AuditorPrincipal = Annotated[Principal, Depends(auditor_access)]
+PlatformPrincipal = Annotated[Principal, Depends(platform_access)]
 LiveApprovalHeader = Annotated[str | None, Header(alias="X-Live-Approval-Id")]
 
 
@@ -1603,3 +1606,140 @@ async def telegram_webhook(payload: dict[str, Any]) -> dict[str, bool]:
             )
 
     return {"ok": True}
+
+
+# ── .env Control Panel Endpoints ──────────────────────────────────────────────
+
+ENV_PATH = Path(".env")
+SECRET_SUBSTRINGS = (
+    "secret",
+    "token",
+    "password",
+    "pin",
+    "key",
+    "passphrase",
+    "webhook_secret",
+)
+
+
+def _is_secret_key(key: str) -> bool:
+    key_lower = key.lower()
+    return any(sub in key_lower for sub in SECRET_SUBSTRINGS)
+
+
+@app.get("/v1/admin/env")
+async def get_env_config(_principal: PlatformPrincipal) -> dict[str, object]:
+    """Retrieve all configuration keys from .env. Sensitive keys are masked."""
+    if not ENV_PATH.exists():
+        return {"items": [], "raw": ""}
+
+    raw_text = ENV_PATH.read_text(encoding="utf-8")
+    items: list[dict[str, object]] = []
+
+    for line in raw_text.splitlines():
+        line_clean = line.strip()
+        if not line_clean or line_clean.startswith("#"):
+            continue
+        if "=" in line:
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip()
+            is_secret = _is_secret_key(key)
+            items.append({
+                "key": key,
+                "value": "********" if is_secret and val else val,
+                "is_secret": is_secret,
+                "is_configured": bool(val),
+            })
+
+    return {"items": items, "raw": raw_text}
+
+
+@app.post("/v1/admin/env")
+async def update_env_config(
+    updates: dict[str, str],
+    principal: PlatformPrincipal,
+) -> dict[str, object]:
+    """Update specific key-value pairs in .env. Preserves formatting and comments."""
+    if not ENV_PATH.exists():
+        ENV_PATH.touch(mode=0o600)
+
+    raw_text = ENV_PATH.read_text(encoding="utf-8")
+    lines = raw_text.splitlines()
+    updated_keys: set[str] = set()
+    new_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, val = line.split("=", 1)
+            key = key.strip()
+            val = val.strip()
+            if key in updates:
+                new_val = updates[key].strip()
+                # If secret key and user submitted placeholder '********', keep existing
+                if _is_secret_key(key) and new_val == "********":
+                    new_lines.append(f"{key}={val}")
+                else:
+                    new_lines.append(f"{key}={new_val}")
+                updated_keys.add(key)
+                continue
+        new_lines.append(line)
+
+    # Append any brand new keys not present in the file
+    for key, val in updates.items():
+        if key not in updated_keys:
+            val_clean = val.strip()
+            if not (_is_secret_key(key) and val_clean == "********"):
+                new_lines.append(f"{key}={val_clean}")
+                updated_keys.add(key)
+
+    # Safety: atomic write with backup
+    bak_path = Path(".env.bak")
+    bak_path.write_text(raw_text, encoding="utf-8")
+    ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    ENV_PATH.chmod(0o600)
+
+    store.add_audit(
+        "admin.env.updated",
+        f".env updated by {principal.subject}",
+        {"updated_keys": sorted(list(updated_keys))},
+    )
+
+    return {
+        "status": "updated",
+        "updated_keys": sorted(list(updated_keys)),
+        "count": len(updated_keys),
+    }
+
+
+@app.post("/v1/admin/env/raw")
+async def update_env_raw(
+    payload: dict[str, str],
+    principal: PlatformPrincipal,
+) -> dict[str, object]:
+    """Directly update entire raw .env text with syntax validation and backup."""
+    raw_content = payload.get("content", "")
+    # Basic validation: ensure lines with = have valid variable naming
+    for idx, line in enumerate(raw_content.splitlines(), start=1):
+        line_s = line.strip()
+        if line_s and not line_s.startswith("#") and "=" in line_s:
+            k = line_s.split("=", 1)[0].strip()
+            if not k.isidentifier():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Line {idx}: invalid environment variable identifier '{k}'",
+                )
+
+    if ENV_PATH.exists():
+        Path(".env.bak").write_text(ENV_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+
+    ENV_PATH.write_text(raw_content, encoding="utf-8")
+    ENV_PATH.chmod(0o600)
+
+    store.add_audit(
+        "admin.env.raw_updated",
+        f".env raw content updated by {principal.subject}",
+    )
+    return {"status": "saved"}
+
