@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { getBackendUrl } from '../../utils/api';
+import { getBackendUrl, getAuthHeaders } from '../../utils/api';
 
 interface EnvItem {
   key: string;
@@ -26,8 +26,17 @@ export function EnvControlPanel() {
     setLoading(true);
     setStatusMsg(null);
     try {
-      const res = await fetch(`${backendUrl}/v1/admin/env`);
+      const authHeaders = getAuthHeaders();
+      const res = await fetch(`${backendUrl}/v1/admin/env`, {
+        credentials: 'include',
+        headers: {
+          ...authHeaders,
+        },
+      });
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Authentication required. Please log in with your API key at /login');
+        }
         throw new Error(`Failed to load .env: ${res.statusText}`);
       }
       const data = await res.json();
@@ -54,9 +63,14 @@ export function EnvControlPanel() {
     setSaving(true);
     setStatusMsg(null);
     try {
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`${backendUrl}/v1/admin/env`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify(formValues),
       });
       if (!res.ok) {
@@ -78,9 +92,14 @@ export function EnvControlPanel() {
     setSaving(true);
     setStatusMsg(null);
     try {
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`${backendUrl}/v1/admin/env/raw`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders,
+        },
         body: JSON.stringify({ content: rawText }),
       });
       if (!res.ok) {

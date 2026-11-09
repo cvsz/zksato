@@ -13,7 +13,7 @@ export function getBackendUrl(): string {
   }
   const host = window.location.hostname;
   if (host.includes('zksato.zeaz.dev')) {
-    return 'https://zksato-api.zeaz.dev';
+    return 'https://zksato.zeaz.dev';
   }
   if (host === 'localhost' || host === '127.0.0.1') {
     return 'http://localhost:9569';
@@ -23,4 +23,15 @@ export function getBackendUrl(): string {
     return envUrl;
   }
   return 'http://localhost:9569';
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (typeof window !== 'undefined') {
+    const key = sessionStorage.getItem('zksato_api_key');
+    if (key) {
+      headers['X-API-Key'] = key;
+    }
+  }
+  return headers;
 }
