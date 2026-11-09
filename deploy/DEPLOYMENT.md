@@ -21,9 +21,22 @@ Frontend (Next.js 16)      /metrics, /readyz          Dashboard (Vite)
                    ┌──────────────┴──────────────┐
                    │                             │
                    ▼                             ▼
-            PostgreSQL 16                      Redis 7
-         (Durable State Store)         (Coordination / Cache)
+         PostgreSQL (zpostgresql)         Redis (zredis / zRedis)
+         (Durable State Store)            (Coordination / Cache)
 ```
+
+---
+
+## 1.1 Local Shared Infrastructure Integration (`zpostgresql` & `zredis`)
+
+Instead of spinning up isolated database and redis containers, `zksato` can connect to the shared local containers:
+- **PostgreSQL**: `zpostgresql` (image: `postgres:15-alpine`, network: `zPostgreSQL_network`)
+  - Connection string: `postgresql+psycopg://<username>:<password>@zpostgresql:5432/<db_name>`
+  - Bridge IP: `172.26.0.5:5432`
+- **Redis**: `zredis` / `zRedis` (image: `redis:7.4.12-alpine`, network: `zPostgreSQL_network`)
+  - Uses ACL-based security: `redis://<user>:<password>@zredis:6379/0`
+  - Bridge IP: `172.26.0.3:6379`
+- **Docker Compose Network**: Join `zPostgreSQL_network` as an external network to resolve container names `zpostgresql` and `zredis`.
 
 ---
 
