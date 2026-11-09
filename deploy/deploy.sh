@@ -8,6 +8,7 @@ set -euo pipefail
 ENVIRONMENT="${1:-production}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+export PROJECT_ROOT
 DEPLOY_DIR="$SCRIPT_DIR"
 
 echo "Deploying zksato to $ENVIRONMENT environment..."
@@ -33,6 +34,7 @@ fi
 
 # Load environment
 set -a
+# shellcheck source=/dev/null
 source "$DEPLOY_DIR/.env.$ENVIRONMENT"
 set +a
 
@@ -105,7 +107,7 @@ for i in $(seq 1 $HEALTH_CHECK_RETRIES); do
     echo "Health check passed"
     break
   fi
-  if [ $i -eq $HEALTH_CHECK_RETRIES ]; then
+  if [ "$i" -eq "$HEALTH_CHECK_RETRIES" ]; then
     echo "ERROR: Health check failed after $HEALTH_CHECK_RETRIES retries"
     docker compose -f docker-compose.prod.yml logs --tail=50 api
     exit 1
