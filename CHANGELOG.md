@@ -4,6 +4,22 @@ All notable changes to zksato are documented here.
 
 ## [Unreleased]
 
+### Quantitative Strategies
+- Added Statistical Arbitrage (`stat_arb`): Rolling price z-score dispersion mean-reversion with configurable entry/exit thresholds.
+- Added TFEX Basis / Calendar Spread Strategy (`tfex_spread`): Futures prompt contract deviation relative to short-term exponential basis trends.
+- Extended `StrategyConfig` schema in `src/zksato/domain.py` with bounded parameters: `stat_arb_period`, `stat_arb_zscore_entry`, `stat_arb_zscore_exit`, `tfex_spread_threshold`.
+
+### Native Agent OS & Automation
+- Native Agent OS architecture with `AgentSubAccount`, `AgentSkillHub`, and `AgentExecutionEngine`.
+- Enforced hardcoded `WITHDRAW = False` invariant on all agent sub-accounts.
+- Financial intelligence skill hub: quotes, indicators (RSI/EMA/MACD), account telemetry, order cancellation, and risk-checked order submission.
+- Exposed full control plane REST endpoints under `/v1/agent-os/*`.
+
+### Developer Tooling & Build System
+- Completely expanded `Makefile` with targets for install, quality, test, resilience, security, database migrations, DR drills, container operations, and full CI gates.
+- Updated `ruff` (0.16.5 -> 0.16.6) and `zizmor` (1.29.0 -> 1.30.0) with clean verification.
+- Enforced strict three-step authenticated multi-account Git governance (`cvsz` -> `policedbc` -> `cvsz`) across all agent instruction files (`AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `GIMINI.md`, `AGY.md`, `KILO.md`, `OPENCODE.md`).
+
 ### Security & Hardening
 - Fixed mypy CI gate: removed `|| true` so type errors now fail CI.
 - Added env file validation in `deploy/deploy.sh`: permission checks and injection pattern detection.
