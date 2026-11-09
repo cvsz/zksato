@@ -355,8 +355,17 @@ def _persist_video_ea_runtime(symbol: str, runtime: VideoEaCycleRuntime) -> None
     )
 
 
-def _ztrader_advisory_key(signal_id: str) -> str:
-    digest = hashlib.sha256(signal_id.encode("utf-8")).hexdigest()
+def _ztrader_advisory_key(
+    signal_id: str,
+    *,
+    tenant_id: str | None = None,
+    account_ref: str | None = None,
+) -> str:
+    if tenant_id and account_ref:
+        namespaced = f"{tenant_id}:{account_ref}:{signal_id}"
+    else:
+        namespaced = signal_id
+    digest = hashlib.sha256(namespaced.encode("utf-8")).hexdigest()
     return f"ztrader-advisory:{digest}"
 
 
@@ -365,7 +374,11 @@ def _persist_ztrader_advisory(
     principal: Principal,
 ) -> None:
     store.save_runtime_state(
-        _ztrader_advisory_key(intent.signal_id),
+        _ztrader_advisory_key(
+            intent.signal_id,
+            tenant_id=intent.tenant_id,
+            account_ref=intent.account_ref,
+        ),
         {
             "intent": intent.model_dump(mode="json"),
             "submitted_by": principal.subject,
