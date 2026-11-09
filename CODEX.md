@@ -1,0 +1,88 @@
+# CODEX.md — Operating Instructions for OpenAI Codex / Codex CLI in zksato
+
+This file governs **OpenAI Codex** and **Codex CLI** agents operating in the **zksato** repository.
+
+## Core Mission & Safety Invariants
+
+- `paper` is the **default and mandatory** mode. Never generate or suggest live-execution code without an explicit operator override.
+- Autonomous live-money execution is permanently forbidden. All live orders require explicit operator authorization at the trusted server boundary.
+- AI/LLM output is **advisory only**. All order flow must pass through `RiskEngine` and `TradingService`.
+- Never generate, log, print, return, or embed broker credentials, PINs, API secrets, tokens, or confirmation codes anywhere in code, comments, or test fixtures.
+- Stale or ambiguous market data must fail closed for all automated execution paths.
+- SET and TFEX semantics must never be conflated; derivatives require dedicated margin, contract, and position handling.
+
+## Required Pre-Commit Validation
+
+Run these checks before authoring any commit:
+
+```bash
+python -m pip install -e '.[dev]'
+ruff check .
+pytest
+shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh
+```
+
+For infrastructure or Docker changes also run:
+
+```bash
+docker compose config
+docker compose build
+```
+
+## Multi-Account Git Governance & Sign-Off Workflow
+
+Codex agents **must** enforce the following separation of duties using credentials in `/home/cvsz/.git-credentials` and `gh auth switch`. No shortcuts or account merges are permitted.
+
+> **All commits must be GPG-signed (`git commit -S`). The `policedbc` independent review is mandatory before any merge.**
+
+### Step 1 — Author Changes, GPG-Sign, and Open PR as `cvsz`
+
+```bash
+gh auth switch -u cvsz
+git checkout -b <feature-or-fix-branch>
+# Implement changes and verify locally
+python -m pip install -e '.[dev]'
+ruff check .
+pytest
+git add -A
+git commit -S -m "<type>(<scope>): <summary>"
+git push -u origin <feature-or-fix-branch>
+gh pr create --title "<title>" --body "<body>"
+```
+
+### Step 2 — Independent Audit, Review, & Approve as `policedbc`
+
+```bash
+gh auth switch -u policedbc
+# Review PR diff, security posture, CI status, and test evidence independently
+gh pr review <pr-number> --approve -b "Independent audit: <review-and-audit-summary>"
+```
+
+### Step 3 — Squash Merge and Sync as `cvsz`
+
+```bash
+gh auth switch -u cvsz
+gh pr merge <pr-number> --squash --delete-branch
+git checkout main && git pull origin main
+```
+
+## Change Classes Requiring Extra Scrutiny
+
+Before authoring changes in any of these areas, explicitly state the invariant being protected:
+
+- Risk formulas, limits, and kill paths
+- Live execution policy
+- Broker API calls or credential handling
+- Order idempotency / reconciliation
+- Position / P&L accounting
+- TFEX margin and contract handling
+- Authentication / authorization
+- Database migrations affecting orders, fills, positions, risk decisions, or audit events
+
+## Repository Ownership Map
+
+Refer to `AGENTS.md` for the full ownership map and agent routing table.
+
+## Documentation Precedence
+
+`SECURITY.md` and live-execution invariants → `AGENTS.md` → accepted ADRs → `docs/API-SPEC.md` / `docs/DATABASE.md` / `docs/DOMAIN-MODEL.md` → implementation notes.
