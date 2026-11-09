@@ -35,6 +35,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Strategy | EMA/SMA cross | Implemented | deterministic |
 | Strategy | RSI/Bollinger reversion | Implemented | deterministic |
 | Strategy | Momentum/MACD/breakout | Implemented | deterministic |
+| Strategy | Statistical arbitrage (z-score dispersion) | Implemented | deterministic rolling z-score mean-reversion |
+| Strategy | TFEX basis / calendar spread | Implemented | deterministic futures basis spread deviation |
 | Strategy | Video-derived PA breakout/retest planner | Implemented | OHLC/ATR planner; research-only and non-executing |
 | Strategy | Bounded virtual stop ladder | Implemented | hard trigger/quantity caps, fixed size, dedupe keys, no martingale |
 | Strategy | Symmetric video-grid reproduction | Implemented | generic/TFEX research only; rejected for SET-equity profile |
