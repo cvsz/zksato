@@ -107,6 +107,36 @@ docker compose ps
 curl -fsS http://127.0.0.1:9569/readyz
 ```
 
+## Deployment / Ingress
+
+Production traffic is unified under a single domain via **NGINX reverse proxy** (Option A):
+
+```
+Cloudflare Edge (TLS) → cloudflared tunnel (zwslcore)
+  → NGINX 127.0.0.1:8089
+      /           → frontend  :3016  (Next.js)
+      /v1/*       → api       :9569  (FastAPI)
+      /health     → api       :9569
+      /dash/      → dashboard :5174  (Vite)
+```
+
+| URL | Service |
+|-----|---------|
+| `https://zksato.zeaz.dev/` | Next.js operator UI |
+| `https://zksato.zeaz.dev/v1/` | FastAPI control plane |
+| `https://zksato.zeaz.dev/health` | Health endpoint |
+| `https://zksato.zeaz.dev/dash/` | Vite lite dashboard |
+
+TLS is terminated at Cloudflare — no certbot/Let's Encrypt needed. NGINX listens on the loopback only (`127.0.0.1:8089`).
+
+**To activate on a new host:**
+```bash
+bash deploy/install-nginx-proxy.sh   # needs sudo
+# Then: Cloudflare Zero Trust → Tunnels → zwslcore → zksato.zeaz.dev → http://127.0.0.1:8089
+```
+
+See [`deploy/DEPLOYMENT.md`](deploy/DEPLOYMENT.md) for the full runbook.
+
 ## Paper execution simulator
 
 ```dotenv
