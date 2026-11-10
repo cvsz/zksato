@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     settrade_app_id: str | None = None
     settrade_app_secret: str | None = None
     settrade_broker_id: str | None = None
-    settrade_app_code: str = "ALGO_EQ"
+    settrade_app_code: str | None = None
     settrade_account_no: str | None = None
     settrade_pin: str | None = None
     settrade_derivatives_account_no: str | None = None

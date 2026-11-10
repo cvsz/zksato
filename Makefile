@@ -142,7 +142,7 @@ format-check:
 	ruff format --check .
 
 shellcheck:
-	shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh 2>/dev/null || true
+	shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh 2>/dev/null
 
 type:
 	mypy src/zksato scripts

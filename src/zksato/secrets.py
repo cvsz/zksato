@@ -58,3 +58,46 @@ class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
             if value is not None:
                 data[key] = self.prepare_field_value(field_name, field, value, value_is_complex)
         return data
+
+
+def validate_env_file(env_path: str = ".env") -> None:
+    """Validate an .env file for safe formatting and no embedded secrets.
+
+    Checks:
+      - File exists and is readable
+      - Each non-comment line is valid KEY=VALUE
+      - Keys match [A-Z_][A-Z0-9_]*
+      - Values contain no shell metacharacters (injection prevention)
+      - No literal secret-looking values (placeholders only)
+
+    Raises ValueError with a descriptive message on any violation.
+    """
+    import re
+    from pathlib import Path
+
+    path = Path(env_path)
+    if not path.exists():
+        raise ValueError(f"Environment file not found: {env_path}")
+
+    text = path.read_text(encoding="utf-8")
+    key_re = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+    secret_hints = re.compile(r"(?i)(password|secret|token|api_key|private_key|pin|credential)")
+    shell_meta = re.compile(r"[;&|`$(){}[\]<>]")
+
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise ValueError(f"{env_path}:{lineno}: missing '=' in line: {raw!r}")
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if not key_re.match(key):
+            raise ValueError(f"{env_path}:{lineno}: invalid environment variable name '{key}'")
+        if shell_meta.search(val):
+            raise ValueError(
+                f"{env_path}:{lineno}: value for '{key}' contains shell metacharacters"
+            )
+        if secret_hints.search(key) and val and not val.startswith("${"):
+            raise ValueError(f"{env_path}:{lineno}: secret key '{key}' must use a placeholder")
