@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import './global.css';
+import { AppProviders } from './providers';
 
 export const metadata: Metadata = {
   title: 'zksato | Risk-First SET/TFEX Trading Control Plane',
@@ -38,7 +39,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning><AppProviders>{children}</AppProviders></body>
     </html>
   );
 }

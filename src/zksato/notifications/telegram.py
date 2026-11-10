@@ -31,7 +31,8 @@ class TelegramNotifier:
     async def send(self, message: str) -> bool:
         if not self._enabled:
             return False
-        url = f"https://api.telegram.org/bot{self._bot_token}/sendMessage"
+        url = "https://api.telegram.org/sendMessage"
+        headers = {"Authorization": f"Bot {self._bot_token}"}
         payload: dict[str, Any] = {
             "chat_id": self._chat_id,
             "text": message,
@@ -39,7 +40,7 @@ class TelegramNotifier:
         }
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, json=payload)
+                response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 return True
         except (httpx.HTTPError, OSError, ValueError):

@@ -8,7 +8,6 @@ from threading import Lock, RLock
 from time import monotonic
 from typing import Annotated, Any
 
-import httpx
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -482,7 +481,7 @@ async def create_session(
         issued.token,
         max_age=settings.session_ttl_seconds,
         httponly=True,
-        secure=settings.environment in ("prod", "uat"),
+        secure=True,
         samesite="strict",
         path="/",
     )
@@ -1598,12 +1597,8 @@ async def telegram_webhook(payload: dict[str, Any]) -> dict[str, bool]:
             portfolio_summary=portfolio_summary,
             quotes=[{"symbol": q.symbol, "price": q.last} for q in store.list_quotes()],
         )
-        url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(
-                url,
-                json={"chat_id": chat_id, "text": resp, "parse_mode": "Markdown"},
-            )
+        if notifier.enabled:
+            await notifier.send(resp)
 
     return {"ok": True}
 
@@ -1635,24 +1630,35 @@ async def get_env_config(_principal: PlatformPrincipal) -> dict[str, object]:
 
     raw_text = ENV_PATH.read_text(encoding="utf-8")
     items: list[dict[str, object]] = []
+    redacted_lines: list[str] = []
 
     for line in raw_text.splitlines():
         line_clean = line.strip()
         if not line_clean or line_clean.startswith("#"):
+            redacted_lines.append(line)
             continue
         if "=" in line:
             key, val = line.split("=", 1)
             key = key.strip()
             val = val.strip()
             is_secret = _is_secret_key(key)
-            items.append({
-                "key": key,
-                "value": "********" if is_secret and val else val,
-                "is_secret": is_secret,
-                "is_configured": bool(val),
-            })
+            items.append(
+                {
+                    "key": key,
+                    "value": "********" if is_secret and val else val,
+                    "is_secret": is_secret,
+                    "is_configured": bool(val),
+                }
+            )
+            # Redact secret values in the raw text too — never return unmasked secrets.
+            if is_secret and val:
+                redacted_lines.append(f"{key}=********")
+            else:
+                redacted_lines.append(line)
+        else:
+            redacted_lines.append(line)
 
-    return {"items": items, "raw": raw_text}
+    return {"items": items, "raw": "\n".join(redacted_lines)}
 
 
 @app.post("/v1/admin/env")
@@ -1697,6 +1703,7 @@ async def update_env_config(
     # Safety: atomic write with backup
     bak_path = Path(".env.bak")
     bak_path.write_text(raw_text, encoding="utf-8")
+    bak_path.chmod(0o600)
     ENV_PATH.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
     ENV_PATH.chmod(0o600)
 
@@ -1733,6 +1740,7 @@ async def update_env_raw(
 
     if ENV_PATH.exists():
         Path(".env.bak").write_text(ENV_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        Path(".env.bak").chmod(0o600)
 
     ENV_PATH.write_text(raw_content, encoding="utf-8")
     ENV_PATH.chmod(0o600)
@@ -1742,4 +1750,3 @@ async def update_env_raw(
         f".env raw content updated by {principal.subject}",
     )
     return {"status": "saved"}
-

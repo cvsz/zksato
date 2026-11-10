@@ -13,10 +13,11 @@ let initialized = false;
 export function initI18n(locale: string) {
   if (!initialized) {
     i18n
-      .use(LanguageDetector)
       .use(initReactI18next)
       .init({
         lng: locale,
+        initImmediate: false,
+        react: { useSuspense: false },
         fallbackLng: 'en',
         supportedLngs: ['en', 'th', 'zh', 'ja'],
         defaultNS: 'translation',

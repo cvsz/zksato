@@ -2,8 +2,6 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { ThemeProvider } from '../../contexts/ThemeContext';
-import { SidebarProvider } from '../../contexts/SidebarContext';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { Header } from '../../components/layout/Header';
 import { SessionTimeoutModal } from '../../components/SessionTimeoutModal';
@@ -18,8 +16,7 @@ export default function LangLayout({
   const isLoginPage = pathname?.includes('/login');
 
   return (
-    <ThemeProvider>
-      <div lang={lng} className="tailadmin-root">
+    <div lang={lng} className="tailadmin-root">
         <SessionTimeoutModal />
         <a
           href="#main-content"
@@ -47,8 +44,7 @@ export default function LangLayout({
             {children}
           </main>
         ) : (
-          <SidebarProvider>
-            <div className="tailadmin-layout">
+          <div className="tailadmin-layout">
               {/* Collapsible / Responsive Sidebar */}
               <Sidebar lng={lng} />
 
@@ -64,10 +60,8 @@ export default function LangLayout({
                   </div>
                 </main>
               </div>
-            </div>
-          </SidebarProvider>
+          </div>
         )}
-      </div>
-    </ThemeProvider>
+    </div>
   );
 }

@@ -73,6 +73,26 @@ class ReconciliationService:
                     "correlation_id": local.correlation_id or remote.correlation_id,
                 }
             )
+            # Detect divergences between remote and local *before* local fields
+            # overwrite them, so a broker-side substitution or error is visible.
+            divergence: dict[str, object] = {}
+            for field in ("symbol", "side", "quantity", "price", "order_type"):
+                remote_val = getattr(remote, field, None)
+                local_val = getattr(local, field, None)
+                if str(remote_val) != str(local_val):
+                    divergence[field] = {
+                        "local": local_val,
+                        "remote": remote_val,
+                    }
+            if divergence:
+                report.divergences.append(
+                    {
+                        "local_order_id": str(local.id),
+                        "broker_order_id": remote.broker_order_id or "",
+                        "fields": divergence,
+                    }
+                )
+                report.divergence_count += 1
             if merged.model_dump() != local.model_dump():
                 self.store.upsert_order(merged)
                 self.store.add_order_event(
@@ -167,7 +187,7 @@ class ReconciliationWorker:
         while True:
             try:
                 await self.service.run()
-            except (RuntimeError, OSError, ValueError) as exc:
+            except Exception as exc:
                 self.service.store.set_broker_reconciliation_ready(False)
                 RECONCILIATION_RUNS.labels(result="error").inc()
                 self.service.store.add_audit("reconciliation.failed", str(exc))

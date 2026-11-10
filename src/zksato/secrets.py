@@ -33,11 +33,8 @@ class AWSSecretManagerSettingsSource(PydanticBaseSettingsSource):
             response = client.get_secret_value(SecretId=self.secret_id)
             if "SecretString" in response:
                 self.secrets_cache = json.loads(response["SecretString"])
-        except Exception as exc:  # pragma: no cover - provider-specific failures
-            logger.warning(
-                "Failed to fetch from AWS Secrets Manager: %s. Falling back to env vars.",
-                exc,
-            )
+        except Exception:  # pragma: no cover - provider-specific failures
+            logger.warning("Failed to fetch from AWS Secrets Manager. Falling back to env vars.")
 
     def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
         if self.secrets_cache and field_name in self.secrets_cache:

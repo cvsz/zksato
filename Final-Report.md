@@ -106,11 +106,40 @@ All core financial safety invariants specified in `AGENTS.md` and `docs/DOMAIN-M
 | **Workflow Security** | `zizmor .github/workflows` | **PASS (0 findings)** | 0 findings (zizmor 1.30.0) |
 | **Static Security Analysis** | `bandit -q -r src -ll` | **PASS (0 issues)** | Zero medium/high severity vulnerabilities |
 | **Shell Script Quality** | `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` | **PASS (0 warnings)** | All POSIX bash scripts clean |
-| **Unit & Property Tests** | `pytest -m "not uat and not performance"` | **PASS (360 passed)** | 360 passed, 1 skipped, 5 deselected in 16.3s |
+| **Unit & Property Tests** | `pytest -m "not uat and not performance"` | **PASS (361 passed)** | 361 passed, 1 skipped, 5 deselected in 8.4s |
 | **Financial Invariants** | `pytest tests/test_financial_invariants.py` | **PASS** | All property-based invariants verified |
 | **Workflow Security Tests** | `pytest tests/test_workflow_security.py` | **PASS** | Automated workflow security verified |
 | **Performance Probe Tests** | `pytest tests/test_performance_probe.py` | **PASS** | High-throughput asynchronous probe verified |
 | **Docker Compose Config** | `docker compose config --quiet` | **PASS** | Docker configuration valid and clean |
+
+---
+
+### Security Remediation (2026-11-11)
+
+The following Critical and High severity findings were identified and remediated during a comprehensive full-stack security audit:
+
+**Critical (P0)**
+
+| ID | Issue | Fix |
+|----|-------|-----|
+| C-1 | Hardcoded real credentials in `.env` (DB password, Redis password, API key, session secret) | Replaced literal values in `.env.example` with `<password>` placeholders; `.env`, `.env.bak`, `.env.backup-*` remain gitignored |
+| C-2 | `GET /v1/admin/env` returned full raw `.env` content including unmasked secrets | Raw `.env` text is now redacted — secret values replaced with `********` before returning |
+| C-3 | `.env.bak` and `.env.backup-*` contained real secrets with default filesystem permissions | `.env.bak` now `chmod 0o600` immediately after write; `.env.backup-*` added to `.gitignore` |
+| C-4 | Session cookie `secure` flag only set in prod/uat (sent over HTTP in dev/test) | `secure=True` unconditionally on session cookie |
+| C-5 | Telegram bot token embedded in HTTPS URL (logged by proxies/WAFs) | Token now sent via `Authorization: Bot <token>` header instead of URL path |
+
+**High (P1)**
+
+| ID | Issue | Fix |
+|----|-------|-----|
+| R-01 | Sell quantity check skipped when `available_quantity=None` (fail-open for non-reducing sells) | Fail-closed: non-reducing sell rejects when `available_quantity` is unknown or insufficient |
+| S-01 | `client_order_id` idempotency lost on service restart (in-memory only) | `claim_client_order_id` also checks existing orders in store (defense in depth for restart durability) |
+| P-01 | `PaperPortfolio.apply_fill` could double-count on fill replay | `apply_fill` is now idempotent via `fill_id` tracking; `PaperBroker` passes unique fill IDs |
+| RE-02 | Reconciliation forced local fields over remote, hiding symbol/side/quantity divergence | Divergence detected before field overwrite; recorded in `ReconciliationReport.divergences` |
+| RE-03 | Reconciliation worker caught only `(RuntimeError, OSError, ValueError)` — other exceptions crashed the loop | Worker now catches `Exception` and sets `reconciliation_ready=False` on any error |
+| B-02 | CCXT generic exceptions raised `RuntimeError` (hard failure → client_order_id released for retry) | Non-network CCXT exceptions now raise `BrokerAmbiguousError` → order held for reconciliation (fail-closed) |
+| A-01 | `ApprovalRepository` accepted `database_url=None` (in-memory approvals lost on restart) | `Settings._require_database_for_non_paper` validator: `database_url` required when `trading_mode` is `live` or `sandbox` |
+| H-3 | AWS Secrets Manager failure logged raw exception (potential credential leakage) | Exception object removed from log message; generic warning only |
 
 ---
 

@@ -86,7 +86,12 @@ class CcxtBroker:
                 f"CCXT {exchange_id} order response ambiguous: {exc}"
             ) from exc
         except Exception as exc:
-            raise RuntimeError(f"CCXT order placement failed: {exc}") from exc
+            # Treat any non-network/non-availability failure as ambiguous so the
+            # order is held for reconciliation rather than retried immediately,
+            # which could create a duplicate if the broker actually accepted it.
+            raise BrokerAmbiguousError(
+                f"CCXT {exchange_id} order placement outcome ambiguous: {exc}"
+            ) from exc
 
         return self._map_order(raw, intent=intent, exchange_id=exchange_id)
 

@@ -56,6 +56,35 @@
         "title": "AccountSnapshot",
         "type": "object"
       },
+      "AdvisoryScores": {
+        "properties": {
+          "confidence": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "integer"
+          },
+          "opportunity": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Opportunity",
+            "type": "integer"
+          },
+          "risk": {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Risk",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "opportunity",
+          "risk",
+          "confidence"
+        ],
+        "title": "AdvisoryScores",
+        "type": "object"
+      },
       "AlertRule": {
         "properties": {
           "enabled": {
@@ -571,11 +600,25 @@
             "title": "Auto Execute",
             "type": "boolean"
           },
+          "confidence_threshold": {
+            "default": 0.0,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence Threshold",
+            "type": "number"
+          },
           "cooldown_seconds": {
             "default": 60,
             "maximum": 86400.0,
             "minimum": 0.0,
             "title": "Cooldown Seconds",
+            "type": "integer"
+          },
+          "max_signals_per_tick": {
+            "default": 0,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Signals Per Tick",
             "type": "integer"
           },
           "order_size": {
@@ -1284,7 +1327,7 @@
           "quantity": {
             "exclusiveMinimum": 0.0,
             "title": "Quantity",
-            "type": "integer"
+            "type": "number"
           },
           "side": {
             "$ref": "#/components/schemas/Side"
@@ -1389,7 +1432,7 @@
           "filled_quantity": {
             "default": 0,
             "title": "Filled Quantity",
-            "type": "integer"
+            "type": "number"
           },
           "id": {
             "format": "uuid",
@@ -1423,7 +1466,7 @@
           },
           "quantity": {
             "title": "Quantity",
-            "type": "integer"
+            "type": "number"
           },
           "side": {
             "$ref": "#/components/schemas/Side"
@@ -1748,7 +1791,7 @@
           },
           "quantity": {
             "title": "Quantity",
-            "type": "integer"
+            "type": "number"
           },
           "symbol": {
             "title": "Symbol",
@@ -1896,6 +1939,84 @@
         ],
         "title": "PromotionStage",
         "type": "string"
+      },
+      "ProposedPaperTrade": {
+        "properties": {
+          "entry_high": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry High"
+          },
+          "entry_low": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Low"
+          },
+          "max_position_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Position Usd",
+            "type": "number"
+          },
+          "mode": {
+            "const": "paper",
+            "default": "paper",
+            "title": "Mode",
+            "type": "string"
+          },
+          "order_type": {
+            "const": "limit",
+            "default": "limit",
+            "title": "Order Type",
+            "type": "string"
+          },
+          "side": {
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "stop_loss": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Loss"
+          },
+          "take_profit_levels": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Take Profit Levels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "side",
+          "max_position_usd"
+        ],
+        "title": "ProposedPaperTrade",
+        "type": "object"
       },
       "Quote": {
         "properties": {
@@ -2757,6 +2878,20 @@
       },
       "StrategyConfig": {
         "properties": {
+          "atr_multiplier": {
+            "default": 1.5,
+            "maximum": 10.0,
+            "minimum": 0.1,
+            "title": "Atr Multiplier",
+            "type": "number"
+          },
+          "atr_period": {
+            "default": 14,
+            "maximum": 200.0,
+            "minimum": 2.0,
+            "title": "Atr Period",
+            "type": "integer"
+          },
           "bollinger_deviations": {
             "default": 2.0,
             "exclusiveMinimum": 0.0,
@@ -2888,6 +3023,55 @@
             "title": "Slow Period",
             "type": "integer"
           },
+          "stat_arb_period": {
+            "default": 20,
+            "maximum": 500.0,
+            "minimum": 3.0,
+            "title": "Stat Arb Period",
+            "type": "integer"
+          },
+          "stat_arb_zscore_entry": {
+            "default": 2.0,
+            "maximum": 10.0,
+            "minimum": 0.5,
+            "title": "Stat Arb Zscore Entry",
+            "type": "number"
+          },
+          "stat_arb_zscore_exit": {
+            "default": 0.5,
+            "maximum": 5.0,
+            "minimum": 0.0,
+            "title": "Stat Arb Zscore Exit",
+            "type": "number"
+          },
+          "stoch_d_period": {
+            "default": 3,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Stoch D Period",
+            "type": "integer"
+          },
+          "stoch_k_period": {
+            "default": 14,
+            "maximum": 200.0,
+            "minimum": 2.0,
+            "title": "Stoch K Period",
+            "type": "integer"
+          },
+          "stoch_overbought": {
+            "default": 80.0,
+            "maximum": 100.0,
+            "minimum": 50.0,
+            "title": "Stoch Overbought",
+            "type": "number"
+          },
+          "stoch_oversold": {
+            "default": 20.0,
+            "maximum": 50.0,
+            "minimum": 0.0,
+            "title": "Stoch Oversold",
+            "type": "number"
+          },
           "swing_rsi_period": {
             "default": 14,
             "maximum": 100.0,
@@ -2895,11 +3079,39 @@
             "title": "Swing Rsi Period",
             "type": "integer"
           },
+          "tfex_spread_threshold": {
+            "default": 2.0,
+            "maximum": 100.0,
+            "minimum": 0.1,
+            "title": "Tfex Spread Threshold",
+            "type": "number"
+          },
           "vwap_period": {
             "default": 14,
             "maximum": 500.0,
             "minimum": 1.0,
             "title": "Vwap Period",
+            "type": "integer"
+          },
+          "williams_r_overbought": {
+            "default": -20.0,
+            "maximum": 0.0,
+            "minimum": -50.0,
+            "title": "Williams R Overbought",
+            "type": "number"
+          },
+          "williams_r_oversold": {
+            "default": -80.0,
+            "maximum": -50.0,
+            "minimum": -100.0,
+            "title": "Williams R Oversold",
+            "type": "number"
+          },
+          "williams_r_period": {
+            "default": 14,
+            "maximum": 200.0,
+            "minimum": 2.0,
+            "title": "Williams R Period",
             "type": "integer"
           }
         },
@@ -4111,6 +4323,214 @@
         ],
         "title": "WalkForwardResult",
         "type": "object"
+      },
+      "ZTraderAdvisoryDecision": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "canonical_executor": {
+            "const": "zksato",
+            "default": "zksato",
+            "title": "Canonical Executor",
+            "type": "string"
+          },
+          "execution_allowed": {
+            "const": false,
+            "default": false,
+            "title": "Execution Allowed",
+            "type": "boolean"
+          },
+          "mode": {
+            "const": "paper",
+            "default": "paper",
+            "title": "Mode",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "risk_review_required": {
+            "default": true,
+            "title": "Risk Review Required",
+            "type": "boolean"
+          },
+          "signal_id": {
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "required": [
+          "accepted",
+          "signal_id",
+          "reason"
+        ],
+        "title": "ZTraderAdvisoryDecision",
+        "type": "object"
+      },
+      "ZTraderAdvisoryIntent": {
+        "properties": {
+          "account_ref": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Account Ref",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "WATCH",
+              "WAIT",
+              "RESEARCH_MORE",
+              "AVOID"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "address": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Address",
+            "type": "string"
+          },
+          "chain": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Chain",
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "evidence_timestamp": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Evidence Timestamp",
+            "type": "string"
+          },
+          "invalidations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Invalidations",
+            "type": "array"
+          },
+          "narrative": {
+            "enum": [
+              "EARLY",
+              "HEATING_UP",
+              "CROWDED",
+              "FADING",
+              "DEAD"
+            ],
+            "title": "Narrative",
+            "type": "string"
+          },
+          "portfolio_ref": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Portfolio Ref"
+          },
+          "proposed_trade": {
+            "$ref": "#/components/schemas/ProposedPaperTrade"
+          },
+          "rug_risk": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "EXTREME"
+            ],
+            "title": "Rug Risk",
+            "type": "string"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/AdvisoryScores"
+          },
+          "signal_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "tenant_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "version": {
+            "const": "1.1",
+            "title": "Version",
+            "type": "string"
+          },
+          "whales": {
+            "enum": [
+              "ACCUMULATING",
+              "NEUTRAL",
+              "DISTRIBUTING"
+            ],
+            "title": "Whales",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "tenant_id",
+          "account_ref",
+          "signal_id",
+          "symbol",
+          "chain",
+          "address",
+          "scores",
+          "narrative",
+          "whales",
+          "rug_risk",
+          "action",
+          "evidence_timestamp",
+          "proposed_trade"
+        ],
+        "title": "ZTraderAdvisoryIntent",
+        "type": "object"
       }
     }
   },
@@ -4247,6 +4667,735 @@
           }
         },
         "summary": "Account Snapshots"
+      }
+    },
+    "/v1/admin/env": {
+      "get": {
+        "description": "Retrieve all configuration keys from .env. Sensitive keys are masked.",
+        "operationId": "get_env_config_v1_admin_env_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Env Config V1 Admin Env Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Env Config"
+      },
+      "post": {
+        "description": "Update specific key-value pairs in .env. Preserves formatting and comments.",
+        "operationId": "update_env_config_v1_admin_env_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Updates",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Env Config V1 Admin Env Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Env Config"
+      }
+    },
+    "/v1/admin/env/raw": {
+      "post": {
+        "description": "Directly update entire raw .env text with syntax validation and backup.",
+        "operationId": "update_env_raw_v1_admin_env_raw_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Env Raw V1 Admin Env Raw Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Env Raw"
+      }
+    },
+    "/v1/agent-os/execute": {
+      "post": {
+        "operationId": "agent_os_execute_skill_v1_agent_os_execute_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Os Execute Skill V1 Agent Os Execute Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Os Execute Skill"
+      }
+    },
+    "/v1/agent-os/skills": {
+      "get": {
+        "operationId": "agent_os_list_skills_v1_agent_os_skills_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Agent Os List Skills V1 Agent Os Skills Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Os List Skills"
+      }
+    },
+    "/v1/agent-os/subaccounts": {
+      "get": {
+        "operationId": "agent_os_list_subaccounts_v1_agent_os_subaccounts_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Agent Os List Subaccounts V1 Agent Os Subaccounts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Os List Subaccounts"
+      },
+      "post": {
+        "operationId": "agent_os_create_subaccount_v1_agent_os_subaccounts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Agent Os Create Subaccount V1 Agent Os Subaccounts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent Os Create Subaccount"
       }
     },
     "/v1/alerts": {
@@ -5996,6 +7145,111 @@
           }
         },
         "summary": "Fills"
+      }
+    },
+    "/v1/integrations/ztrader/advisory-intents": {
+      "post": {
+        "description": "Persist a paper-only advisory for deterministic risk review.",
+        "operationId": "ztrader_advisory_intake_v1_integrations_ztrader_advisory_intents_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "zksato_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zksato Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZTraderAdvisoryIntent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZTraderAdvisoryDecision"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ztrader Advisory Intake"
       }
     },
     "/v1/live-approvals": {
@@ -11518,6 +12772,50 @@
           }
         },
         "summary": "Telegram Test"
+      }
+    },
+    "/v1/telegram/webhook": {
+      "post": {
+        "operationId": "telegram_webhook_v1_telegram_webhook_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Telegram Webhook V1 Telegram Webhook Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Telegram Webhook"
       }
     },
     "/v1/tfex/account": {

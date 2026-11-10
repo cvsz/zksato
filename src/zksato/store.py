@@ -274,6 +274,10 @@ class StateStore:
         with self._lock:
             if client_order_id in self._client_order_ids:
                 return False
+            # Also reject if any existing order already uses this client_order_id
+            # (defense in depth for restart durability when orders are persisted).
+            if any(order.client_order_id == client_order_id for order in self.orders):
+                return False
             self._client_order_ids.add(client_order_id)
             return True
 
