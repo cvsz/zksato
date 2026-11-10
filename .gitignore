@@ -22,6 +22,9 @@ deploy/data/
 docker-compose.override.yml
 .env.bak
 .env.backup-*
+*.db
+test_zksato.db
+backups/
 *.tfstate
 *.tfstate.*
 .terraform/
