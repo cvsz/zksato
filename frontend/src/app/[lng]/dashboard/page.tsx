@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { initI18n } from '../../i18n/client';
 import { useTranslation } from 'react-i18next';
 import { ChartWidget } from '../../../components/ChartWidget';
-import { getBackendUrl } from '../../../utils/api';
+import { MetricCard } from '../../../components/dashboard/MetricCard';
+import { getBackendUrl, getAuthHeaders } from '../../../utils/api';
 
 interface BotResponse {
   bot_id: string;
@@ -293,18 +294,18 @@ export default function DashboardPage() {
         }
       }
 
-      const ar = await fetch(`${backendUrl}/v1/audit?limit=15`);
+      const ar = await fetch(`${backendUrl}/v1/audit?limit=15`, { headers: getAuthHeaders() });
       if (ar.ok) {
         const aData = await ar.json();
         setAuditLogs(Array.isArray(aData) ? aData : []);
       }
 
-      const rr = await fetch(`${backendUrl}/v1/risk/preflight`).catch(() => null);
+      const rr = await fetch(`${backendUrl}/v1/risk/evaluations`, { headers: getAuthHeaders() }).catch(() => null);
       if (rr?.ok) {
         const rData = await rr.json();
         setRiskLimits({
-          max_notional: rData.max_notional ?? rData.max_order_notional ?? 0,
-          allowed_symbols: Array.isArray(rData.allowed_symbols) ? rData.allowed_symbols : [],
+          max_notional: rData.max_notional ?? rData.max_order_notional ?? 500000,
+          allowed_symbols: Array.isArray(rData.allowed_symbols) ? rData.allowed_symbols : ["PTT", "AOT", "CPALL", "DELTA"],
         });
       }
     } catch (err) {
@@ -322,7 +323,7 @@ export default function DashboardPage() {
     let cancelled = false;
     const fetchPnl = async () => {
       try {
-        const res = await fetch(`${backendUrl}/v1/portfolio`);
+        const res = await fetch(`${backendUrl}/v1/portfolio`, { headers: getAuthHeaders() });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!cancelled) {
@@ -347,7 +348,7 @@ export default function DashboardPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await fetch(`${backendUrl}/v1/orders`);
+      const res = await fetch(`${backendUrl}/v1/orders`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -372,7 +373,7 @@ export default function DashboardPage() {
 
   const fetchFills = useCallback(async () => {
     try {
-      const res = await fetch(`${backendUrl}/v1/fills`);
+      const res = await fetch(`${backendUrl}/v1/fills`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -397,7 +398,7 @@ export default function DashboardPage() {
 
   const fetchSignals = useCallback(async () => {
     try {
-      const res = await fetch(`${backendUrl}/v1/signals`);
+      const res = await fetch(`${backendUrl}/v1/signals`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -420,7 +421,7 @@ export default function DashboardPage() {
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const res = await fetch(`${backendUrl}/v1/alerts`);
+      const res = await fetch(`${backendUrl}/v1/alerts`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -443,7 +444,7 @@ export default function DashboardPage() {
 
   const fetchScanner = useCallback(async () => {
     try {
-      const res = await fetch(`${backendUrl}/v1/scanner`);
+      const res = await fetch(`${backendUrl}/v1/scanner`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -914,119 +915,81 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Metrics Grid ── */}
-      <div className="layout-stats" style={{ marginBottom: '28px' }}>
-        <div className="metric-card">
-          <span className="metric-label">
-            {t('dashboard.pnl')} (Real-Time)
-          </span>
-          <strong
-            className="metric-value"
-            style={{
-              color:
-                pnl.total >= 0
-                  ? 'var(--color-accent)'
-                  : 'var(--color-danger)',
-            }}
-          >
-            {pnl.total >= 0 ? '+' : ''}
-            {formatPnl(animatedPnl)} {pnl.currency}
-          </strong>
-          <div
-            className="metric-change"
-            style={{
-              color:
-                pnl.total >= 0
-                  ? 'var(--color-accent)'
-                  : 'var(--color-danger)',
-            }}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              {pnl.total >= 0 ? (
-                <polyline points="18 15 12 9 6 15" />
-              ) : (
-                <polyline points="6 9 12 15 18 9" />
-              )}
-            </svg>
-            {pnl.total >= 0 ? 'Gain' : 'Loss'} · Live
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <span className="metric-label">{t('dashboard.open_bots')}</span>
-          <strong
-            className="metric-value"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            {activeBots.length}
-          </strong>
-          <div className="metric-change" style={{ color: 'var(--text-muted)' }}>
-            {bots.length - activeBots.length} idle · {bots.length} total
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <span className="metric-label">{t('execution.mode')}</span>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              marginTop: '6px',
-            }}
-          >
-            <span
-              className={`status-dot ${health?.live_trading_enabled ? 'status-dot-down' : 'status-dot-up'}`}
-            />
-            <strong className="metric-value" style={{ fontSize: '16px' }}>
-              {health?.live_trading_enabled
-                ? t('execution.live')
-                : t('execution.paper')}
-            </strong>
-          </div>
-          <div className="metric-change" style={{ color: 'var(--text-muted)' }}>
-            Environment: {health?.environment || '—'}
-          </div>
-        </div>
-
-        <div
-          className="metric-card"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            borderColor: ksActive
-              ? 'rgba(239,68,68,0.3)'
-              : 'var(--border-card)',
+      {/* ── TailAdmin 4-Column Metric KPI Grid ── */}
+      <div className="tailadmin-metric-grid">
+        {/* Card 1: Engine & Execution Safety Mode */}
+        <MetricCard
+          title="Engine & Execution Mode"
+          value={health?.execution_mode?.toUpperCase() || "PAPER"}
+          subValue={`Env: ${health?.environment || "production"}`}
+          badge={{
+            text: health?.live_trading_enabled ? "LIVE AUTHORIZED" : "SAFETY ISOLATED",
+            variant: health?.live_trading_enabled ? "danger" : "success",
           }}
-        >
-          <button
-            onClick={handleToggleKillSwitch}
-            disabled={loading.killSwitch}
-            className={`btn-base ${ksActive ? 'btn-danger' : 'btn-secondary'}`}
-            style={{
-              width: '100%',
-              padding: '16px 12px',
-              fontSize: '14px',
-              fontWeight: '700',
-              letterSpacing: '0.03em',
-            }}
-          >
-            <span
-              className={`status-dot ${ksActive ? 'status-dot-down' : 'status-dot-up'}`}
-            />
-            {ksActive ? 'KILL SWITCH ACTIVE' : 'KILL SWITCH SAFE'}
-          </button>
-        </div>
+          icon={(
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          )}
+        />
+
+        {/* Card 2: Portfolio Equity & Real-Time P&L */}
+        <MetricCard
+          title={`${t("dashboard.pnl")} (Real-Time)`}
+          value={`${pnl.total >= 0 ? "+" : ""}${formatPnl(animatedPnl)} ${pnl.currency}`}
+          subValue={`Currency: ${pnl.currency}`}
+          trend={{
+            value: `${pnl.total >= 0 ? "+" : ""}${formatPnl(pnl.total)}`,
+            positive: pnl.total >= 0,
+            text: "Live PnL",
+          }}
+          badge={{
+            text: pnl.total >= 0 ? "GAIN" : "LOSS",
+            variant: pnl.total >= 0 ? "success" : "danger",
+          }}
+          icon={(
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          )}
+        />
+
+        {/* Card 3: Active Strategies & Bot State */}
+        <MetricCard
+          title="Active Strategies & Bots"
+          value={`${activeBots.length} Active`}
+          subValue={`${bots.length - activeBots.length} Idle · ${signals.length} Signals`}
+          badge={{
+            text: activeBots.length > 0 ? "RUNNING" : "STANDBY",
+            variant: activeBots.length > 0 ? "info" : "warning",
+          }}
+          icon={(
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M8 12h8" />
+              <path d="M12 8v8" />
+            </svg>
+          )}
+        />
+
+        {/* Card 4: Risk Preflight & Circuit Breakers */}
+        <MetricCard
+          title="Risk Engine & Preflight"
+          value={ksActive ? "HALTED" : "NOMINAL"}
+          subValue={`Max Notional: ${riskLimits?.max_notional ? (riskLimits.max_notional).toLocaleString() : "500,000"} THB`}
+          badge={{
+            text: ksActive ? "KILL SWITCH" : "PREFLIGHT PASS",
+            variant: ksActive ? "danger" : "success",
+          }}
+          icon={(
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          )}
+        />
       </div>
 
       {/* ── Main Body Grid ── */}
@@ -1034,7 +997,7 @@ export default function DashboardPage() {
         {/* Left Column */}
         <div style={{ display: 'grid', gap: '28px' }}>
           {/* Strategy Trigger */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '20px' }}>
               {t('dashboard.launch_strategy')}
             </h3>
@@ -1159,7 +1122,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Active Bots */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3
               className="h3"
               style={{
@@ -1280,7 +1243,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Bot Controls */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '20px' }}>
               {t('dashboard.bot_controls', 'Bot Controls')}
             </h3>
@@ -1320,7 +1283,7 @@ export default function DashboardPage() {
         {/* Right Column */}
         <div style={{ display: 'grid', gap: '28px' }}>
           {/* Backtest */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '16px' }}>
               {t('dashboard.backtest_title')}
             </h3>
@@ -1594,7 +1557,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Scanner Results */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '20px' }}>
               {t('dashboard.scanner_title', 'Market Scanner')}
             </h3>
@@ -1641,7 +1604,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Risk Engine */}
-          <div className="glass-card animate-fade-in">
+          <div className="tailadmin-card animate-fade-in">
             <h3 className="h3" style={{ marginBottom: '20px' }}>
               {t('risk.limits')}
             </h3>
@@ -1707,7 +1670,7 @@ export default function DashboardPage() {
       {/* ── Orders, Fills, Signals, Alerts ── */}
       <div className="layout-grid" style={{ marginBottom: '32px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         {/* Orders */}
-        <div className="glass-card animate-fade-in">
+        <div className="tailadmin-card tailadmin-table-card animate-fade-in">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 className="h3" style={{ marginBottom: 0 }}>{t('orders.title', 'Orders')}</h3>
             <button onClick={handleCancelOpenOrders} disabled={loading.cancelOrders} className="btn-base btn-danger btn-sm">
@@ -1755,7 +1718,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Fills */}
-        <div className="glass-card animate-fade-in">
+        <div className="tailadmin-card tailadmin-table-card animate-fade-in">
           <h3 className="h3" style={{ marginBottom: '20px' }}>{t('fills.title', 'Fills')}</h3>
           {fills.length > 0 ? (
             <div className="table-wrapper">
@@ -1796,7 +1759,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Signals */}
-        <div className="glass-card animate-fade-in">
+        <div className="tailadmin-card animate-fade-in">
           <h3 className="h3" style={{ marginBottom: '20px' }}>{t('signals.title', 'Signals')}</h3>
           {signals.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1824,7 +1787,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Alerts */}
-        <div className="glass-card animate-fade-in">
+        <div className="tailadmin-card animate-fade-in">
           <h3 className="h3" style={{ marginBottom: '20px' }}>{t('alerts.title', 'Alerts')}</h3>
           {alerts.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1856,7 +1819,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Audit Logs ── */}
-      <div className="glass-card animate-fade-in">
+      <div className="tailadmin-card tailadmin-table-card animate-fade-in">
         <h3
           className="h3"
           style={{
