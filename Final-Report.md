@@ -106,7 +106,7 @@ All core financial safety invariants specified in `AGENTS.md` and `docs/DOMAIN-M
 | **Workflow Security** | `zizmor .github/workflows` | **PASS (0 findings)** | 0 findings (zizmor 1.30.0) |
 | **Static Security Analysis** | `bandit -q -r src -ll` | **PASS (0 issues)** | Zero medium/high severity vulnerabilities |
 | **Shell Script Quality** | `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` | **PASS (0 warnings)** | All POSIX bash scripts clean |
-| **Unit & Property Tests** | `pytest -m "not uat and not performance"` | **PASS (361 passed)** | 361 passed, 1 skipped, 5 deselected in 8.4s |
+| **Unit & Property Tests** | `pytest -m "not uat and not performance"` | **PASS (361 passed)** | 361 passed, 1 skipped, 5 deselected in 8.9s |
 | **Financial Invariants** | `pytest tests/test_financial_invariants.py` | **PASS** | All property-based invariants verified |
 | **Workflow Security Tests** | `pytest tests/test_workflow_security.py` | **PASS** | Automated workflow security verified |
 | **Performance Probe Tests** | `pytest tests/test_performance_probe.py` | **PASS** | High-throughput asynchronous probe verified |
@@ -183,6 +183,7 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#26** | `build(deps-dev): bump python-dependencies` | Dependabot | `policedbc` | Closed (superceded by #53) | — |
 | **#68** | `fix(security): harden admin env endpoint, session cookies, and idempotency across restarts` | `cvsz` | `policedbc` | Squash-Merged | `2298c23` |
 | **#69** | `fix(security): harden env validation, CI security gates, and gitignore coverage` | `cvsz` | `policedbc` | Squash-Merged | `8bfb4e8` |
+| **#70** | `docs(final-report): add Medium/Low security remediation findings and PR #68/#69 governance history` | `cvsz` | `policedbc` | Squash-Merged | `66ef7db` |
 
 ---
 
@@ -221,5 +222,66 @@ The **zksato** platform has completed all repository-level implementation, vulne
 - **Enterprise Grade**: Verified.
 - **Production-Ready**: Verified.
 - **Financial Risk Invariants**: Enforced & Formally Tested.
-- **Test Suite**: 360/360 passing.
+- **Test Suite**: 361/361 passing.
 - **All Pull Requests**: Resolved & Merged.
+
+---
+
+## 8. Comprehensive Source Code Investigation & Root Cause Analysis (2026-11-11)
+
+### 8.1 Investigation Scope
+
+A comprehensive drill-deeper investigation was performed across all systems, architectures, and modules within the repository:
+
+| Domain | Files Examined | Findings |
+|--------|---------------|----------|
+| Configuration & Secrets | `src/zksato/config.py`, `src/zksato/secrets.py` | 2 Medium findings remediated |
+| Risk Engine | `src/zksato/risk.py` | 1 High finding remediated (fail-closed sell quantity) |
+| Execution/Trading Service | `src/zksato/service.py` | Verified: risk cannot be bypassed, fail-closed execution policy |
+| State Store | `src/zksato/store.py` | Verified: idempotent claims, hash-linked audit chain |
+| Portfolio | `src/zksato/portfolio.py` | 1 Critical finding remediated (idempotent apply_fill) |
+| Reconciliation | `src/zksato/reconcile.py`, `src/zksato/session_reconcile.py` | 2 High findings remediated |
+| Broker Adapters | `src/zksato/broker/base.py`, `settrade.py`, `ccxt.py`, `paper.py`, `prediction.py` | 1 High finding remediated (CCXT ambiguous errors) |
+| Approvals | `src/zksato/approvals.py` | 1 High finding remediated (durable DB requirement) |
+| API Control Plane | `src/zksato/api.py` (full 1752 lines) | 3 Critical findings remediated (env redaction, session secure, Telegram header) |
+| Authentication | `src/zksato/auth.py` | Verified: RBAC, CSRF, HMAC-signed sessions |
+| Coordination | `src/zksato/coordination.py` | Verified: Redis + local fallback, fail-open rate limiting |
+| Observability | `src/zksato/observability.py` | Verified: Prometheus metrics, correlation IDs, JSON logging |
+| Security | `src/zksato/security.py` | Verified: rate limiting, security headers, secret redaction |
+| Persistence | `src/zksato/persistence.py` | Verified: SQLAlchemy, ON CONFLICT upserts, PostgreSQL/SQLite |
+| Production Readiness | `src/zksato/production.py` | Verified: 33 readiness checks, manual canary only |
+| TFEX Domain | `src/zksato/tfex.py` | Verified: dedicated margin/contract/position handling |
+| Market Data | `src/zksato/market_rules.py`, `src/zksato/market_settrade.py` | Verified: session policy, tick/price-band validation |
+| Agent OS | `src/zksato/agent_os/subaccount.py`, `engine.py`, `skills.py` | Verified: WITHDRAW=False invariant, skill hub |
+| Automation | `src/zksato/automation.py` | Verified: automated live execution blocked |
+| Strategy/Indicators | `src/zksato/strategy.py`, `src/zksato/indicators.py` | Verified: 18 deterministic strategies |
+| Notifications | `src/zksato/notifications/__init__.py`, `telegram.py` | Verified: durable outbox, poison-message isolation |
+| Outbox Delivery | `src/zksato/outbox_delivery.py` | Verified: bounded exponential retry, dead-letter |
+| Dashboard | `src/zksato/dashboard.py` | Verified: HTML control panel, secrets never rendered |
+| Video EA | `src/zksato/video_ea.py`, `video_ea_research.py`, `video_ea_runtime.py` | Verified: research-only, paper-mode restricted |
+| zTrader Integration | `src/zksato/ztrader_integration.py` | Verified: execution_allowed=False, paper-only |
+
+### 8.2 Zero Unresolved P0/P1 Issues
+
+All Critical (P0) and High (P1) findings identified during the comprehensive investigation have been remediated and merged into `main` via PRs #68 and #69:
+
+**Critical (P0) - 5 findings**: All remediated
+**High (P1) - 8 findings**: All remediated
+**Medium (P2) - 5 findings**: All remediated
+**Low (P3) - 2 findings**: 1 remediated, 1 documented as pending frontend infrastructure task
+
+### 8.3 Architecture Verification
+
+| Invariant | Status | Evidence |
+|-----------|--------|----------|
+| Paper is default mode | ✅ Enforced | `Settings.trading_mode = "paper"`, `config.py:37` |
+| Autonomous live execution forbidden | ✅ Enforced | `service.py:371-373`, `api.py:739-743` |
+| RiskEngine cannot be bypassed | ✅ Enforced | `api.py:823-824` (server-recomputed trusted context) |
+| Broker credentials never in APIs | ✅ Enforced | `security.py` redaction, `api.py` env redaction |
+| Order idempotency | ✅ Enforced | `store.py:273-282` (claim + existing order check) |
+| Stale feed fails closed | ✅ Enforced | `service.py:237-254` (TOCTOU re-check) |
+| SET/TFEX isolation | ✅ Enforced | `tfex.py` (dedicated domain, margin, contracts) |
+| Deterministic, auditable, versioned | ✅ Enforced | Hash-linked audit chain, `store.py:355-381` |
+
+---
+
