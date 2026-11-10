@@ -630,3 +630,735 @@ select.input-field {
 .transition-bg { transition: background-color 0.2s; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .skip-link:focus { top: 0; }
+
+
+/* ==========================================================================
+   TailAdmin Architecture Styles (nextjs-demo.tailadmin.com)
+   ========================================================================== */
+
+/* ── TailAdmin Root & Layout Shell ── */
+.tailadmin-root {
+  min-height: 100vh;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.tailadmin-fullpage {
+  min-height: 100vh;
+}
+
+.tailadmin-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tailadmin-content-wrapper {
+  position: relative;
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--bg-base);
+}
+
+.tailadmin-main {
+  flex: 1 1 0%;
+}
+
+.tailadmin-container {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 1600px;
+  padding: 24px;
+}
+
+@media (min-width: 768px) {
+  .tailadmin-container {
+    padding: 32px;
+  }
+}
+
+/* ── TailAdmin Header ── */
+.tailadmin-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  height: 72px;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 0 24px;
+}
+
+.tailadmin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tailadmin-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tailadmin-hamburger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-hamburger-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+@media (min-width: 1024px) {
+  .tailadmin-hamburger-btn {
+    display: none;
+  }
+}
+
+.tailadmin-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-dot.healthy {
+  background-color: var(--color-accent);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.status-dot.degraded {
+  background-color: var(--color-warning);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+}
+
+.status-dot.offline {
+  background-color: var(--color-danger);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.status-divider {
+  color: var(--border-medium);
+}
+
+.mode-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.mode-badge.mode-paper {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-primary);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.mode-badge.mode-live {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.tailadmin-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.tailadmin-lang-wrap {
+  position: relative;
+}
+
+.tailadmin-user-dropdown {
+  position: relative;
+}
+
+.tailadmin-user-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-user-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
+
+.user-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.user-meta {
+  display: none;
+  flex-direction: column;
+  text-align: left;
+}
+
+@media (min-width: 640px) {
+  .user-meta {
+    display: flex;
+  }
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.user-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tailadmin-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  width: 220px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-xl);
+  padding: 8px;
+  z-index: 50;
+  animation: slideDown 0.15s ease-out;
+}
+
+.dropdown-header {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dropdown-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dropdown-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-primary);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 6px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: var(--transition-fast);
+  background: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.dropdown-item.danger {
+  color: var(--color-danger);
+}
+
+.dropdown-item.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-danger);
+}
+
+/* ── TailAdmin Sidebar ── */
+.tailadmin-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 45;
+}
+
+.tailadmin-sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  width: 280px;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s ease;
+}
+
+.tailadmin-sidebar.open {
+  transform: translateX(0);
+}
+
+@media (min-width: 1024px) {
+  .tailadmin-sidebar {
+    position: static;
+    transform: translateX(0);
+  }
+  
+  .tailadmin-sidebar.collapsed {
+    width: 80px;
+  }
+}
+
+.tailadmin-sidebar-header {
+  display: flex;
+  height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tailadmin-logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.tailadmin-logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-bg);
+  border: 1px solid var(--color-primary-border);
+}
+
+.tailadmin-logo-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 0 10px var(--color-primary);
+}
+
+.tailadmin-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.brand-accent {
+  color: var(--color-primary);
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.tailadmin-collapse-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+@media (min-width: 1024px) {
+  .tailadmin-collapse-btn {
+    display: flex;
+  }
+}
+
+.tailadmin-sidebar-nav {
+  flex: 1 1 0%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tailadmin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tailadmin-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 12px;
+}
+
+.tailadmin-nav-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tailadmin-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-nav-link:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tailadmin-nav-link.active {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-primary);
+  border-color: rgba(59, 130, 246, 0.3);
+  font-weight: 600;
+}
+
+.tailadmin-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tailadmin-nav-text {
+  flex: 1 1 0%;
+  white-space: nowrap;
+}
+
+.tailadmin-nav-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.tailadmin-sidebar.collapsed .tailadmin-nav-link {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+.tailadmin-sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tailadmin-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.tailadmin-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.tailadmin-sidebar.collapsed .tailadmin-logout-btn {
+  justify-content: center;
+  padding: 12px 0;
+}
+
+/* ── TailAdmin Cards & Metric Cards ── */
+.tailadmin-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  transition: var(--transition-smooth);
+}
+
+.tailadmin-card:hover {
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-md);
+}
+
+.tailadmin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (min-width: 640px) {
+  .tailadmin-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .tailadmin-metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+
+.tailadmin-metric-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.metric-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--color-primary);
+}
+
+.tailadmin-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+}
+
+.tailadmin-badge.badge-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-accent);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.tailadmin-badge.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.tailadmin-badge.badge-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.tailadmin-badge.badge-info {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--color-primary);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.tailadmin-badge.badge-primary {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--color-secondary);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.metric-body {
+  margin-bottom: 12px;
+}
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  margin: 0 0 4px 0;
+}
+
+.metric-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.metric-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+}
+
+.trend-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.trend-indicator.positive {
+  color: var(--color-accent);
+}
+
+.trend-indicator.negative {
+  color: var(--color-danger);
+}
+
+.metric-subtext {
+  color: var(--text-muted);
+}
+
+/* ── TailAdmin Table Cards ── */
+.tailadmin-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.table-card-body {
+  overflow-x: auto;
+}

@@ -3,8 +3,9 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import { ThemeProvider } from '../../contexts/ThemeContext';
-import { LanguageSelector } from '../../components/LanguageSelector';
-import { Navigation } from '../../components/Navigation';
+import { SidebarProvider } from '../../contexts/SidebarContext';
+import { Sidebar } from '../../components/layout/Sidebar';
+import { Header } from '../../components/layout/Header';
 import { SessionTimeoutModal } from '../../components/SessionTimeoutModal';
 
 export default function LangLayout({
@@ -14,10 +15,11 @@ export default function LangLayout({
 }) {
   const pathname = usePathname();
   const lng = pathname?.split('/')[1] || 'en';
+  const isLoginPage = pathname?.includes('/login');
 
   return (
     <ThemeProvider>
-      <div lang={lng}>
+      <div lang={lng} className="tailadmin-root">
         <SessionTimeoutModal />
         <a
           href="#main-content"
@@ -39,33 +41,33 @@ export default function LangLayout({
         >
           Skip to content
         </a>
-        <NavigationWithLang lng={lng} />
-        <div
-          id="main-content"
-          style={{ paddingTop: '80px', minHeight: '100vh', overflowX: 'hidden' }}
-        >
-          {children}
-        </div>
+
+        {isLoginPage ? (
+          <main id="main-content" className="tailadmin-fullpage">
+            {children}
+          </main>
+        ) : (
+          <SidebarProvider>
+            <div className="tailadmin-layout">
+              {/* Collapsible / Responsive Sidebar */}
+              <Sidebar lng={lng} />
+
+              {/* Content Area Column */}
+              <div className="tailadmin-content-wrapper">
+                {/* Sticky Header */}
+                <Header lng={lng} />
+
+                {/* Scrollable Main Viewport */}
+                <main id="main-content" className="tailadmin-main">
+                  <div className="tailadmin-container">
+                    {children}
+                  </div>
+                </main>
+              </div>
+            </div>
+          </SidebarProvider>
+        )}
       </div>
     </ThemeProvider>
-  );
-}
-
-function NavigationWithLang({ lng }: { lng: string }) {
-  return (
-    <>
-      <Navigation lng={lng} />
-      <div
-        className="lang-selector-fixed"
-        style={{
-          position: 'fixed',
-          top: '14px',
-          right: '24px',
-          zIndex: 1000,
-        }}
-      >
-        <LanguageSelector />
-      </div>
-    </>
   );
 }
