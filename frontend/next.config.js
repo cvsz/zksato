@@ -11,6 +11,28 @@ const nextConfig = {
     root: path.join(__dirname),
   },
 
+  async rewrites() {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://api:9569';
+    return [
+      {
+        source: '/v1/:path*',
+        destination: `${backendUrl}/v1/:path*`,
+      },
+      {
+        source: '/health',
+        destination: `${backendUrl}/health`,
+      },
+      {
+        source: '/readyz',
+        destination: `${backendUrl}/readyz`,
+      },
+      {
+        source: '/livez',
+        destination: `${backendUrl}/livez`,
+      },
+    ];
+  },
+
   async headers() {
     return [
       {
