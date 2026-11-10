@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getBackendUrl } from '../../utils/api';
 
 interface AlertRule {
   id: string;
@@ -15,8 +16,7 @@ export function NotificationPreferences() {
   const { t } = useTranslation();
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
 
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+  const backendUrl = getBackendUrl();
 
   const loadAlerts = useCallback(async () => {
     try {

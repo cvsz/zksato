@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getBackendUrl } from '../../utils/api';
 
 interface ApiKeyLoginProps {
   onSuccess?: (user: unknown) => void;
@@ -16,8 +17,7 @@ export function ApiKeyLogin({ onSuccess, onError }: ApiKeyLoginProps) {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const backendUrl =
-        process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:9569';
+      const backendUrl = getBackendUrl();
       const response = await fetch(`${backendUrl}/v1/auth/session`, {
         method: 'POST',
         headers: {

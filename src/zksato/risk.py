@@ -39,13 +39,21 @@ class RiskEngine:
                 and not self.settings.allow_equity_short_selling
             ):
                 reasons.append("equity short selling is disabled")
-            if (
-                intent.side == Side.SELL
-                and not self.settings.allow_equity_short_selling
-                and context.available_quantity is not None
-                and intent.quantity > context.available_quantity
-            ):
-                reasons.append("sell quantity exceeds available position")
+            if intent.side == Side.SELL and not self.settings.allow_equity_short_selling:
+                if not context.reduces_exposure:
+                    # Non-reducing sell (short or oversized): fail-closed when the
+                    # available position is unknown, otherwise check against it.
+                    if (
+                        context.available_quantity is None
+                        or intent.quantity > context.available_quantity
+                    ):
+                        reasons.append("sell quantity exceeds available position")
+                elif (
+                    context.available_quantity is not None
+                    and intent.quantity > context.available_quantity
+                ):
+                    # Reducing sell: only check when available_quantity is explicitly known.
+                    reasons.append("sell quantity exceeds available position")
             if (
                 intent.side in {Side.BUY, Side.SELL}
                 and self.settings.strict_reference_data

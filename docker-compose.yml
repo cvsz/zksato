@@ -39,7 +39,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_BACKEND_URL: "http://localhost:9569"
+      NEXT_PUBLIC_BACKEND_URL: "http://api:9569"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m

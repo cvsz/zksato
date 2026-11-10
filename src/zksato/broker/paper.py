@@ -179,7 +179,8 @@ class PaperBroker:
         remaining = float(order.quantity) - float(order.filled_quantity)
         if quantity <= 0 or quantity - remaining > 1e-9:
             raise ValueError("invalid paper fill quantity")
-        self.account.apply_fill(order.symbol, order.side, quantity, float(price))
+        fill_id = f"fill:{order.id}:{order.filled_quantity}"
+        self.account.apply_fill(order.symbol, order.side, quantity, float(price), fill_id=fill_id)
         previous_quantity = order.filled_quantity
         previous_value = (order.average_fill_price or 0.0) * previous_quantity
         new_quantity = previous_quantity + quantity

@@ -21,7 +21,10 @@ deploy/secrets/
 deploy/data/
 docker-compose.override.yml
 .env.bak
+.env.backup-*
 *.tfstate
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+.mcp.json
+

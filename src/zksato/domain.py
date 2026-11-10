@@ -435,6 +435,8 @@ class ReconciliationReport(BaseModel):
     marked_unknown: int = 0
     fills_recorded: int = 0
     positions_checked: int = 0
+    divergence_count: int = 0
+    divergences: list[dict[str, object]] = Field(default_factory=list)
     unresolved_order_ids: list[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

@@ -74,12 +74,15 @@ class CoordinationManager:
     async def allow_request(self, key: str, *, limit: int, window_seconds: int = 60) -> bool:
         if self.redis is None:
             return True
-        redis_key = f"zksato:ratelimit:{key}"
-        async with self.redis.pipeline(transaction=True) as pipe:
-            pipe.incr(redis_key)
-            pipe.expire(redis_key, window_seconds, nx=True)
-            count, _ = await pipe.execute()
-        return int(count) <= limit
+        try:
+            redis_key = f"zksato:ratelimit:{key}"
+            async with self.redis.pipeline(transaction=True) as pipe:
+                pipe.incr(redis_key)
+                pipe.expire(redis_key, window_seconds, nx=True)
+                count, _ = await pipe.execute()
+            return int(count) <= limit
+        except (ConnectionError, OSError, TimeoutError):
+            return True
 
     async def health(self) -> bool:
         if self.redis is None:

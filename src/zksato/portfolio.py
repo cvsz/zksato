@@ -30,6 +30,7 @@ class PaperPortfolio:
         self.holdings: dict[str, Holding] = {}
         self._day_start_equity = initial_cash
         self._peak_equity = initial_cash
+        self._applied_fills: set[str] = set()
         self._restore()
 
     def _restore(self) -> None:
@@ -70,7 +71,14 @@ class PaperPortfolio:
     def can_sell(self, symbol: str, quantity: float) -> bool:
         return self.holdings.get(symbol, Holding()).quantity >= quantity - 1e-9
 
-    def apply_fill(self, symbol: str, side: Side, quantity: float, price: float) -> None:
+    def apply_fill(
+        self, symbol: str, side: Side, quantity: float, price: float, fill_id: str | None = None
+    ) -> None:
+        if fill_id is not None:
+            if fill_id in self._applied_fills:
+                return  # Idempotent: already applied this fill
+            self._applied_fills.add(fill_id)
+
         holding = self.holdings.setdefault(symbol, Holding())
         if side == Side.BUY:
             cost = quantity * price

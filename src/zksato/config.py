@@ -4,7 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from zksato.secrets import AWSSecretManagerSettingsSource
@@ -201,6 +201,15 @@ class Settings(BaseSettings):
     max_directional_residual: float = Field(default=100.0, ge=0)
     max_complete_set_cost: float = Field(default=1.0, gt=0)
     min_prediction_edge: float = Field(default=0.03, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def _require_database_for_non_paper(self) -> Settings:
+        if self.trading_mode in {"live", "sandbox"} and not self.database_url:
+            raise ValueError(
+                "database_url is required when trading_mode is 'live' or 'sandbox'; "
+                "live approvals must be durable across restarts"
+            )
+        return self
 
     def model_post_init(self, __context: object) -> None:
         mapping = {
