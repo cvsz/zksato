@@ -5,7 +5,7 @@ This document provides the comprehensive, authoritative engineering record, vuln
 
 - **Repository**: `https://github.com/cvsz/zksato`
 - **Release Status**: **v1.0.0 Production-Grade Master**
-- **Audit Date**: 2026-11-09
+- **Audit Date**: 2026-11-11
 - **GPG Signing**: All commits verified and GPG-signed by `cvsz` (`EDDSA key 8BC7A85F1FB5322782921AEC14E1E0BC08F632B0`).
 - **Core Security Stance**: Zero live money execution without operator authorization, paper trading default, strict non-bypassable `RiskEngine` isolation, and immutable audit logs.
 - **Git Governance**: Enforced three-step authenticated multi-account separation of duties (`cvsz` -> `policedbc` -> `cvsz`).
@@ -141,6 +141,23 @@ The following Critical and High severity findings were identified and remediated
 | A-01 | `ApprovalRepository` accepted `database_url=None` (in-memory approvals lost on restart) | `Settings._require_database_for_non_paper` validator: `database_url` required when `trading_mode` is `live` or `sandbox` |
 | H-3 | AWS Secrets Manager failure logged raw exception (potential credential leakage) | Exception object removed from log message; generic warning only |
 
+**Medium (P2)**
+
+| ID | Issue | Fix |
+|----|-------|-----|
+| M-01 | Makefile `shellcheck` target suppressed errors with `|| true` | Removed `|| true` so lint failures fail the build |
+| M-02 | Makefile `env-check` called nonexistent `validate_env_file` | Implemented `validate_env_file()` in `secrets.py` — validates `.env` formatting, key naming (`[A-Z_][A-Z0-9_]*`), rejects shell metacharacters, enforces secret placeholders |
+| M-03 | Trivy container scan `exit-code: "0"` let HIGH/CRITICAL vulns pass CI | Changed to `exit-code: "1"` so vulnerability scans fail builds |
+| M-04 | `.gitignore` did not cover `*.db`, `test_zksato.db`, `backups/` | Added `*.db`, `test_zksato.db`, `backups/` to prevent accidental secret DB commits |
+| M-05 | `settrade_app_code` hardcoded default `ALGO_EQ` | Changed default to `None` (no hardcoded credential default) |
+
+**Low (P3)**
+
+| ID | Issue | Fix |
+|----|-------|-----|
+| L-01 | `test_zksato.db` and `backups/` not in `.gitignore` | Covered by M-04 |
+| L-02 | Frontend `.dockerignore` missing `.env.local` | Documented as pending frontend infra task |
+
 ---
 
 ## 5. Pull Request & Governance History
@@ -164,6 +181,8 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#32** | zTrader paper integration | `cvsz` | `policedbc` | Closed (superceded by #46) | — |
 | **#31** | zTrader advisory boundary docs | `cvsz` | `policedbc` | Closed (superceded by #46) | — |
 | **#26** | `build(deps-dev): bump python-dependencies` | Dependabot | `policedbc` | Closed (superceded by #53) | — |
+| **#68** | `fix(security): harden admin env endpoint, session cookies, and idempotency across restarts` | `cvsz` | `policedbc` | Squash-Merged | `2298c23` |
+| **#69** | `fix(security): harden env validation, CI security gates, and gitignore coverage` | `cvsz` | `policedbc` | Squash-Merged | `8bfb4e8` |
 
 ---
 
