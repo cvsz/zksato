@@ -886,6 +886,91 @@ class MACDCrossStrategy(IStrategy):
         return dataframe
 
 
+@register_strategy
+class BollingerReversionStrategy(IStrategy):
+    """Bollinger Band Reversion strategy — Freqtrade-compatible example.
+
+    Buys when price touches or crosses below the lower Bollinger Band.
+    Sells when price touches or crosses above the upper Bollinger Band.
+    """
+
+    name = "bollinger_reversion"
+    description = "Bollinger Band Reversion — buys at lower band, sells at upper band"
+    timeframe = "15m"
+    stoploss = -0.08  # -8%
+    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    max_open_trades = 5
+
+    # Hyperoptable parameters
+    buy_bb_period = IntParameter(10, 50, default=20, space="buy", optimize=True)
+    buy_bb_deviations = DecimalParameter(1.5, 4.0, default=2.0, space="buy", optimize=True)
+    sell_bb_period = IntParameter(10, 50, default=20, space="sell", optimize=True)
+    sell_bb_deviations = DecimalParameter(1.5, 4.0, default=2.0, space="sell", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # Bollinger Bands for buy side
+        buy_bb_middle = dataframe["close"].rolling(window=self.buy_bb_period.value).mean()
+        buy_bb_std = dataframe["close"].rolling(window=self.buy_bb_period.value).std()
+        dataframe["bb_lower_buy"] = buy_bb_middle - (buy_bb_std * self.buy_bb_deviations.value)
+        dataframe["bb_upper_buy"] = buy_bb_middle + (buy_bb_std * self.buy_bb_deviations.value)
+        dataframe["bb_middle_buy"] = buy_bb_middle
+
+        # Bollinger Bands for sell side (same calculation, separate parameter set for hyperopt)
+        sell_bb_middle = dataframe["close"].rolling(window=self.sell_bb_period.value).mean()
+        sell_bb_std = dataframe["close"].rolling(window=self.sell_bb_period.value).std()
+        dataframe["bb_lower_sell"] = sell_bb_middle - (sell_bb_std * self.sell_bb_deviations.value)
+        dataframe["bb_upper_sell"] = sell_bb_middle + (sell_bb_std * self.sell_bb_deviations.value)
+        dataframe["bb_middle_sell"] = sell_bb_middle
+
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        # Buy: price touches or crosses below the lower Bollinger Band
+        buy_condition = dataframe["close"] <= dataframe["bb_lower_buy"]
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "bollinger_reversion_buy"
+
+        # Sell: price touches or crosses above the upper Bollinger Band
+        sell_condition = dataframe["close"] >= dataframe["bb_upper_sell"]
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "bollinger_reversion_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        # Exit long: price touches or crosses above the middle Bollinger Band
+        exit_long_condition = dataframe["close"] >= dataframe["bb_middle_buy"]
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "bollinger_reversion_exit_long"
+
+        # Exit short: price touches or crosses below the middle Bollinger Band
+        exit_short_condition = dataframe["close"] <= dataframe["bb_middle_sell"]
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "bollinger_reversion_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
@@ -893,4 +978,5 @@ EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
     EMAcrossStrategy,
     RSIRebversionStrategy,
     MACDCrossStrategy,
+    BollingerReversionStrategy,
 ]
