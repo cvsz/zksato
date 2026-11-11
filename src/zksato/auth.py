@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import json
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Annotated
@@ -42,6 +42,20 @@ ROLE_GRANTS: dict[Role, set[Role]] = {
 }
 
 
+@dataclass
+class ApiKey:
+    """API key metadata (never stores the raw key value)."""
+
+    key_id: str
+    role: str
+    description: str = ""
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    expires_at: datetime | None = None
+    is_active: bool = True
+    last_used_at: datetime | None = None
+    usage_count: int = 0
+
+
 @dataclass(frozen=True)
 class Principal:
     subject: str
@@ -64,6 +78,8 @@ class AuthManager:
         self.settings = settings
         self._revoked_sessions: set[str] = set()
         self._session_expiry: dict[str, int] = {}
+        self._api_keys: dict[str, ApiKey] = {}
+        self._api_key_hashes: dict[str, str] = {}  # hash -> key_id
 
     def _prune_revoked_sessions(self) -> None:
         now_ts = int(datetime.now(UTC).timestamp())
@@ -71,6 +87,78 @@ class AuthManager:
         for sid in expired:
             self._revoked_sessions.discard(sid)
             self._session_expiry.pop(sid, None)
+
+    # ── API Key Management ──────────────────────────────────────────────
+
+    def create_api_key(
+        self,
+        role: str,
+        description: str = "",
+        ttl_seconds: int | None = None,
+    ) -> tuple[str, ApiKey]:
+        """Create a new API key.
+
+        Returns the raw key value (shown once) and the ApiKey metadata.
+        The raw key is never stored; only its SHA-256 hash is kept.
+        """
+        key_id = str(uuid4())
+        raw_key = secrets.token_urlsafe(32)
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        expires_at: datetime | None = None
+        if ttl_seconds is not None:
+            expires_at = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
+
+        api_key = ApiKey(
+            key_id=key_id,
+            role=role,
+            description=description,
+            expires_at=expires_at,
+        )
+        self._api_keys[key_id] = api_key
+        self._api_key_hashes[key_hash] = key_id
+
+        return raw_key, api_key
+
+    def list_api_keys(self) -> list[dict[str, object]]:
+        """List all API keys with masked key IDs (no raw values exposed)."""
+        now = datetime.now(UTC)
+        result: list[dict[str, object]] = []
+        for key_id, key in self._api_keys.items():
+            expired = key.expires_at is not None and now > key.expires_at
+            active = key.is_active and not expired
+            # Show only first 8 chars of key_id for identification
+            masked_id = key_id[:8] + "..." if len(key_id) > 8 else key_id
+            result.append(
+                {
+                    "key_id": key_id,
+                    "masked_id": masked_id,
+                    "role": key.role,
+                    "description": key.description,
+                    "created_at": key.created_at.isoformat(),
+                    "expires_at": key.expires_at.isoformat() if key.expires_at else None,
+                    "is_active": active,
+                    "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+                    "usage_count": key.usage_count,
+                }
+            )
+        return sorted(result, key=lambda k: str(k["created_at"]), reverse=True)
+
+    def get_api_key(self, key_id: str) -> ApiKey | None:
+        """Get API key metadata by key ID."""
+        return self._api_keys.get(key_id)
+
+    def revoke_api_key(self, key_id: str) -> bool:
+        """Revoke (deactivate) an API key. Returns True if found and revoked."""
+        api_key = self._api_keys.get(key_id)
+        if api_key is None:
+            return False
+        api_key.is_active = False
+        return True
+
+    def _lookup_api_key_by_hash(self, key_hash: str) -> str | None:
+        """Look up key_id by SHA-256 hash of the raw key."""
+        return self._api_key_hashes.get(key_hash)
 
     def authenticate(
         self,
@@ -97,6 +185,7 @@ class AuthManager:
         raise HTTPException(status_code=401, detail="authentication required")
 
     def _authenticate_api_key(self, token: str) -> Principal:
+        # First check statically configured API keys from settings
         for configured, role_name in self.settings.api_key_map.items():
             if hmac.compare_digest(configured, token):
                 try:
@@ -108,6 +197,31 @@ class AuthManager:
                     ) from exc
                 digest = hashlib.sha256(token.encode()).hexdigest()[:16]
                 return Principal(subject=f"api-key:{digest}", role=role)
+
+        # Then check dynamically managed API keys
+        key_hash = hashlib.sha256(token.encode()).hexdigest()
+        key_id = self._lookup_api_key_by_hash(key_hash)
+        if key_id is not None:
+            api_key = self._api_keys.get(key_id)
+            if api_key is not None:
+                now = datetime.now(UTC)
+                if not api_key.is_active:
+                    raise HTTPException(status_code=401, detail="api key revoked")
+                if api_key.expires_at is not None and now > api_key.expires_at:
+                    raise HTTPException(status_code=401, detail="api key expired")
+                # Update usage stats
+                api_key.last_used_at = now
+                api_key.usage_count += 1
+                try:
+                    role = Role(api_key.role)
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="invalid server role mapping",
+                    ) from exc
+                digest = key_hash[:16]
+                return Principal(subject=f"api-key:{digest}", role=role)
+
         raise HTTPException(status_code=401, detail="invalid credentials")
 
     def issue_session(self, authorization: str | None, api_key: str | None) -> IssuedSession:
