@@ -1059,6 +1059,89 @@ class StochasticOscillatorStrategy(IStrategy):
         return dataframe
 
 
+@register_strategy
+class WilliamsRStrategy(IStrategy):
+    """Williams %R strategy — Freqtrade-compatible example.
+
+    Buys when Williams %R crosses above -80 (oversold).
+    Sells when Williams %R crosses below -20 (overbought).
+    """
+
+    name = "williams_r"
+    description = (
+        "Williams %R — buys when %R crosses above -80 (oversold), "
+        "sells when %R crosses below -20 (overbought)"
+    )
+    timeframe = "15m"
+    stoploss = -0.08  # -8%
+    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    max_open_trades = 5
+
+    # Hyperoptable parameters
+    williams_r_period = IntParameter(10, 50, default=14, space="buy", optimize=True)
+    williams_r_overbought = IntParameter(-30, -10, default=-20, space="sell", optimize=True)
+    williams_r_oversold = IntParameter(-90, -70, default=-80, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # Williams %R = (Highest High - Close) / (Highest High - Lowest Low) * -100
+        highest_high = dataframe["high"].rolling(window=self.williams_r_period.value).max()
+        lowest_low = dataframe["low"].rolling(window=self.williams_r_period.value).min()
+        dataframe["williams_r"] = (
+            (highest_high - dataframe["close"]) / (highest_high - lowest_low) * -100
+        )
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        # Buy: Williams %R crosses above oversold level (-80)
+        buy_condition = (dataframe["williams_r"] > self.williams_r_oversold.value) & (
+            dataframe["williams_r"].shift(1) <= self.williams_r_oversold.value
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "williams_r_oversold_buy"
+
+        # Sell: Williams %R crosses below overbought level (-20)
+        sell_condition = (dataframe["williams_r"] < self.williams_r_overbought.value) & (
+            dataframe["williams_r"].shift(1) >= self.williams_r_overbought.value
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "williams_r_overbought_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        # Exit long: Williams %R crosses above overbought level
+        exit_long_condition = dataframe["williams_r"] >= self.williams_r_overbought.value
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "williams_r_overbought_exit_long"
+
+        # Exit short: Williams %R crosses below oversold level
+        exit_short_condition = dataframe["williams_r"] <= self.williams_r_oversold.value
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "williams_r_oversold_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
@@ -1068,4 +1151,5 @@ EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
     MACDCrossStrategy,
     BollingerReversionStrategy,
     StochasticOscillatorStrategy,
+    WilliamsRStrategy,
 ]
