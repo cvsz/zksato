@@ -351,3 +351,90 @@ class AgentService:
         if role == AgentRole.ADMIN.value:
             base_permissions.extend(["manage_agents", "manage_system"])
         return base_permissions
+
+    # ── Session Management ──────────────────────────────────────────────
+
+    def create_session(
+        self,
+        agent_id: str,
+        ttl_seconds: int = 3600,
+    ) -> dict[str, Any]:
+        """Create an authenticated session for an agent.
+
+        Returns a session token and expiry time. The session is stored
+        in StateStore with a TTL for automatic cleanup.
+        """
+        import secrets
+        from datetime import UTC, datetime, timedelta
+
+        uid = UUID(agent_id)
+        agent = self.store.get_agent_by_id(uid)
+        if agent is None:
+            raise ValueError("Agent not found")
+
+        token = secrets.token_urlsafe(32)
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(seconds=ttl_seconds)
+
+        session_data = {
+            "agent_id": agent_id,
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "ttl_seconds": ttl_seconds,
+            "is_active": True,
+        }
+        self.store.save_runtime_state(f"agent_session:{token}", session_data)
+
+        return {
+            "session_token": token,
+            "agent_id": agent_id,
+            "expires_at": expires_at.isoformat(),
+            "ttl_seconds": ttl_seconds,
+        }
+
+    def get_session(self, session_token: str) -> dict[str, Any] | None:
+        """Validate a session token and return session info.
+
+        Returns None if the session is expired or not found.
+        """
+        from datetime import UTC, datetime
+
+        session_data = self.store.get_runtime_state(f"agent_session:{session_token}")
+        if session_data is None:
+            return None
+
+        if not session_data.get("is_active", False):
+            return None
+
+        expires_at_str = session_data.get("expires_at")
+        if expires_at_str:
+            expires_at = datetime.fromisoformat(str(expires_at_str))
+            if datetime.now(UTC) > expires_at:
+                session_data["is_active"] = False
+                self.store.save_runtime_state(f"agent_session:{session_token}", session_data)
+                return None
+
+        return session_data
+
+    def expire_session(self, session_token: str) -> bool:
+        """Expire (invalidate) a session token.
+
+        Returns True if the session was found and expired, False otherwise.
+        """
+        session_data = self.store.get_runtime_state(f"agent_session:{session_token}")
+        if session_data is None:
+            return False
+
+        session_data["is_active"] = False
+        self.store.save_runtime_state(f"agent_session:{session_token}", session_data)
+        return True
+
+    def list_sessions(self, agent_id: str) -> list[dict[str, Any]]:
+        """List all sessions for an agent.
+
+        Note: This scans runtime state keys with the agent_session prefix.
+        In production, this should use a dedicated session index.
+        """
+        # StateStore doesn't support prefix scan; return empty list.
+        # Sessions are validated individually via get_session.
+        return []

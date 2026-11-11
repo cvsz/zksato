@@ -204,3 +204,132 @@ class ProtectionManager:
                 protection.record_trade_exit(symbol, exit_time)
             if isinstance(protection, StoplossGuardProtection) and was_loss:
                 protection.record_trade_loss(symbol, exit_time)
+            if isinstance(protection, ConsecutiveLossProtection) and was_loss:
+                protection.record_consecutive_loss(symbol, exit_time)
+            if isinstance(protection, ConsecutiveLossProtection) and not was_loss:
+                protection.reset_consecutive_losses(symbol)
+
+
+class VolatilityProtection(Protection):
+    """Pauses trading when recent price volatility exceeds a threshold.
+
+    Computes volatility from recent trade prices in the context.
+    """
+
+    name = "VolatilityProtection"
+
+    def __init__(
+        self,
+        max_volatility_pct: float = 5.0,
+        lookback_trades: int = 20,
+    ) -> None:
+        self.max_volatility_pct = max_volatility_pct
+        self.lookback_trades = lookback_trades
+
+    def evaluate(self, context: TradeContext) -> ProtectionResult:
+        recent = context.recent_trades[-self.lookback_trades :] if context.recent_trades else []
+        if len(recent) < 2:
+            return ProtectionResult(allowed=True)
+
+        prices = [float(t.get("price", 0.0)) for t in recent if t.get("price")]
+        if len(prices) < 2:
+            return ProtectionResult(allowed=True)
+
+        returns: list[float] = []
+        for previous, current in zip(prices, prices[1:], strict=False):
+            if previous <= 0:
+                continue
+            returns.append((current - previous) / previous * 100.0)
+
+        if not returns:
+            return ProtectionResult(allowed=True)
+
+        mean = sum(returns) / len(returns)
+        variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+        volatility = variance**0.5
+
+        if volatility > self.max_volatility_pct:
+            return ProtectionResult(
+                allowed=False,
+                reason=f"volatility too high ({volatility:.2f}% > {self.max_volatility_pct:.2f}%)",
+            )
+        return ProtectionResult(allowed=True)
+
+
+class TimeBasedProtection(Protection):
+    """Pauses trading during configured hours (e.g., lunch, overnight, news events)."""
+
+    name = "TimeBasedProtection"
+
+    def __init__(
+        self,
+        blocked_hours: list[int] | None = None,
+        timezone_name: str = "Asia/Bangkok",
+    ) -> None:
+        self.blocked_hours = set(blocked_hours or [12, 13])  # Default: lunch break
+        self.timezone_name = timezone_name
+
+    def evaluate(self, context: TradeContext) -> ProtectionResult:
+        current_hour = context.current_time.hour
+        if current_hour in self.blocked_hours:
+            return ProtectionResult(
+                allowed=False,
+                reason=f"trading blocked during hour {current_hour}:00",
+            )
+        return ProtectionResult(allowed=True)
+
+
+class ConsecutiveLossProtection(Protection):
+    """Pauses trading after N consecutive losses."""
+
+    name = "ConsecutiveLossProtection"
+
+    def __init__(
+        self,
+        max_consecutive_losses: int = 3,
+        stop_duration_candles: int = 6,
+        candle_duration_seconds: int = 3600,
+    ) -> None:
+        self.max_consecutive_losses = max_consecutive_losses
+        self.stop_duration_candles = stop_duration_candles
+        self.candle_duration_seconds = candle_duration_seconds
+        self._consecutive_losses: dict[str, int] = {}
+        self._stop_until: dict[str, datetime] = {}
+
+    def record_consecutive_loss(self, symbol: str, loss_time: datetime) -> None:
+        """Record a consecutive loss and check if we should stop."""
+        count = self._consecutive_losses.get(symbol, 0) + 1
+        self._consecutive_losses[symbol] = count
+
+        if count >= self.max_consecutive_losses:
+            self._stop_until[symbol] = loss_time + timedelta(
+                seconds=self.stop_duration_candles * self.candle_duration_seconds
+            )
+
+    def reset_consecutive_losses(self, symbol: str, exit_time: datetime | None = None) -> None:
+        """Reset consecutive loss count on a winning trade."""
+        self._consecutive_losses[symbol] = 0
+        if symbol in self._stop_until:
+            del self._stop_until[symbol]
+
+    def evaluate(self, context: TradeContext) -> ProtectionResult:
+        symbol = context.symbol
+        current_time = context.current_time
+
+        stop_until = self._stop_until.get(symbol)
+        if stop_until is not None and current_time < stop_until:
+            remaining = (stop_until - current_time).total_seconds()
+            return ProtectionResult(
+                allowed=False,
+                reason=f"consecutive losses active ({remaining:.0f}s remaining)",
+            )
+        if stop_until is not None and current_time >= stop_until:
+            del self._stop_until[symbol]
+
+        losses = self._consecutive_losses.get(symbol, 0)
+        if losses >= self.max_consecutive_losses:
+            return ProtectionResult(
+                allowed=False,
+                reason=f"{losses} consecutive losses",
+            )
+        return ProtectionResult(allowed=True)
