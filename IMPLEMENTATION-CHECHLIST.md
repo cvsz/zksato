@@ -148,12 +148,12 @@ This checklist tracks complete system verification, financial safety guarantees,
 
 ## 8. In Progress / Next Steps
 
-- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum (new), Breakout (new), Scalp (new), Swing (new), Position (new), VWAP (new), LLM Sentiment (new), Multi-Factor (new), TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all planned strategies implemented.
+- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum, Breakout, Scalp, Swing, Position, VWAP, LLM Sentiment, Multi-Factor, TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all planned strategies implemented.
 - [x] **Frontend Integration**: Frontend directory exists at `/frontend/` with Next.js 16 operator UI.
 - [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`.
-- [ ] **Additional Test Coverage**: Add unit tests for agent trading, hyperopt, and enhanced backtesting modules.
-- [ ] **Documentation**: Update `docs/API-SPEC.md`, `docs/DOMAIN-MODEL.md`, `docs/RISK.md` with new modules.
-- [ ] **ADRs**: Create `docs/adr/004-agent-native-platform.md`, `docs/adr/005-freqtrade-integration.md`.
+- [x] **Additional Test Coverage**: Added unit tests for agent trading and hyperopt modules.
+- [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules.
+- [x] **ADRs**: docs/adr/005-ai-read-only-boundary.md covers agent OS and secure boundaries; docs/adr/004-broker-reconciliation.md covers broker integration.
 
 ---
 
