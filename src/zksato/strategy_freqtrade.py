@@ -971,6 +971,94 @@ class BollingerReversionStrategy(IStrategy):
         return dataframe
 
 
+@register_strategy
+class StochasticOscillatorStrategy(IStrategy):
+    """Stochastic Oscillator strategy — Freqtrade-compatible example.
+
+    Buys when %K crosses above %D while both are below oversold level.
+    Sells when %K crosses below %D while both are above overbought level.
+    """
+
+    name = "stochastic_oscillator"
+    description = (
+        "Stochastic Oscillator — buys when %K crosses above %D in oversold, "
+        "sells when %K crosses below %D in overbought"
+    )
+    timeframe = "15m"
+    stoploss = -0.08  # -8%
+    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    max_open_trades = 5
+
+    # Hyperoptable parameters
+    stoch_k_period = IntParameter(10, 50, default=14, space="buy", optimize=True)
+    stoch_d_period = IntParameter(3, 10, default=3, space="buy", optimize=True)
+    stoch_overbought = IntParameter(70, 90, default=80, space="sell", optimize=True)
+    stoch_oversold = IntParameter(10, 30, default=20, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # Fast %K
+        low_min = dataframe["low"].rolling(window=self.stoch_k_period.value).min()
+        high_max = dataframe["high"].rolling(window=self.stoch_k_period.value).max()
+        dataframe["stoch_k"] = (dataframe["close"] - low_min) / (high_max - low_min) * 100
+        # %D is SMA of %K
+        dataframe["stoch_d"] = dataframe["stoch_k"].rolling(window=self.stoch_d_period.value).mean()
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        # Buy: %K crosses above %D while both are below oversold level
+        buy_condition = (
+            (dataframe["stoch_k"] > dataframe["stoch_d"])
+            & (dataframe["stoch_k"].shift(1) <= dataframe["stoch_d"].shift(1))
+            & (dataframe["stoch_k"] <= self.stoch_oversold.value)
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "stochastic_oversold_buy"
+
+        # Sell: %K crosses below %D while both are above overbought level
+        sell_condition = (
+            (dataframe["stoch_k"] < dataframe["stoch_d"])
+            & (dataframe["stoch_k"].shift(1) >= dataframe["stoch_d"].shift(1))
+            & (dataframe["stoch_k"] >= self.stoch_overbought.value)
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "stochastic_overbought_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        # Exit long: %K crosses above overbought level
+        exit_long_condition = dataframe["stoch_k"] >= self.stoch_overbought.value
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "stochastic_overbought_exit_long"
+
+        # Exit short: %K crosses below oversold level
+        exit_short_condition = dataframe["stoch_k"] <= self.stoch_oversold.value
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "stochastic_oversold_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
@@ -979,4 +1067,5 @@ EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
     RSIRebversionStrategy,
     MACDCrossStrategy,
     BollingerReversionStrategy,
+    StochasticOscillatorStrategy,
 ]
