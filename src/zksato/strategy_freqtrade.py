@@ -819,9 +819,9 @@ class MACDCrossStrategy(IStrategy):
         macd_fast = dataframe["close"].ewm(span=self.buy_macd_fast.value, adjust=False).mean()
         macd_slow = dataframe["close"].ewm(span=self.buy_macd_slow.value, adjust=False).mean()
         dataframe["macd_line"] = macd_fast - macd_slow
-        dataframe["macd_signal"] = dataframe["macd_line"].ewm(
-            span=self.buy_macd_signal.value, adjust=False
-        ).mean()
+        dataframe["macd_signal"] = (
+            dataframe["macd_line"].ewm(span=self.buy_macd_signal.value, adjust=False).mean()
+        )
         dataframe["macd_histogram"] = dataframe["macd_line"] - dataframe["macd_signal"]
 
         # MACD for sell side (same calculation, separate parameter set for hyperopt)
@@ -829,9 +829,9 @@ class MACDCrossStrategy(IStrategy):
             dataframe["close"].ewm(span=self.sell_macd_fast.value, adjust=False).mean()
             - dataframe["close"].ewm(span=self.sell_macd_slow.value, adjust=False).mean()
         )
-        dataframe["sell_macd_signal"] = dataframe["sell_macd_line"].ewm(
-            span=self.sell_macd_signal.value, adjust=False
-        ).mean()
+        dataframe["sell_macd_signal"] = (
+            dataframe["sell_macd_line"].ewm(span=self.sell_macd_signal.value, adjust=False).mean()
+        )
 
         return dataframe
 
@@ -845,17 +845,15 @@ class MACDCrossStrategy(IStrategy):
         dataframe["enter_tag"] = ""
 
         # Buy: fast EMA crosses above slow EMA (MACD line crosses above signal)
-        buy_condition = (
-            (dataframe["macd_line"] > dataframe["macd_signal"])
-            & (dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1))
+        buy_condition = (dataframe["macd_line"] > dataframe["macd_signal"]) & (
+            dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1)
         )
         dataframe.loc[buy_condition, "enter_long"] = 1
         dataframe.loc[buy_condition, "enter_tag"] = "macd_cross_buy"
 
         # Sell: fast EMA crosses below slow EMA (MACD line crosses below signal)
-        sell_condition = (
-            (dataframe["macd_line"] < dataframe["macd_signal"])
-            & (dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1))
+        sell_condition = (dataframe["macd_line"] < dataframe["macd_signal"]) & (
+            dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1)
         )
         dataframe.loc[sell_condition, "enter_short"] = 1
         dataframe.loc[sell_condition, "enter_tag"] = "macd_cross_sell"
@@ -872,17 +870,15 @@ class MACDCrossStrategy(IStrategy):
         dataframe["exit_tag"] = ""
 
         # Exit long: MACD line crosses below signal line
-        exit_long_condition = (
-            (dataframe["macd_line"] < dataframe["macd_signal"])
-            & (dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1))
+        exit_long_condition = (dataframe["macd_line"] < dataframe["macd_signal"]) & (
+            dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1)
         )
         dataframe.loc[exit_long_condition, "exit_long"] = 1
         dataframe.loc[exit_long_condition, "exit_tag"] = "macd_cross_exit_long"
 
         # Exit short: MACD line crosses above signal line
-        exit_short_condition = (
-            (dataframe["macd_line"] > dataframe["macd_signal"])
-            & (dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1))
+        exit_short_condition = (dataframe["macd_line"] > dataframe["macd_signal"]) & (
+            dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1)
         )
         dataframe.loc[exit_short_condition, "exit_short"] = 1
         dataframe.loc[exit_short_condition, "exit_tag"] = "macd_cross_exit_short"
