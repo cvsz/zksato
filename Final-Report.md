@@ -173,9 +173,9 @@ Freqtrade-inspired features have been integrated into zksato as an advisory/rese
 
 | Module | Description |
 |--------|-------------|
-| `src/zksato/strategy_freqtrade.py` | Freqtrade-compatible `IStrategy` interface with `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`, hyperoptable parameters (`IntParameter`, `DecimalParameter`, `CategoricalParameter`, `BooleanParameter`), ROI table, trailing stop, protections |
+| `src/zksato/strategy_freqtrade.py` | Freqtrade-compatible `IStrategy` interface with `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`, hyperoptable parameters (`IntParameter`, `DecimalParameter`, `CategoricalParameter`, `BooleanParameter`), ROI table, trailing stop, protections, entry/exit tags, position stacking, order expiration, market regime detection |
 | `src/zksato/hyperopt.py` | Optuna-based hyperparameter optimization with 8 loss functions (`OnlyProfit`, `Sharpe`, `Sortino`, `Calmar`, `MaxDrawDown`, `ProfitDrawDown`, `ShortTradeDur`) |
-| `src/zksato/backtest_enhanced.py` | Freqtrade-style backtesting with Sharpe, Sortino, Calmar, SQN, Profit Factor, Expectancy, drawdown analysis, pair-level breakdown, exit reason stats |
+| `src/zksato/backtest_enhanced.py` | Freqtrade-style backtesting with Sharpe, Sortino, Calmar, SQN, Profit Factor, Expectancy, drawdown analysis, pair-level breakdown, entry/exit tag stats, position sizing stats, order expiration tracking |
 | `src/zksato/protections.py` | Protection mechanisms: `CooldownPeriodProtection`, `StoplossGuardProtection`, `DrawdownProtection` |
 | `src/zksato/pairlist.py` | Pairlist management: `StaticPairList`, `VolumePairList`, `ChangePctPairList` |
 | `src/zksato/trailing_stop.py` | Trailing stop loss management with activation threshold and offset |
@@ -194,6 +194,12 @@ All 10 AGENTS.md invariants remain fully enforced:
 8. ✅ Risk controls have independent kill paths
 9. ✅ SET and TFEX semantics not conflated
 10. ✅ Money-moving behavior is deterministic, auditable, versioned, testable
+
+### Example Strategies
+| Strategy | Description | Parameters |
+|----------|-------------|------------|
+| `ema_cross` | EMA Cross — buys on fast EMA cross above slow EMA | `buy_ema_fast`, `buy_ema_slow`, `sell_ema_fast`, `sell_ema_slow` |
+| `rsi_reversion` | RSI Reversion — buys oversold, sells overbought | `buy_rsi`, `sell_rsi`, `rsi_period` |
 
 ---
 
@@ -222,7 +228,7 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#69** | `fix(security): harden env validation, CI security gates, and gitignore coverage` | `cvsz` | `policedbc` | Squash-Merged | `8bfb4e8` |
 | **#70** | `docs(final-report): add Medium/Low security remediation findings and PR #68/#69 governance history` | `cvsz` | `policedbc` | Squash-Merged | `66ef7db` |
 | **#71** | `docs(final-report): document comprehensive source code investigation findings` | `cvsz` | `policedbc` | Squash-Merged | `e6cf6f4` |
-| **#72** | `feat(freqtrade): integrate Freqtrade-inspired strategy framework, hyperopt, backtesting, protections, pairlist, LLM clients` | `cvsz` | `policedbc` | Squash-Merged | `pending` |
+| **#72** | `feat(freqtrade): integrate Freqtrade-inspired strategy framework, hyperopt, backtesting, protections, pairlist, LLM clients` | `cvsz` | `policedbc` | Squash-Merged | `6565646` |
 
 ---
 

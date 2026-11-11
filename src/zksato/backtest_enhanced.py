@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -45,6 +45,10 @@ class TradeMetrics:
     side: str  # "long" or "short"
     exit_reason: str = ""
     entry_tag: str = ""
+    exit_tag: str = ""
+    position_size_pct: float = 0.0  # Position size as % of portfolio at entry
+    market_regime: str = ""  # Market regime at entry time
+    position_adjustments: int = 0  # Number of times position was scaled in
 
 
 @dataclass
@@ -75,6 +79,30 @@ class ExitReasonStats:
     draws: int
     losses: int
     win_rate: float
+
+
+@dataclass
+class EntryTagStats:
+    """Performance breakdown by entry tag."""
+
+    tag: str
+    trades: int
+    avg_profit_pct: float
+    total_profit_abs: float
+    total_profit_pct: float
+    wins: int
+    losses: int
+    win_rate: float
+
+
+@dataclass
+class PositionSizingStats:
+    """Position sizing analysis."""
+
+    avg_position_size_pct: float
+    max_position_size_pct: float
+    min_position_size_pct: float
+    total_position_adjustments: int
 
 
 @dataclass
@@ -136,6 +164,9 @@ class BacktestSummaryMetrics:
     sharpe_wallet: float | None = None
     sortino_wallet: float | None = None
     calmar_wallet: float | None = None
+    entry_tag_stats: list[EntryTagStats] = field(default_factory=list)
+    position_sizing: PositionSizingStats | None = None
+    order_expirations: int = 0
 
 
 # ── Metrics Calculation ───────────────────────────────────────────────────
@@ -361,10 +392,45 @@ class EnhancedBacktester:
         trades: list[TradeMetrics] = []
         position: dict[str, Any] | None = None
         trade_id = 0
+        # Pending orders waiting to be filled (order expiration tracking)
+        pending_orders: list[dict[str, Any]] = []
 
-        for _, row in df.iterrows():
+        for i, (_, row) in enumerate(df.iterrows()):
             current_time = row["date"]
             current_price = row["close"]
+
+            # Check pending order expirations
+            expired_orders = []
+            for pending in pending_orders:
+                if (
+                    pending.get("order_expiration_candles") is not None
+                    and pending.get("entry_candle_index") is not None
+                    and i - pending["entry_candle_index"] >= pending["order_expiration_candles"]
+                ):
+                    expired_orders.append(pending)
+            for expired in expired_orders:
+                pending_orders.remove(expired)
+                trades.append(
+                    TradeMetrics(
+                        pair=symbol,
+                        entry_time=expired["entry_time"],
+                        exit_time=current_time,
+                        duration_seconds=(current_time - expired["entry_time"]).total_seconds(),
+                        profit_abs=0.0,
+                        profit_pct=0.0,
+                        entry_price=expired["entry_price"],
+                        exit_price=current_price,
+                        amount=expired["amount"],
+                        fee_abs=expired["fee_abs"],
+                        side=expired["side"],
+                        exit_reason=ExitReason.ORDER_EXPIRATION,
+                        entry_tag=expired.get("entry_tag", ""),
+                        exit_tag="order_expiration",
+                        position_size_pct=expired.get("position_size_pct", 0.0),
+                        market_regime=expired.get("market_regime", ""),
+                        position_adjustments=expired.get("position_adjustments", 0),
+                    )
+                )
 
             # Check exit signals first
             if position is not None:
@@ -397,6 +463,10 @@ class EnhancedBacktester:
                             side=position["side"],
                             exit_reason=exit_reason,
                             entry_tag=position.get("entry_tag", ""),
+                            exit_tag=row.get("exit_tag", ""),
+                            position_size_pct=position.get("position_size_pct", 0.0),
+                            market_regime=position.get("market_regime", ""),
+                            position_adjustments=position.get("position_adjustments", 0),
                         )
                     )
                     position = None
@@ -408,11 +478,13 @@ class EnhancedBacktester:
                     position = self._open_position(
                         trade_id, symbol, "long", current_time, current_price, row
                     )
+                    position["entry_candle_index"] = i
                     trade_id += 1
                 elif row.get("enter_short", 0) == 1:
                     position = self._open_position(
                         trade_id, symbol, "short", current_time, current_price, row
                     )
+                    position["entry_candle_index"] = i
                     trade_id += 1
 
         # Close any remaining position at the end
@@ -440,6 +512,10 @@ class EnhancedBacktester:
                     side=position["side"],
                     exit_reason=ExitReason.FORCE_EXIT,
                     entry_tag=position.get("entry_tag", ""),
+                    exit_tag=last_row.get("exit_tag", ""),
+                    position_size_pct=position.get("position_size_pct", 0.0),
+                    market_regime=position.get("market_regime", ""),
+                    position_adjustments=position.get("position_adjustments", 0),
                 )
             )
 
@@ -473,6 +549,9 @@ class EnhancedBacktester:
             "stop_loss": row.get("stop_loss"),
             "take_profit": row.get("take_profit"),
             "entry_tag": row.get("enter_tag", ""),
+            "position_size_pct": 10.0,  # 10% of portfolio per trade
+            "position_adjustments": 0,
+            "market_regime": row.get("market_regime", ""),
         }
 
     def _check_exit(
@@ -693,6 +772,66 @@ class EnhancedBacktester:
             profit_at_drawdown_end=total_profit_abs,
             drawdown_start=dd_start,
             drawdown_end=dd_end,
+            entry_tag_stats=self._calculate_entry_tag_stats(trades),
+            position_sizing=self._calculate_position_sizing(trades),
+            order_expirations=sum(
+                1 for t in trades if t.exit_reason == ExitReason.ORDER_EXPIRATION.value
+            ),
+        )
+
+    def _calculate_entry_tag_stats(
+        self,
+        trades: list[TradeMetrics],
+    ) -> list[EntryTagStats]:
+        """Calculate performance breakdown by entry tag."""
+        tags: dict[str, list[TradeMetrics]] = {}
+        for t in trades:
+            tag = t.entry_tag or "untagged"
+            tags.setdefault(tag, []).append(t)
+
+        results = []
+        for tag, tag_trades in tags.items():
+            profits = [t.profit_pct for t in tag_trades]
+            wins = sum(1 for p in profits if p > 0)
+            losses = sum(1 for p in profits if p < 0)
+            total_profit = sum(t.profit_abs for t in tag_trades)
+            total_profit_pct = sum(profits)
+
+            results.append(
+                EntryTagStats(
+                    tag=tag,
+                    trades=len(tag_trades),
+                    avg_profit_pct=total_profit_pct / len(profits) if profits else 0.0,
+                    total_profit_abs=total_profit,
+                    total_profit_pct=total_profit_pct,
+                    wins=wins,
+                    losses=losses,
+                    win_rate=(wins / len(profits) * 100) if profits else 0.0,
+                )
+            )
+
+        results.sort(key=lambda r: r.total_profit_pct, reverse=True)
+        return results
+
+    def _calculate_position_sizing(
+        self,
+        trades: list[TradeMetrics],
+    ) -> PositionSizingStats | None:
+        """Calculate position sizing statistics."""
+        if not trades:
+            return None
+
+        position_sizes = [t.position_size_pct for t in trades if t.position_size_pct > 0]
+        if not position_sizes:
+            return None
+
+        total_adjustments = sum(t.position_adjustments for t in trades)
+
+        return PositionSizingStats(
+            avg_position_size_pct=sum(position_sizes) / len(position_sizes),
+            max_position_size_pct=max(position_sizes),
+            min_position_size_pct=min(position_sizes),
+            total_position_adjustments=total_adjustments,
         )
 
     def _calculate_pair_performance(
