@@ -309,6 +309,9 @@ class IStrategy(ABC):
         """Collect all Parameter instances defined as class attributes."""
         params: dict[str, Parameter] = {}
         for attr_name in dir(self):
+            if attr_name == "hyperopt_params":
+                # Skip the property itself to avoid circular access during __init__
+                continue
             attr = getattr(self, attr_name)
             if isinstance(attr, Parameter):
                 params[attr_name] = attr

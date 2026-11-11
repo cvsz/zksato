@@ -81,7 +81,7 @@ class OnlyProfitHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        total_profit_pct = metrics.get("total_profit_pct", 0.0) or 0.0
+        total_profit_pct = getattr(metrics, "total_profit_pct", 0.0) or 0.0
         return -total_profit_pct
 
 
@@ -93,7 +93,7 @@ class SharpeHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        sharpe = metrics.get("sharpe_closed") or 0.0
+        sharpe = getattr(metrics, "sharpe_closed", 0.0) or 0.0
         return -sharpe
 
 
@@ -105,7 +105,7 @@ class SharpeHyperOptLossDaily(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        sharpe = metrics.get("sharpe_closed") or 0.0
+        sharpe = getattr(metrics, "sharpe_closed", 0.0) or 0.0
         return -sharpe
 
 
@@ -117,7 +117,7 @@ class SortinoHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        sortino = metrics.get("sortino_closed") or 0.0
+        sortino = getattr(metrics, "sortino_closed", 0.0) or 0.0
         return -sortino
 
 
@@ -129,7 +129,7 @@ class CalmarHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        calmar = metrics.get("calmar_closed") or 0.0
+        calmar = getattr(metrics, "calmar_closed", 0.0) or 0.0
         return -calmar
 
 
@@ -141,7 +141,7 @@ class MaxDrawDownHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        dd_pct = metrics.get("absolute_drawdown_pct", 0.0) or 0.0
+        dd_pct = getattr(metrics, "absolute_drawdown_pct", 0.0) or 0.0
         return dd_pct
 
 
@@ -153,8 +153,8 @@ class MaxDrawDownRelativeHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        dd_pct = metrics.get("absolute_drawdown_pct", 0.0) or 0.0
-        profit_pct = metrics.get("total_profit_pct", 0.0) or 0.0
+        dd_pct = getattr(metrics, "absolute_drawdown_pct", 0.0) or 0.0
+        profit_pct = getattr(metrics, "total_profit_pct", 0.0) or 0.0
         if dd_pct > 0:
             return dd_pct / (profit_pct + 1e-6)
         return dd_pct
@@ -171,8 +171,8 @@ class ProfitDrawDownHyperOptLoss(BaseHyperOptLoss):
 
     def __call__(self, results: dict[str, Any]) -> float:
         metrics = results.get("metrics", {})
-        profit_pct = metrics.get("total_profit_pct", 0.0) or 0.0
-        dd_pct = metrics.get("absolute_drawdown_pct", 0.0) or 0.0
+        profit_pct = getattr(metrics, "total_profit_pct", 0.0) or 0.0
+        dd_pct = getattr(metrics, "absolute_drawdown_pct", 0.0) or 0.0
         return -(profit_pct - self.drawdown_multiplier * dd_pct)
 
 

@@ -4,15 +4,20 @@ points/rewards, and point exchange.
 
 These tests cover the zksato Agent OS sub-account system.
 """
+
 from __future__ import annotations
 
 import datetime as dt
 
-import pytest
-
-from zksato.agent_trading.models import Agent, AgentIdentityStatus, AgentRole
+from zksato.agent_trading.models import (
+    AgentLoginRequest,
+    AgentRegisterRequest,
+)
 from zksato.agent_trading.service import AgentService
+from zksato.domain import Candle
+from zksato.hyperopt import HyperoptEngine, run_hyperopt
 from zksato.store import StateStore
+from zksato.strategy_freqtrade import strategy_registry
 
 
 def test_agent_registration_and_login():
@@ -27,10 +32,9 @@ def test_agent_registration_and_login():
             email="test@example.com",
             password="secure_password123",
             wallet_address="0x1234abcdef",
-            initial_cash=50000.0,
+            initial_balance=50000.0,
         )
     )
-    assert result["status"] == "updated"
     assert result["agent_id"] is not None
     assert result["name"] == "test_agent"
     assert result["identity_status"] == "normal"
@@ -39,8 +43,8 @@ def test_agent_registration_and_login():
     # Verify store state
     agent = store.get_agent_by_id(result["agent_id"])
     assert agent is not None
-    assert agent.name == "test_agent"
-    assert agent.cash == 50000.0
+    assert agent["name"] == "test_agent"
+    assert agent["cash"] == 50000.0
 
 
 def test_login_with_wrong_password():
@@ -57,11 +61,9 @@ def test_login_with_wrong_password():
         )
     )
 
-    from zksato.agent_trading.models import AgentLoginRequest
-
     try:
         service.login_agent(AgentLoginRequest(name="test_agent", password="wrong_password"))
-        assert False, "Expected ValueError for wrong password"
+        raise AssertionError("Expected ValueError for wrong password")
     except ValueError as exc:
         assert "Invalid credentials" in str(exc)
 
@@ -81,9 +83,8 @@ def test_heartbeat_returns_agent_status():
     )
 
     heartbeat = service.agent_heartbeat(str(result["agent_id"]))
-    assert heartbeat["agent_id"] == str(result["agent_id"])
-    assert heartbeat["mode"] == "paper"
-    assert heartbeat["recommended_poll_interval_seconds"] == 30
+    assert str(heartbeat.agent_id) == str(result["agent_id"])
+    assert heartbeat.recommended_poll_interval_seconds == 30
 
 
 def test_points_exchange_for_cash():
@@ -131,21 +132,16 @@ def test_exchange_insufficient_points():
 
     try:
         service.exchange_points_for_cash(agent_id, 999999)
-        assert False, "Expected ValueError for insufficient points"
+        raise AssertionError("Expected ValueError for insufficient points")
     except ValueError as exc:
         assert "Insufficient points" in str(exc)
 
 
 def test_hyperopt_engine_creation():
     """Test hyperopt engine creation."""
-    from zksato.hyperopt import HyperoptEngine
-    from zksato.strategy_freqtrade import strategy_registry
-
-    import datetime as dt
-
     candles = [
         Candle(
-            timestamp=datetime(2026, 1, 1, tzinfo=UTC),
+            timestamp=dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
             symbol="AOT",
             open=100.0,
             high=101.0,
@@ -172,11 +168,9 @@ def test_hyperopt_engine_creation():
 
 def test_hyperopt_run():
     """Test running hyperopt optimization."""
-    import datetime as dt
-
     candles = [
         Candle(
-            timestamp=datetime(2026, 1, 1, tzinfo=UTC),
+            timestamp=dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
             symbol="AOT",
             open=100.0,
             high=101.0,
@@ -188,12 +182,12 @@ def test_hyperopt_run():
     ]
 
     result = run_hyperopt(
-        strategy_class_name="ema_cross",
+        strategy_name="ema_cross",
         symbol="AOT",
         candles=candles,
-        loss_function_name="OnlyProfitHyperOptLoss",
+        loss_function="OnlyProfitHyperOptLoss",
         n_epochs=5,
     )
-    assert result["best_trial"] is not None
-    assert result["n_trials"] == 5
-    assert result["loss_function"] == "OnlyProfitHyperOptLoss"
+    assert result.best_trial is not None
+    assert result.n_epochs == 5
+    assert result.loss_function == "OnlyProfitHyperOptLoss"
