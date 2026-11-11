@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from zksato.agent_os import AgentExecutionEngine, AgentSubAccountManager
@@ -1752,3 +1753,122 @@ async def update_env_raw(
         f".env raw content updated by {principal.subject}",
     )
     return {"status": "saved"}
+
+
+# ── API Key Admin Endpoints ──────────────────────────────────────────────
+
+
+class ApiKeyCreateRequest(BaseModel):
+    role: str = Field(..., min_length=1, max_length=32)
+    description: str = Field(default="", max_length=256)
+    ttl_seconds: int | None = Field(default=None, ge=60, le=86400 * 365)
+
+
+class ApiKeyResponse(BaseModel):
+    key_id: str
+    masked_id: str
+    raw_key: str | None = None  # Only returned on creation
+    role: str
+    description: str
+    created_at: str
+    expires_at: str | None
+    is_active: bool
+    last_used_at: str | None
+    usage_count: int
+
+
+class ApiKeyListResponse(BaseModel):
+    keys: list[dict[str, object]]
+
+
+@app.get("/v1/admin/api-keys", response_model=ApiKeyListResponse)
+async def list_api_keys(_principal: PlatformPrincipal) -> ApiKeyListResponse:
+    """List all API keys (metadata only, raw values never exposed)."""
+    keys = auth.list_api_keys()
+    return ApiKeyListResponse(keys=keys)
+
+
+@app.post("/v1/admin/api-keys", response_model=ApiKeyResponse)
+async def create_api_key(
+    request: ApiKeyCreateRequest,
+    principal: PlatformPrincipal,
+) -> ApiKeyResponse:
+    """Create a new API key.
+
+    The raw key value is returned only once in the response.
+    Store it securely — it cannot be retrieved again.
+    """
+    try:
+        Role(request.role)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid role: {request.role}") from exc
+
+    raw_key, api_key = auth.create_api_key(
+        role=request.role,
+        description=request.description,
+        ttl_seconds=request.ttl_seconds,
+    )
+
+    store.add_audit(
+        "admin.api_key.created",
+        f"API key created by {principal.subject} for role {request.role}",
+        {"key_id": api_key.key_id, "role": request.role},
+    )
+
+    masked_id = api_key.key_id[:8] + "..." if len(api_key.key_id) > 8 else api_key.key_id
+    return ApiKeyResponse(
+        key_id=api_key.key_id,
+        masked_id=masked_id,
+        raw_key=raw_key,
+        role=api_key.role,
+        description=api_key.description,
+        created_at=api_key.created_at.isoformat(),
+        expires_at=api_key.expires_at.isoformat() if api_key.expires_at else None,
+        is_active=api_key.is_active,
+        last_used_at=api_key.last_used_at.isoformat() if api_key.last_used_at else None,
+        usage_count=api_key.usage_count,
+    )
+
+
+@app.get("/v1/admin/api-keys/{key_id}")
+async def get_api_key(
+    key_id: str,
+    _principal: PlatformPrincipal,
+) -> dict[str, object]:
+    """Get API key metadata by key ID."""
+    api_key = auth.get_api_key(key_id)
+    if api_key is None:
+        raise HTTPException(status_code=404, detail="API key not found")
+    now = datetime.now(UTC)
+    expired = api_key.expires_at is not None and now > api_key.expires_at
+    active = api_key.is_active and not expired
+    masked_id = key_id[:8] + "..." if len(key_id) > 8 else key_id
+    return {
+        "key_id": api_key.key_id,
+        "masked_id": masked_id,
+        "role": api_key.role,
+        "description": api_key.description,
+        "created_at": api_key.created_at.isoformat(),
+        "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
+        "is_active": active,
+        "last_used_at": api_key.last_used_at.isoformat() if api_key.last_used_at else None,
+        "usage_count": api_key.usage_count,
+    }
+
+
+@app.delete("/v1/admin/api-keys/{key_id}")
+async def revoke_api_key(
+    key_id: str,
+    principal: PlatformPrincipal,
+) -> dict[str, object]:
+    """Revoke (deactivate) an API key."""
+    revoked = auth.revoke_api_key(key_id)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    store.add_audit(
+        "admin.api_key.revoked",
+        f"API key revoked by {principal.subject}",
+        {"key_id": key_id},
+    )
+    return {"status": "revoked", "key_id": key_id}
