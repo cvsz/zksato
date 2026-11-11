@@ -1224,6 +1224,7 @@ class ATRChannelStrategy(IStrategy):
 # ── Momentum Strategy ─────────────────────────────────────────────────────
 
 
+@register_strategy
 class MomentumStrategy(IStrategy):
     """Momentum strategy — buys on upward momentum, sells on downward momentum.
 
@@ -1309,6 +1310,7 @@ class MomentumStrategy(IStrategy):
 # ── Breakout Strategy ─────────────────────────────────────────────────────
 
 
+@register_strategy
 class BreakoutStrategy(IStrategy):
     """Breakout strategy — buys on breakout above recent high, sells on breakdown below recent low.
 
@@ -1380,6 +1382,7 @@ class BreakoutStrategy(IStrategy):
 # ── Scalp Strategy ────────────────────────────────────────────────────────
 
 
+@register_strategy
 class ScalpStrategy(IStrategy):
     """Scalp strategy — quick entries on RSI extremes with tight stops.
 
@@ -1460,6 +1463,7 @@ class ScalpStrategy(IStrategy):
 # ── Swing Strategy ──────────────────────────────────────────────────────
 
 
+@register_strategy
 class SwingStrategy(IStrategy):
     """Swing strategy — trend-following using EMA cross on higher timeframes.
 
@@ -1537,6 +1541,7 @@ class SwingStrategy(IStrategy):
 # ── Position Strategy ─────────────────────────────────────────────────────
 
 
+@register_strategy
 class PositionStrategy(IStrategy):
     """Position strategy — long-term trend using SMA crossover with ADX filter.
 
@@ -1611,6 +1616,7 @@ class PositionStrategy(IStrategy):
 # ── VWAP Strategy ─────────────────────────────────────────────────────────
 
 
+@register_strategy
 class VWAPStrategy(IStrategy):
     """VWAP strategy — mean reversion around volume-weighted average price.
 
@@ -1685,6 +1691,7 @@ class VWAPStrategy(IStrategy):
 # ── LLM Sentiment Strategy ───────────────────────────────────────────────
 
 
+@register_strategy
 class LLMSentimentStrategy(IStrategy):
     """LLM Sentiment strategy — advisory-only, uses LLM sentiment signals.
 
@@ -1755,6 +1762,7 @@ class LLMSentimentStrategy(IStrategy):
 # ── Multi-Factor Strategy ────────────────────────────────────────────────
 
 
+@register_strategy
 class MultiFactorStrategy(IStrategy):
     """Multi-Factor strategy — combines RSI, EMA trend, and volume for entries.
 
@@ -1858,6 +1866,7 @@ class MultiFactorStrategy(IStrategy):
 # ── TFEX Spread Strategy ─────────────────────────────────────────────────
 
 
+@register_strategy
 class TFEXSpreadStrategy(IStrategy):
     """TFEX Spread strategy — trades the spread between TFEX futures contracts.
 
