@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 from collections import deque
 from copy import deepcopy
 from dataclasses import replace
 from datetime import UTC, datetime
 from threading import RLock
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
+
+if TYPE_CHECKING:
+    pass
 
 from zksato.domain import (
     AccountSnapshot,
@@ -53,6 +59,10 @@ class StateStore:
         self._client_order_ids: set[str] = set()
         self._history_size = history_size
         self._broker_reconciliation_ready = False
+        # Agent-native trading (AI-Trader compatible)
+        self._agents: dict[UUID, dict[str, Any]] = {}
+        self._agent_messages: dict[str, list[dict[str, Any]]] = {}
+        self._agent_tasks: dict[str, list[dict[str, Any]]] = {}
 
     def update_quote(self, quote: Quote) -> Quote:
         with self._lock:
@@ -526,6 +536,203 @@ class StateStore:
                 )
                 state.next_attempt_at = None
                 state.dead_lettered_at = None
+
+    # ── Agent Management ──────────────────────────────────────────
+
+    def find_agent_by_name(self, name: str) -> dict[str, Any] | None:
+        """Find agent by name (exact match, then normalized)."""
+        raw_name = name or ""
+        normalized = raw_name.strip()
+        if not normalized:
+            return None
+        with self._lock:
+            for agent in self._agents.values():
+                if agent.get("name") == raw_name or agent.get("name") == normalized:
+                    return {
+                        "id": str(agent.get("id")),
+                        "name": agent.get("name"),
+                        "email": agent.get("email"),
+                        "password_hash": agent.get("password_hash"),
+                        "wallet_address": agent.get("wallet_address"),
+                        "cash": agent.get("cash"),
+                        "deposited": agent.get("deposited"),
+                        "points": agent.get("points"),
+                        "reputation_score": agent.get("reputation_score"),
+                        "identity_status": agent.get("identity_status"),
+                        "is_verified": agent.get("is_verified"),
+                        "role": agent.get("role"),
+                    }
+        return None
+
+    def create_agent(self, agent_data: dict[str, Any]) -> dict[str, Any]:
+        """Create a new agent sub-account."""
+        uid = UUID(str(agent_data["id"]))
+        with self._lock:
+            self._agents[uid] = dict(agent_data)
+            # Persist to audit log
+            self.add_audit(
+                "agent_registered",
+                f"agent registered: {agent_data['name']}",
+                {
+                    "agent_id": str(agent_data["id"]),
+                    "name": agent_data["name"],
+                    "email": agent_data.get("email"),
+                    "wallet_address": agent_data.get("wallet_address"),
+                    "initial_cash": agent_data.get("cash"),
+                },
+            )
+            return dict(agent_data)
+
+    def get_agent_by_id(self, agent_id: str | UUID) -> dict[str, Any] | None:
+        """Get agent by UUID."""
+        try:
+            uid = UUID(str(agent_id))
+        except ValueError:
+            return None
+        with self._lock:
+            return self._agents.get(uid)
+
+    def generate_agent_token(self, agent_id: str | UUID) -> str:
+        """Generate a new API token for an agent."""
+        uid = UUID(str(agent_id))
+        token = secrets.token_urlsafe(32)
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            agent["token"] = token
+            agent["updated_at"] = datetime.now(UTC)
+        return token
+
+    def get_or_issue_agent_token(self, agent_id: str | UUID) -> str:
+        """Return the current agent API token, issuing one if empty."""
+        uid = UUID(str(agent_id))
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            if agent.get("token"):
+                return agent["token"]
+            token = secrets.token_urlsafe(32)
+            agent["token"] = token
+            agent["updated_at"] = datetime.now(UTC)
+            return token
+
+    def update_agent_cash(self, agent_id: str | UUID, cash: float, deposited: float) -> None:
+        """Update agent cash and deposited amounts."""
+        uid = UUID(str(agent_id))
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            agent["cash"] = cash
+            agent["deposited"] = deposited
+            agent["updated_at"] = datetime.now(UTC)
+
+    def get_agent_points(self, agent_id: str | UUID) -> int:
+        """Get agent's points balance."""
+        uid = UUID(str(agent_id))
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            return agent.get("points", 0)
+
+    def add_agent_points(
+        self,
+        agent_id: str | UUID,
+        points: int,
+        reason: str = "reward",
+        *,
+        source_type: str | None = None,
+        source_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Add points to an agent's account."""
+        uid = UUID(str(agent_id))
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            agent["points"] = int(agent.get("points", 0)) + points
+            agent["updated_at"] = datetime.now(UTC)
+            self.add_audit(
+                "agent_points_added",
+                f"points added to agent {agent.get('name')}",
+                {
+                    "agent_id": str(agent_id),
+                    "points": points,
+                    "reason": reason,
+                    "source_type": source_type,
+                    "source_id": source_id,
+                    "metadata": metadata,
+                },
+            )
+
+    def create_position(
+        self,
+        agent_id: str | UUID,
+        symbol: str,
+        market: str,
+        side: str,
+        quantity: float,
+        entry_price: float,
+    ) -> None:
+        """Create a position for an agent."""
+        uid = UUID(str(agent_id))
+        with self._lock:
+            agent = self._agents.get(uid)
+            if agent is None:
+                raise ValueError("Agent not found")
+            if "_positions" not in agent:
+                agent["_positions"] = []
+            agent["_positions"].append(
+                {
+                    "symbol": symbol,
+                    "market": market,
+                    "side": side,
+                    "quantity": quantity,
+                    "entry_price": entry_price,
+                    "current_price": entry_price,
+                    "opened_at": datetime.now(UTC),
+                }
+            )
+            agent["updated_at"] = datetime.now(UTC)
+
+    def get_unread_agent_messages(
+        self, agent_id: str | UUID, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Get unread agent messages."""
+        agent_id_str = str(agent_id)
+        with self._lock:
+            messages = [
+                m for m in self._agent_messages.get(agent_id_str, []) if not m.get("read", False)
+            ]
+            messages.sort(key=lambda m: m.get("created_at", ""), reverse=True)
+            return messages[:limit]
+
+    def mark_agent_messages_read(self, agent_id: str | UUID, message_ids: list[str]) -> int:
+        """Mark agent messages as read."""
+        agent_id_str = str(agent_id)
+        with self._lock:
+            updated = 0
+            for m in self._agent_messages.get(agent_id_str, []):
+                if str(m["id"]) in message_ids and not m.get("read", False):
+                    m["read"] = True
+                    updated += 1
+            return updated
+
+    def get_pending_agent_tasks(
+        self, agent_id: str | UUID, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get pending agent tasks."""
+        agent_id_str = str(agent_id)
+        with self._lock:
+            tasks = [
+                t for t in self._agent_tasks.get(agent_id_str, []) if t.get("status") == "pending"
+            ]
+            tasks.sort(key=lambda t: t.get("created_at", ""))
+            return tasks[:limit]
 
     def health(self) -> bool:
         return True
