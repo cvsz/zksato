@@ -148,7 +148,7 @@ This checklist tracks complete system verification, financial safety guarantees,
 
 ## 8. In Progress / Next Steps
 
-- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), and ATR Channel (PR #84) to `src/zksato/strategy_freqtrade.py`. Remaining: Williams %R (PR #82), ATR channel.
+- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum (new), Breakout (new), Scalp (new), Swing (new), Position (new), VWAP (new), LLM Sentiment (new), Multi-Factor (new), TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all planned strategies implemented.
 - [x] **Frontend Integration**: Frontend directory exists at `/frontend/` with Next.js 16 operator UI.
 - [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`.
 - [ ] **Additional Test Coverage**: Add unit tests for agent trading, hyperopt, and enhanced backtesting modules.
