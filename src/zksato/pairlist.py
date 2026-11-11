@@ -180,3 +180,81 @@ class PairListManager:
         """Check if a symbol is tradeable according to the pairlist."""
         filtered = self.filter_pairs(pairs, context)
         return any(p.symbol == symbol for p in filtered)
+
+
+class MomentumPairList(PairList):
+    """Dynamic pairlist based on recent price momentum (24h change)."""
+
+    name = "MomentumPairList"
+
+    def __init__(
+        self,
+        number_assets: int = 50,
+        min_change_pct: float = 0.0,
+        top_only: bool = True,
+    ) -> None:
+        self.number_assets = number_assets
+        self.min_change_pct = min_change_pct
+        self.top_only = top_only
+
+    def filter_pairs(
+        self,
+        pairs: list[PairInfo],
+        context: dict[str, Any] | None = None,
+    ) -> list[PairInfo]:
+        filtered = [p for p in pairs if p.change_pct_24h >= self.min_change_pct]
+        filtered.sort(key=lambda p: p.change_pct_24h, reverse=not self.top_only)
+        return filtered[: self.number_assets]
+
+
+class VolatilityPairList(PairList):
+    """Dynamic pairlist filtered by volatility (standard deviation of returns)."""
+
+    name = "VolatilityPairList"
+
+    def __init__(
+        self,
+        max_volatility_pct: float = 5.0,
+        number_assets: int = 50,
+    ) -> None:
+        self.max_volatility_pct = max_volatility_pct
+        self.number_assets = number_assets
+
+    def filter_pairs(
+        self,
+        pairs: list[PairInfo],
+        context: dict[str, Any] | None = None,
+    ) -> list[PairInfo]:
+        filtered = [
+            p for p in pairs if p.metadata.get("volatility_pct", 0.0) <= self.max_volatility_pct
+        ]
+        filtered.sort(key=lambda p: p.metadata.get("volatility_pct", 0.0))
+        return filtered[: self.number_assets]
+
+
+class SectorDiversifiedPairList(PairList):
+    """Pairlist that limits exposure per sector for diversification."""
+
+    name = "SectorDiversifiedPairList"
+
+    def __init__(
+        self,
+        max_per_sector: int = 5,
+        number_assets: int = 50,
+    ) -> None:
+        self.max_per_sector = max_per_sector
+        self.number_assets = number_assets
+
+    def filter_pairs(
+        self,
+        pairs: list[PairInfo],
+        context: dict[str, Any] | None = None,
+    ) -> list[PairInfo]:
+        sector_counts: dict[str, int] = {}
+        filtered: list[PairInfo] = []
+        for pair in pairs:
+            sector = pair.metadata.get("sector", "unknown")
+            if sector_counts.get(sector, 0) < self.max_per_sector:
+                filtered.append(pair)
+                sector_counts[sector] = sector_counts.get(sector, 0) + 1
+        return filtered[: self.number_assets]

@@ -92,6 +92,52 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         )
 
 
+class AgentRateLimiter:
+    """Per-agent rate limiter for API endpoints.
+
+    Tracks requests by agent ID and enforces a configurable requests-per-minute
+    limit. Uses in-memory state by default; can be coordinated via Redis.
+    """
+
+    def __init__(
+        self,
+        requests_per_minute: int = 120,
+        coordination: CoordinationManager | None = None,
+    ) -> None:
+        self.limit = requests_per_minute
+        self.coordination = coordination
+        self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = RLock()
+
+    async def allow_request(self, agent_id: str) -> bool:
+        """Return True if the request is allowed, False if rate-limited."""
+        if self.coordination is not None and self.coordination.redis is not None:
+            return await self.coordination.allow_request(
+                f"agent:{agent_id}",
+                limit=self.limit,
+                window_seconds=60,
+            )
+
+        now = monotonic()
+        with self._lock:
+            events = self._events[agent_id]
+            while events and now - events[0] >= 60:
+                events.popleft()
+            if len(events) >= self.limit:
+                return False
+            events.append(now)
+            return True
+
+    def remaining(self, agent_id: str) -> int:
+        """Return remaining requests in the current window for an agent."""
+        now = monotonic()
+        with self._lock:
+            events = self._events[agent_id]
+            while events and now - events[0] >= 60:
+                events.popleft()
+            return max(0, self.limit - len(events))
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         response = await call_next(request)

@@ -28,7 +28,7 @@ from typing import Any
 import pandas as pd
 
 from zksato.domain import OrderIntent, OrderType, Side, SignalAction
-from zksato.indicators import atr
+from zksato.indicators import atr, rsi
 
 logger = logging.getLogger(__name__)
 
@@ -1221,6 +1221,725 @@ class ATRChannelStrategy(IStrategy):
         return dataframe
 
 
+# ── Momentum Strategy ─────────────────────────────────────────────────────
+
+
+class MomentumStrategy(IStrategy):
+    """Momentum strategy — buys on upward momentum, sells on downward momentum.
+
+    Uses rate of change (ROC) to detect momentum strength and direction.
+    """
+
+    name = "momentum"
+    description = "Momentum — buys when ROC crosses above zero, sells when below"
+    timeframe = "15m"
+    stoploss = -0.06
+    minimal_roi = {0: 0.02, 60: 0.01, 180: 0.0}
+    max_open_trades = 5
+
+    momentum_period = IntParameter(10, 30, default=14, space="buy", optimize=True)
+    momentum_buy_threshold = DecimalParameter(0.0, 3.0, default=1.0, space="buy", optimize=True)
+    momentum_sell_threshold = DecimalParameter(-3.0, 0.0, default=-1.0, space="sell", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        closes = dataframe["close"].tolist()
+        roc_values: list[float | None] = []
+        for i in range(len(closes)):
+            if i < self.momentum_period.value:
+                roc_values.append(None)
+            else:
+                prev = closes[i - self.momentum_period.value]
+                curr = closes[i]
+                if prev == 0:
+                    roc_values.append(None)
+                else:
+                    roc_values.append((curr - prev) / prev * 100.0)
+        dataframe["momentum_roc"] = roc_values
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["momentum_roc"].notna() & (
+            dataframe["momentum_roc"] > self.momentum_buy_threshold.value
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "momentum_buy"
+
+        sell_condition = dataframe["momentum_roc"].notna() & (
+            dataframe["momentum_roc"] < self.momentum_sell_threshold.value
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "momentum_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["momentum_roc"].notna() & (dataframe["momentum_roc"] <= 0.0)
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "momentum_exit_long"
+
+        exit_short_condition = dataframe["momentum_roc"].notna() & (
+            dataframe["momentum_roc"] >= 0.0
+        )
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "momentum_exit_short"
+
+        return dataframe
+
+
+# ── Breakout Strategy ─────────────────────────────────────────────────────
+
+
+class BreakoutStrategy(IStrategy):
+    """Breakout strategy — buys on breakout above recent high, sells on breakdown below recent low.
+
+    Uses highest/lowest over a lookback period to detect breakouts.
+    """
+
+    name = "breakout"
+    description = "Breakout — buys on breakout above N-bar high, sells on breakdown below N-bar low"
+    timeframe = "1h"
+    stoploss = -0.05
+    minimal_roi = {0: 0.03, 120: 0.015, 360: 0.0}
+    max_open_trades = 4
+
+    breakout_lookback = IntParameter(10, 50, default=20, space="buy", optimize=True)
+    breakout_buffer_pct = DecimalParameter(0.0, 1.0, default=0.2, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        lookback = self.breakout_lookback.value
+        dataframe["breakout_high"] = dataframe["high"].rolling(window=lookback).max()
+        dataframe["breakout_low"] = dataframe["low"].rolling(window=lookback).min()
+        buffer = self.breakout_buffer_pct.value / 100.0
+        dataframe["breakout_trigger_high"] = dataframe["breakout_high"] * (1 + buffer)
+        dataframe["breakout_trigger_low"] = dataframe["breakout_low"] * (1 - buffer)
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["close"] > dataframe["breakout_trigger_high"]
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "breakout_buy"
+
+        sell_condition = dataframe["close"] < dataframe["breakout_trigger_low"]
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "breakout_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["close"] < dataframe["breakout_low"]
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "breakout_exit_long"
+
+        exit_short_condition = dataframe["close"] > dataframe["breakout_high"]
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "breakout_exit_short"
+
+        return dataframe
+
+
+# ── Scalp Strategy ────────────────────────────────────────────────────────
+
+
+class ScalpStrategy(IStrategy):
+    """Scalp strategy — quick entries on RSI extremes with tight stops.
+
+    Uses RSI oversold/overbought for rapid in-and-out trades.
+    """
+
+    name = "scalp"
+    description = "Scalp — quick trades on RSI extremes with tight risk controls"
+    timeframe = "5m"
+    stoploss = -0.02
+    minimal_roi = {0: 0.01, 30: 0.005, 60: 0.0}
+    max_open_trades = 8
+
+    scalp_rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True)
+    scalp_rsi_oversold = IntParameter(15, 35, default=30, space="buy", optimize=True)
+    scalp_rsi_overbought = IntParameter(65, 85, default=70, space="sell", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        closes = dataframe["close"].tolist()
+        period = self.scalp_rsi_period.value
+        rsi_values: list[float | None] = []
+        for i in range(len(closes)):
+            if i < period:
+                rsi_values.append(None)
+            else:
+                window = closes[i - period : i + 1]
+                rsi_values.append(rsi(window, period))
+        dataframe["scalp_rsi"] = rsi_values
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["scalp_rsi"].notna() & (
+            dataframe["scalp_rsi"] <= self.scalp_rsi_oversold.value
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "scalp_buy"
+
+        sell_condition = dataframe["scalp_rsi"].notna() & (
+            dataframe["scalp_rsi"] >= self.scalp_rsi_overbought.value
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "scalp_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["scalp_rsi"].notna() & (dataframe["scalp_rsi"] >= 50.0)
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "scalp_exit_long"
+
+        exit_short_condition = dataframe["scalp_rsi"].notna() & (dataframe["scalp_rsi"] <= 50.0)
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "scalp_exit_short"
+
+        return dataframe
+
+
+# ── Swing Strategy ──────────────────────────────────────────────────────
+
+
+class SwingStrategy(IStrategy):
+    """Swing strategy — trend-following using EMA cross on higher timeframes.
+
+    Buys when fast EMA crosses above slow EMA, sells on cross below.
+    """
+
+    name = "swing"
+    description = "Swing — trend following using fast/slow EMA crossovers"
+    timeframe = "1h"
+    stoploss = -0.07
+    minimal_roi = {0: 0.04, 240: 0.02, 720: 0.0}
+    max_open_trades = 3
+
+    swing_fast_period = IntParameter(8, 24, default=12, space="buy", optimize=True)
+    swing_slow_period = IntParameter(24, 60, default=40, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["swing_ema_fast"] = (
+            dataframe["close"].ewm(span=self.swing_fast_period.value, adjust=False).mean()
+        )
+        dataframe["swing_ema_slow"] = (
+            dataframe["close"].ewm(span=self.swing_slow_period.value, adjust=False).mean()
+        )
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        fast = dataframe["swing_ema_fast"]
+        slow = dataframe["swing_ema_slow"]
+
+        buy_condition = (fast > slow) & (fast.shift(1) <= slow.shift(1))
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "swing_buy"
+
+        sell_condition = (fast < slow) & (fast.shift(1) >= slow.shift(1))
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "swing_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        fast = dataframe["swing_ema_fast"]
+        slow = dataframe["swing_ema_slow"]
+
+        exit_long_condition = fast < slow
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "swing_exit_long"
+
+        exit_short_condition = fast > slow
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "swing_exit_short"
+
+        return dataframe
+
+
+# ── Position Strategy ─────────────────────────────────────────────────────
+
+
+class PositionStrategy(IStrategy):
+    """Position strategy — long-term trend using SMA crossover with ADX filter.
+
+    Holds positions for extended periods, only entering when trend is strong.
+    """
+
+    name = "position"
+    description = "Position — long-term trend following with SMA and ADX confirmation"
+    timeframe = "4h"
+    stoploss = -0.10
+    minimal_roi = {0: 0.05, 720: 0.025, 1440: 0.0}
+    max_open_trades = 2
+
+    position_fast_sma = IntParameter(20, 50, default=50, space="buy", optimize=True)
+    position_slow_sma = IntParameter(100, 200, default=200, space="buy", optimize=True)
+    position_adx_threshold = IntParameter(20, 40, default=25, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["position_sma_fast"] = (
+            dataframe["close"].rolling(window=self.position_fast_sma.value).mean()
+        )
+        dataframe["position_sma_slow"] = (
+            dataframe["close"].rolling(window=self.position_slow_sma.value).mean()
+        )
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        fast = dataframe["position_sma_fast"]
+        slow = dataframe["position_sma_slow"]
+
+        buy_condition = (
+            (fast > slow)
+            & (fast.shift(1) <= slow.shift(1))
+            & (dataframe["close"] > dataframe["position_sma_slow"])
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "position_buy"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        fast = dataframe["position_sma_fast"]
+        slow = dataframe["position_sma_slow"]
+
+        exit_long_condition = fast < slow
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "position_exit_long"
+
+        return dataframe
+
+
+# ── VWAP Strategy ─────────────────────────────────────────────────────────
+
+
+class VWAPStrategy(IStrategy):
+    """VWAP strategy — mean reversion around volume-weighted average price.
+
+    Buys when price is below VWAP (undervalued), sells when above VWAP (overvalued).
+    """
+
+    name = "vwap"
+    description = "VWAP — mean reversion around volume-weighted average price"
+    timeframe = "15m"
+    stoploss = -0.04
+    minimal_roi = {0: 0.015, 60: 0.008, 180: 0.0}
+    max_open_trades = 6
+
+    vwap_period = IntParameter(10, 50, default=20, space="buy", optimize=True)
+    vwap_deviation_pct = DecimalParameter(0.5, 3.0, default=1.0, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        period = self.vwap_period.value
+        typical_price = (dataframe["high"] + dataframe["low"] + dataframe["close"]) / 3
+        vp = typical_price * dataframe["volume"]
+        volume_rolling = dataframe["volume"].rolling(window=period).sum()
+        vwap_values = vp.rolling(window=period).sum() / volume_rolling
+        dataframe["vwap"] = vwap_values
+        deviation = self.vwap_deviation_pct.value / 100.0
+        dataframe["vwap_lower"] = vwap_values * (1 - deviation)
+        dataframe["vwap_upper"] = vwap_values * (1 + deviation)
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["close"] <= dataframe["vwap_lower"]
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "vwap_buy"
+
+        sell_condition = dataframe["close"] >= dataframe["vwap_upper"]
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "vwap_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["close"] >= dataframe["vwap"]
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "vwap_exit_long"
+
+        exit_short_condition = dataframe["close"] <= dataframe["vwap"]
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "vwap_exit_short"
+
+        return dataframe
+
+
+# ── LLM Sentiment Strategy ───────────────────────────────────────────────
+
+
+class LLMSentimentStrategy(IStrategy):
+    """LLM Sentiment strategy — advisory-only, uses LLM sentiment signals.
+
+    This strategy is purely advisory: it generates signals based on
+    sentiment data but all execution routes through RiskEngine.
+    """
+
+    name = "llm_sentiment"
+    description = "LLM Sentiment — advisory-only strategy based on LLM sentiment signals"
+    timeframe = "1h"
+    stoploss = -0.05
+    minimal_roi = {0: 0.02, 240: 0.01, 720: 0.0}
+    max_open_trades = 3
+
+    sentiment_buy_threshold = DecimalParameter(0.1, 0.9, default=0.6, space="buy", optimize=True)
+    sentiment_sell_threshold = DecimalParameter(0.1, 0.9, default=0.4, space="sell", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # Sentiment column is expected to be provided by external LLM service
+        # via the signal feed. Default to neutral (0.5) if not present.
+        if "sentiment_score" not in dataframe.columns:
+            dataframe["sentiment_score"] = 0.5
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["sentiment_score"] >= self.sentiment_buy_threshold.value
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "llm_sentiment_buy"
+
+        sell_condition = dataframe["sentiment_score"] <= self.sentiment_sell_threshold.value
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "llm_sentiment_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["sentiment_score"] <= 0.5
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "llm_sentiment_exit_long"
+
+        exit_short_condition = dataframe["sentiment_score"] >= 0.5
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "llm_sentiment_exit_short"
+
+        return dataframe
+
+
+# ── Multi-Factor Strategy ────────────────────────────────────────────────
+
+
+class MultiFactorStrategy(IStrategy):
+    """Multi-Factor strategy — combines RSI, EMA trend, and volume for entries.
+
+    Requires multiple factors to align before entering a position.
+    """
+
+    name = "multi_factor"
+    description = "Multi-Factor — combines RSI, EMA trend, and volume confirmation"
+    timeframe = "1h"
+    stoploss = -0.05
+    minimal_roi = {0: 0.03, 120: 0.015, 360: 0.0}
+    max_open_trades = 4
+
+    mf_rsi_period = IntParameter(10, 20, default=14, space="buy", optimize=True)
+    mf_rsi_oversold = IntParameter(25, 40, default=30, space="buy", optimize=True)
+    mf_rsi_overbought = IntParameter(60, 75, default=70, space="sell", optimize=True)
+    mf_ema_fast = IntParameter(8, 20, default=12, space="buy", optimize=True)
+    mf_ema_slow = IntParameter(20, 50, default=26, space="buy", optimize=True)
+    mf_volume_multiplier = DecimalParameter(1.0, 3.0, default=1.5, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        closes = dataframe["close"].tolist()
+        period = self.mf_rsi_period.value
+        rsi_values: list[float | None] = []
+        for i in range(len(closes)):
+            if i < period:
+                rsi_values.append(None)
+            else:
+                window = closes[i - period : i + 1]
+                rsi_values.append(rsi(window, period))
+        dataframe["mf_rsi"] = rsi_values
+        dataframe["mf_ema_fast"] = (
+            dataframe["close"].ewm(span=self.mf_ema_fast.value, adjust=False).mean()
+        )
+        dataframe["mf_ema_slow"] = (
+            dataframe["close"].ewm(span=self.mf_ema_slow.value, adjust=False).mean()
+        )
+        dataframe["mf_volume_avg"] = dataframe["volume"].rolling(window=20).mean()
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        fast = dataframe["mf_ema_fast"]
+        slow = dataframe["mf_ema_slow"]
+        vol_avg = dataframe["mf_volume_avg"]
+
+        buy_condition = (
+            dataframe["mf_rsi"].notna()
+            & (dataframe["mf_rsi"] <= self.mf_rsi_oversold.value)
+            & (fast > slow)
+            & (dataframe["volume"] > vol_avg * self.mf_volume_multiplier.value)
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "multi_factor_buy"
+
+        sell_condition = (
+            dataframe["mf_rsi"].notna()
+            & (dataframe["mf_rsi"] >= self.mf_rsi_overbought.value)
+            & (fast < slow)
+            & (dataframe["volume"] > vol_avg * self.mf_volume_multiplier.value)
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "multi_factor_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        fast = dataframe["mf_ema_fast"]
+        slow = dataframe["mf_ema_slow"]
+
+        exit_long_condition = fast < slow
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "multi_factor_exit_long"
+
+        exit_short_condition = fast > slow
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "multi_factor_exit_short"
+
+        return dataframe
+
+
+# ── TFEX Spread Strategy ─────────────────────────────────────────────────
+
+
+class TFEXSpreadStrategy(IStrategy):
+    """TFEX Spread strategy — trades the spread between TFEX futures contracts.
+
+    Dedicated TFEX derivative domain: separate from SET equity handling.
+    Buys when spread narrows below threshold, sells when spread widens above.
+    """
+
+    name = "tfex_spread"
+    description = "TFEX Spread — trades futures spread, SET/TFEX domain separated"
+    timeframe = "15m"
+    stoploss = -0.03
+    minimal_roi = {0: 0.01, 60: 0.005, 180: 0.0}
+    max_open_trades = 3
+
+    tfex_spread_period = IntParameter(10, 40, default=20, space="buy", optimize=True)
+    tfex_spread_buy_threshold = DecimalParameter(
+        -2.0, 0.0, default=-0.5, space="buy", optimize=True
+    )
+    tfex_spread_sell_threshold = DecimalParameter(
+        0.0, 2.0, default=0.5, space="sell", optimize=True
+    )
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        period = self.tfex_spread_period.value
+        # Spread proxy: difference between close and VWAP-like average
+        typical_price = (dataframe["high"] + dataframe["low"] + dataframe["close"]) / 3
+        tfex_spread = typical_price - typical_price.rolling(window=period).mean()
+        dataframe["tfex_spread"] = tfex_spread
+        dataframe["tfex_spread_ma"] = tfex_spread.rolling(window=period).mean()
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        buy_condition = dataframe["tfex_spread"].notna() & (
+            dataframe["tfex_spread"] <= self.tfex_spread_buy_threshold.value
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "tfex_spread_buy"
+
+        sell_condition = dataframe["tfex_spread"].notna() & (
+            dataframe["tfex_spread"] >= self.tfex_spread_sell_threshold.value
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "tfex_spread_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        exit_long_condition = dataframe["tfex_spread"].notna() & (
+            dataframe["tfex_spread"] >= dataframe["tfex_spread_ma"]
+        )
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "tfex_spread_exit_long"
+
+        exit_short_condition = dataframe["tfex_spread"].notna() & (
+            dataframe["tfex_spread"] <= dataframe["tfex_spread_ma"]
+        )
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "tfex_spread_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
@@ -1232,4 +1951,13 @@ EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
     StochasticOscillatorStrategy,
     WilliamsRStrategy,
     ATRChannelStrategy,
+    MomentumStrategy,
+    BreakoutStrategy,
+    ScalpStrategy,
+    SwingStrategy,
+    PositionStrategy,
+    VWAPStrategy,
+    LLMSentimentStrategy,
+    MultiFactorStrategy,
+    TFEXSpreadStrategy,
 ]
