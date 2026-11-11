@@ -126,15 +126,18 @@ This checklist tracks complete system verification, financial safety guarantees,
 ## 6. Verification & Quality Gates
 
 - [x] **Ruff Linter**: `ruff check .` passes with 0 errors and 0 warnings (ruff 0.16.6).
-- [x] **Ruff Format**: `ruff format --check .` passes (403 files clean).
+- [x] **Ruff Format**: `ruff format --check .` passes (408 files clean).
 - [x] **Mypy Static Type Checking**: `mypy src/zksato scripts` passes with 0 errors (86 source files).
 - [x] **ShellCheck**: `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` passes with 0 warnings.
-- [x] **Python Pytest Suite**: 361 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
+- [x] **Python Pytest Suite**: 373 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
 - [x] **Financial Invariants Suite**: `pytest tests/test_financial_invariants.py` passes all property-based tests.
 - [x] **Workflow Security Suite**: `pytest tests/test_workflow_security.py` passes.
 - [x] **Zizmor Security Audit**: `zizmor .github/workflows` passes with 0 findings.
 - [x] **Performance Probe Suite**: `pytest tests/test_performance_probe.py` passes.
 - [x] **Docker Compose Validation**: `docker compose config` validates cleanly.
+- [x] **Hyperopt Loss Function Fix**: Fixed loss functions in `src/zksato/hyperopt.py` to use `getattr()` instead of `.get()` on `BacktestSummaryMetrics` dataclass objects.
+- [x] **Strategy Circular Reference Fix**: Fixed `src/zksato/strategy_freqtrade.py` `_collect_hyperopt_params` to skip `hyperopt_params` property during `__init__`.
+- [x] **Test Fixes**: Fixed `tests/test_agent_trading.py` and `tests/test_hyperopt.py` import issues, dict/object access mismatches, unused imports, and `assert False` anti-patterns.
 
 ---
 
@@ -149,14 +152,15 @@ This checklist tracks complete system verification, financial safety guarantees,
 ## 8. In Progress / Next Steps
 
 - [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum, Breakout, Scalp, Swing, Position, VWAP, LLM Sentiment, Multi-Factor, TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all planned strategies implemented.
+- [x] **Hyperopt Loss Functions**: 8 loss functions implemented in `src/zksato/hyperopt.py` (OnlyProfit, Sharpe, SharpeDaily, Sortino, Calmar, MaxDrawDown, ProfitDrawDown, ShortTradeDur). Fixed `getattr()` access on BacktestSummaryMetrics dataclass objects.
 - [x] **Frontend Integration**: Frontend directory exists at `/frontend/` with Next.js 16 operator UI.
 - [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`.
-- [x] **Additional Test Coverage**: Added unit tests for agent trading and hyperopt modules.
-- [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules.
-- [x] **ADRs**: docs/adr/005-ai-read-only-boundary.md covers agent OS and secure boundaries; docs/adr/004-broker-reconciliation.md covers broker integration.
+- [x] **Additional Test Coverage**: Added unit tests for agent trading (`tests/test_agent_trading.py`, 7 tests) and hyperopt modules (`tests/test_hyperopt.py`, 5 tests). All 12 tests pass.
+- [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules. docs/ZKSATO-MASTER-001.md and docs/ZKSATO-ROADMAP.md provide master engineering prompt and roadmap.
+- [x] **ADRs**: docs/adr/005-ai-read-only-boundary.md covers agent OS and secure boundaries; docs/adr/004-broker-reconciliation.md covers broker integration. 9 ADRs total in docs/adr/.
 
 ---
 
 <footer>
-Last updated: 2026-11-11 | Repository: https://github.com/cvsz/zksato | Branch: main
+Last updated: 2026-11-12 | Repository: https://github.com/cvsz/zksato | Branch: main
 </footer>
