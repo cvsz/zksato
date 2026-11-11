@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from zksato.agent_os import AgentExecutionEngine, AgentSubAccountManager
+from zksato.api_freqtrade import router as api_freqtrade_router
 from zksato.approvals import ApprovalRepository, ApprovalRequest, LiveApproval
 from zksato.auth import AuthManager, Principal, Role, require_roles
 from zksato.automation import AutomationEngine
@@ -274,6 +275,7 @@ if settings.trusted_hosts:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 
 app.include_router(market_terminal_router)
+app.include_router(api_freqtrade_router)
 
 
 @app.middleware("http")

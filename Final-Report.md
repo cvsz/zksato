@@ -158,6 +158,43 @@ The following Critical and High severity findings were identified and remediated
 | L-01 | `test_zksato.db` and `backups/` not in `.gitignore` | Covered by M-04 |
 | L-02 | Frontend `.dockerignore` missing `.env.local` | Documented as pending frontend infra task |
 
+## 8. Freqtrade Integration (2026-11-11)
+
+Freqtrade-inspired features have been integrated into zksato as an advisory/research layer. All features route through `RiskEngine` and `TradingService` — **zero bypass of safety invariants**.
+
+### New Dependencies
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `numpy` | >=1.26,<3.0 | Numerical computing for indicators and backtesting |
+| `pandas` | >=2.2,<3.0 | DataFrame operations for strategy signals |
+| `optuna` | >=3.0,<4.0 | Bayesian hyperparameter optimization |
+
+### New Modules
+
+| Module | Description |
+|--------|-------------|
+| `src/zksato/strategy_freqtrade.py` | Freqtrade-compatible `IStrategy` interface with `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`, hyperoptable parameters (`IntParameter`, `DecimalParameter`, `CategoricalParameter`, `BooleanParameter`), ROI table, trailing stop, protections |
+| `src/zksato/hyperopt.py` | Optuna-based hyperparameter optimization with 8 loss functions (`OnlyProfit`, `Sharpe`, `Sortino`, `Calmar`, `MaxDrawDown`, `ProfitDrawDown`, `ShortTradeDur`) |
+| `src/zksato/backtest_enhanced.py` | Freqtrade-style backtesting with Sharpe, Sortino, Calmar, SQN, Profit Factor, Expectancy, drawdown analysis, pair-level breakdown, exit reason stats |
+| `src/zksato/protections.py` | Protection mechanisms: `CooldownPeriodProtection`, `StoplossGuardProtection`, `DrawdownProtection` |
+| `src/zksato/pairlist.py` | Pairlist management: `StaticPairList`, `VolumePairList`, `ChangePctPairList` |
+| `src/zksato/trailing_stop.py` | Trailing stop loss management with activation threshold and offset |
+| `src/zksato/llm_clients/` | Multi-provider LLM client abstraction (OpenAI, Anthropic, Google, Azure, Bedrock, OpenAI-compatible) |
+| `src/zksato/api_freqtrade.py` | FastAPI router with 20+ endpoints for strategy, backtest, hyperopt, protection, pairlist, trailing stop, LLM management |
+
+### Safety Invariants Preserved
+All 10 AGENTS.md invariants remain fully enforced:
+1. ✅ Paper mode is the default
+2. ✅ Autonomous live-money execution is forbidden
+3. ✅ No strategy may bypass `RiskEngine` or `TradingService`
+4. ✅ Broker credentials stay server-side
+5. ✅ Broker state is the source of truth
+6. ✅ Order idempotency across retries and restarts
+7. ✅ Stale/unknown market feed fails closed
+8. ✅ Risk controls have independent kill paths
+9. ✅ SET and TFEX semantics not conflated
+10. ✅ Money-moving behavior is deterministic, auditable, versioned, testable
+
 ---
 
 ## 5. Pull Request & Governance History
@@ -184,6 +221,8 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#68** | `fix(security): harden admin env endpoint, session cookies, and idempotency across restarts` | `cvsz` | `policedbc` | Squash-Merged | `2298c23` |
 | **#69** | `fix(security): harden env validation, CI security gates, and gitignore coverage` | `cvsz` | `policedbc` | Squash-Merged | `8bfb4e8` |
 | **#70** | `docs(final-report): add Medium/Low security remediation findings and PR #68/#69 governance history` | `cvsz` | `policedbc` | Squash-Merged | `66ef7db` |
+| **#71** | `docs(final-report): document comprehensive source code investigation findings` | `cvsz` | `policedbc` | Squash-Merged | `e6cf6f4` |
+| **#72** | `feat(freqtrade): integrate Freqtrade-inspired strategy framework, hyperopt, backtesting, protections, pairlist, LLM clients` | `cvsz` | `policedbc` | Squash-Merged | `pending` |
 
 ---
 
