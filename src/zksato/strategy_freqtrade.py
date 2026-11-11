@@ -28,6 +28,7 @@ from typing import Any
 import pandas as pd
 
 from zksato.domain import OrderIntent, OrderType, Side, SignalAction
+from zksato.indicators import atr
 
 logger = logging.getLogger(__name__)
 
@@ -1142,6 +1143,81 @@ class WilliamsRStrategy(IStrategy):
         return dataframe
 
 
+@register_strategy
+class ATRChannelStrategy(IStrategy):
+    """ATR Channel strategy — Freqtrade-compatible example.
+
+    Buys when price touches or crosses below the lower ATR channel.
+    Sells when price touches or crosses above the upper ATR channel.
+    """
+
+    name = "atr_channel"
+    description = "ATR Channel — buys at lower channel, sells at upper channel"
+    timeframe = "15m"
+    stoploss = -0.08  # -8%
+    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    max_open_trades = 5
+
+    # Hyperoptable parameters
+    atr_period = IntParameter(10, 50, default=14, space="buy", optimize=True)
+    atr_multiplier = DecimalParameter(1.0, 5.0, default=2.0, space="buy", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # ATR Channel
+        atr_value = atr(dataframe, self.atr_period.value)
+        ema_value = dataframe["close"].ewm(span=20, adjust=False).mean()
+        dataframe["atr_channel_upper"] = ema_value + (atr_value * self.atr_multiplier.value)
+        dataframe["atr_channel_lower"] = ema_value - (atr_value * self.atr_multiplier.value)
+        dataframe["atr_channel_middle"] = ema_value
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        # Buy: price touches or crosses below the lower ATR channel
+        buy_condition = dataframe["close"] <= dataframe["atr_channel_lower"]
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "atr_channel_buy"
+
+        # Sell: price touches or crosses above the upper ATR channel
+        sell_condition = dataframe["close"] >= dataframe["atr_channel_upper"]
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "atr_channel_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        # Exit long: price touches or crosses above the middle ATR channel
+        exit_long_condition = dataframe["close"] >= dataframe["atr_channel_middle"]
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "atr_channel_exit_long"
+
+        # Exit short: price touches or crosses below the middle ATR channel
+        exit_short_condition = dataframe["close"] <= dataframe["atr_channel_middle"]
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "atr_channel_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
@@ -1152,4 +1228,5 @@ EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
     BollingerReversionStrategy,
     StochasticOscillatorStrategy,
     WilliamsRStrategy,
+    ATRChannelStrategy,
 ]
