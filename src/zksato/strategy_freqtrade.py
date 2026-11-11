@@ -787,7 +787,114 @@ class RSIRebversionStrategy(IStrategy):
         return dataframe
 
 
+@register_strategy
+class MACDCrossStrategy(IStrategy):
+    """MACD Cross strategy — Freqtrade-compatible example.
+
+    Buys when MACD line crosses above signal line.
+    Sells when MACD line crosses below signal line.
+    """
+
+    name = "macd_cross"
+    description = "MACD Cross strategy — buys on MACD cross above signal, sells on cross below"
+    timeframe = "15m"
+    stoploss = -0.06  # -6%
+    minimal_roi = {0: 0.025, 120: 0.015, 240: 0.0}
+    max_open_trades = 5
+
+    # Hyperoptable parameters
+    buy_macd_fast = IntParameter(8, 30, default=12, space="buy", optimize=True)
+    buy_macd_slow = IntParameter(20, 60, default=26, space="buy", optimize=True)
+    buy_macd_signal = IntParameter(5, 20, default=9, space="buy", optimize=True)
+    sell_macd_fast = IntParameter(8, 30, default=12, space="sell", optimize=True)
+    sell_macd_slow = IntParameter(20, 60, default=26, space="sell", optimize=True)
+    sell_macd_signal = IntParameter(5, 20, default=9, space="sell", optimize=True)
+
+    def populate_indicators(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        # MACD for buy side
+        macd_fast = dataframe["close"].ewm(span=self.buy_macd_fast.value, adjust=False).mean()
+        macd_slow = dataframe["close"].ewm(span=self.buy_macd_slow.value, adjust=False).mean()
+        dataframe["macd_line"] = macd_fast - macd_slow
+        dataframe["macd_signal"] = dataframe["macd_line"].ewm(
+            span=self.buy_macd_signal.value, adjust=False
+        ).mean()
+        dataframe["macd_histogram"] = dataframe["macd_line"] - dataframe["macd_signal"]
+
+        # MACD for sell side (same calculation, separate parameter set for hyperopt)
+        dataframe["sell_macd_line"] = (
+            dataframe["close"].ewm(span=self.sell_macd_fast.value, adjust=False).mean()
+            - dataframe["close"].ewm(span=self.sell_macd_slow.value, adjust=False).mean()
+        )
+        dataframe["sell_macd_signal"] = dataframe["sell_macd_line"].ewm(
+            span=self.sell_macd_signal.value, adjust=False
+        ).mean()
+
+        return dataframe
+
+    def populate_entry_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["enter_long"] = 0
+        dataframe["enter_short"] = 0
+        dataframe["enter_tag"] = ""
+
+        # Buy: fast EMA crosses above slow EMA (MACD line crosses above signal)
+        buy_condition = (
+            (dataframe["macd_line"] > dataframe["macd_signal"])
+            & (dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1))
+        )
+        dataframe.loc[buy_condition, "enter_long"] = 1
+        dataframe.loc[buy_condition, "enter_tag"] = "macd_cross_buy"
+
+        # Sell: fast EMA crosses below slow EMA (MACD line crosses below signal)
+        sell_condition = (
+            (dataframe["macd_line"] < dataframe["macd_signal"])
+            & (dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1))
+        )
+        dataframe.loc[sell_condition, "enter_short"] = 1
+        dataframe.loc[sell_condition, "enter_tag"] = "macd_cross_sell"
+
+        return dataframe
+
+    def populate_exit_trend(
+        self,
+        dataframe: pd.DataFrame,
+        metadata: dict[str, Any],
+    ) -> pd.DataFrame:
+        dataframe["exit_long"] = 0
+        dataframe["exit_short"] = 0
+        dataframe["exit_tag"] = ""
+
+        # Exit long: MACD line crosses below signal line
+        exit_long_condition = (
+            (dataframe["macd_line"] < dataframe["macd_signal"])
+            & (dataframe["macd_line"].shift(1) >= dataframe["macd_signal"].shift(1))
+        )
+        dataframe.loc[exit_long_condition, "exit_long"] = 1
+        dataframe.loc[exit_long_condition, "exit_tag"] = "macd_cross_exit_long"
+
+        # Exit short: MACD line crosses above signal line
+        exit_short_condition = (
+            (dataframe["macd_line"] > dataframe["macd_signal"])
+            & (dataframe["macd_line"].shift(1) <= dataframe["macd_signal"].shift(1))
+        )
+        dataframe.loc[exit_short_condition, "exit_short"] = 1
+        dataframe.loc[exit_short_condition, "exit_tag"] = "macd_cross_exit_short"
+
+        return dataframe
+
+
 # ── Strategy Examples List ───────────────────────────────────────────────
 
 
-EXAMPLE_STRATEGIES: list[type[IStrategy]] = [EMAcrossStrategy, RSIRebversionStrategy]
+EXAMPLE_STRATEGIES: list[type[IStrategy]] = [
+    EMAcrossStrategy,
+    RSIRebversionStrategy,
+    MACDCrossStrategy,
+]
