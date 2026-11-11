@@ -1,6 +1,15 @@
 # Security Policy
 
-## Security model
+<!-- Social Preview -->
+<meta property="og:title" content="zksato Security Policy">
+<meta property="og:description" content="Security model, vulnerability handling, and threat model for zksato — Risk-First SET/TFEX Trading Control Plane.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://github.com/cvsz/zksato/blob/main/SECURITY.md">
+<meta property="og:site_name" content="zksato">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@cvsz">
+<meta name="twitter:creator" content="@cvsz">
+
 zksato treats broker mutation, credentials, approvals, account state, and production readiness evidence as privileged assets. Market analysis, strategy output, dashboard state, and AI/agent components cannot bypass deterministic server-side risk and execution policy.
 
 ## Supported posture

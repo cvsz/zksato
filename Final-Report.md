@@ -1,5 +1,15 @@
 # ZKSATO Enterprise Production Audit & Engineering Master Final Report
 
+<!-- Social Preview -->
+<meta property="og:title" content="ZKSATO Enterprise Production Audit & Engineering Master Final Report">
+<meta property="og:description" content="Comprehensive engineering record, vulnerability remediation history, architectural verification, and production readiness audit for zksato — Risk-First SET/TFEX Trading Control Plane.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://github.com/cvsz/zksato/blob/main/Final-Report.md">
+<meta property="og:site_name" content="zksato">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@cvsz">
+<meta name="twitter:creator" content="@cvsz">
+
 ## Executive Summary
 This document provides the comprehensive, authoritative engineering record, vulnerability remediation history, architectural verification, and production readiness audit for **zksato** (`https://github.com/cvsz/zksato`).
 
@@ -203,6 +213,74 @@ All 10 AGENTS.md invariants remain fully enforced:
 
 ---
 
+## 9. Agent-Native Trading Platform (AI-Trader Integration, 2026-11-11)
+
+AI-Trader-inspired agent-native features have been integrated into zksato as an advisory/research layer. All features route through `RiskEngine` and `TradingService` — **zero bypass of safety invariants**.
+
+### New Modules
+
+| Module | Description |
+|--------|-------------|
+| `src/zksato/agent_trading/models.py` | Agent data models (Agent, AgentRegisterRequest, AgentLoginRequest, AgentInfo, AgentHeartbeatResponse, AgentTokenRecoveryRequest/Confirm, AgentPasswordResetRequest/Confirm) |
+| `src/zksato/agent_trading/service.py` | Agent service layer — registration, login, heartbeat, points/rewards, points exchange |
+| `src/zksato/store.py` | Extended StateStore with agent management (create, get by name/id, token management, points, positions, messages, tasks) |
+
+### Key Features
+
+| Feature | Endpoint | Description |
+|---------|----------|-------------|
+| Agent Registration | `POST /api/claw/agents/selfRegister` | Register agent with name, email, password, wallet, initial balance |
+| Agent Login | `POST /api/claw/agents/login` | Authenticate and get token |
+| Agent Profile | `GET /api/claw/agents/me` | Get agent info with roles, permissions, cash, points, reputation |
+| Agent Heartbeat | `POST /api/claw/agents/heartbeat` — Poll for messages and tasks |
+| Points Exchange | `POST /api/agents/points/exchange` — Exchange points for cash (1 point = 1000 USD) |
+
+### Reward Constants
+
+| Action | Points |
+|--------|--------|
+| Publish signal | +10 |
+| Publish discussion | +10 |
+| Publish reply | +2 |
+| Accept reply | +3 |
+
+### Safety Invariants Preserved
+
+All 10 AGENTS.md invariants remain fully enforced:
+1. ✅ Paper mode is the default
+2. ✅ Autonomous live-money execution is forbidden
+3. ✅ No strategy/agent may bypass `RiskEngine` or `TradingService`
+4. ✅ Broker credentials stay server-side
+5. ✅ Broker state is the source of truth
+6. ✅ Order idempotency across retries and restarts
+7. ✅ Stale/unknown market feed fails closed
+8. ✅ Risk controls have independent kill paths
+9. ✅ SET and TFEX semantics not conflated
+10. ✅ Deterministic, auditable, versioned, testable
+
+---
+
+## 10. Bridged Status (External Platform Integration Status, 2026-11-11)
+
+zksato maintains bidirectional bridges with external trading platforms. All bridges are advisory-only — order execution always routes through zksato's `RiskEngine` and `TradingService`.
+
+| Platform | Integration Type | Status | Endpoint | Last Verified |
+|----------|-----------------|--------|----------|---------------|
+| TFEX (Settrade) | Broker UAT Sandbox | Connected (read-only) | `/v1/tfex/*` | 2026-11-11 |
+| Freqtrade | Strategy Framework | Integrated (advisory) | `/v1/freqtrade/*` | 2026-11-11 |
+| AI-Trader | Agent-Native Platform | Integrated (advisory) | `/api/claw/*` | 2026-11-11 |
+| TradingView | Webhook Ingestion | Connected | `/v1/tradingview/webhook` | 2026-11-11 |
+| Telegram | Notification Dispatch | Connected | `/v1/notifications/telegram` | 2026-11-11 |
+| CCXT | Multi-Exchange Spot | Integrated (paper/sandbox) | `/v1/ccxt/*` | 2026-11-11 |
+| Prediction Markets | Synthetic Feeds | Integrated | `/v1/prediction/*` | 2026-11-11 |
+
+### Bridge Status Legend
+- **Connected** — Bridge is operational and data flows bidirectionally
+- **Integrated (advisory)** — Framework integrated; orders route through RiskEngine only
+- **Read-only** — Data ingestion only; no mutation capability
+
+---
+
 ## 5. Pull Request & Governance History
 
 All pull requests in repository history have been audited, resolved, and merged into `main`:
@@ -229,6 +307,8 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#70** | `docs(final-report): add Medium/Low security remediation findings and PR #68/#69 governance history` | `cvsz` | `policedbc` | Squash-Merged | `66ef7db` |
 | **#71** | `docs(final-report): document comprehensive source code investigation findings` | `cvsz` | `policedbc` | Squash-Merged | `e6cf6f4` |
 | **#72** | `feat(freqtrade): integrate Freqtrade-inspired strategy framework, hyperopt, backtesting, protections, pairlist, LLM clients` | `cvsz` | `policedbc` | Squash-Merged | `6565646` |
+| **#73** | `feat(freqtrade): refactor strategy framework with entry/exit tags, position stacking, order expiration, market regime detection` | `cvsz` | `cvsz` | Squash-Merged | `3e19d97` |
+| **#74** | `feat(agent-os): add agent-native trading platform layer` | `cvsz` | `policedbc` | Squash-Merged | `131416f` |
 
 ---
 

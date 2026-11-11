@@ -1,5 +1,15 @@
 # AGENTS.md — zksato engineering operating contract
 
+<!-- Social Preview -->
+<meta property="og:title" content="AGENTS.md — zksato Engineering Operating Contract">
+<meta property="og:description" content="Engineering and agent operating contract for zksato — Risk-First SET/TFEX Trading Control Plane. Defines safety invariants, runtime conventions, agent workflow, and multi-account Git governance.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://github.com/cvsz/zksato/blob/main/AGENTS.md">
+<meta property="og:site_name" content="zksato">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@cvsz">
+<meta name="twitter:creator" content="@cvsz">
+
 This file is the primary instruction set for humans and coding agents working in this repository.
 
 ## Mission

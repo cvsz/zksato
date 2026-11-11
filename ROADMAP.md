@@ -1,5 +1,15 @@
 # zksato Roadmap
 
+<!-- Social Preview -->
+<meta property="og:title" content="zksato Roadmap">
+<meta property="og:description" content="Implementation roadmap and external gates for zksato — Risk-First SET/TFEX Trading Control Plane.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://github.com/cvsz/zksato/blob/main/ROADMAP.md">
+<meta property="og:site_name" content="zksato">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@cvsz">
+<meta name="twitter:creator" content="@cvsz">
+
 ## Current release — v1.0.0 Production Release & USDT-First Architecture
 
 v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI research modules, and full-stack self-hosted USDT multi-exchange execution.

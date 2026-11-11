@@ -1,5 +1,16 @@
 # zksato
 
+<!-- Social Preview -->
+<meta property="og:title" content="zksato — Risk-First SET/TFEX Trading Control Plane">
+<meta property="og:description" content="Risk-first automated trading platform for SET/TFEX workflows. Paper trading default, deterministic risk engine, reconciliation, and Agent-Native trading platform integration.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://github.com/cvsz/zksato">
+<meta property="og:image" content="https://github.com/cvsz/zksato/raw/main/docs/agent-governance-credentials-workflow.png">
+<meta property="og:site_name" content="zksato">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@cvsz">
+<meta name="twitter:creator" content="@cvsz">
+
 Risk-first automation, research, paper execution, and operations control plane for SET / TFEX workflows.
 
 zksato separates **market data → deterministic strategy/research → deterministic risk → controlled execution → reconciliation → portfolio/audit**. Paper mode is the default. Settrade Open API v2 stays behind server-side adapters and credentials.
