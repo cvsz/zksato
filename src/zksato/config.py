@@ -125,6 +125,9 @@ class Settings(BaseSettings):
         "stochastic",
         "williams_r",
         "atr_channel",
+        "llm_sentiment",
+        "multi_factor",
+        "tfex_spread",
     ] = "ema_cross"
     default_order_size: int = Field(default=100, ge=1)
     default_stop_loss_pct: float = Field(default=2.0, gt=0, le=50)

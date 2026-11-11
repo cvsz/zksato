@@ -14,6 +14,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
+# Agent trading service and session management
+from zksato.agent_trading.service import AgentService
 from zksato.auth import AuthManager, Principal, Role
 from zksato.backtest_enhanced import EnhancedBacktester
 from zksato.config import get_settings
@@ -31,20 +33,28 @@ from zksato.llm_clients import (
 )
 from zksato.pairlist import (
     ChangePctPairList,
+    MomentumPairList,
     PairInfo,
     PairList,
     PairListManager,
+    SectorDiversifiedPairList,
     StaticPairList,
+    VolatilityPairList,
     VolumePairList,
 )
 from zksato.protections import (
+    ConsecutiveLossProtection,
     CooldownPeriodProtection,
     DrawdownProtection,
     Protection,
     ProtectionManager,
     StoplossGuardProtection,
+    TimeBasedProtection,
     TradeContext,
+    VolatilityProtection,
 )
+from zksato.security import AgentRateLimiter
+from zksato.store import StateStore
 from zksato.strategy_freqtrade import IStrategy, strategy_registry
 from zksato.trailing_stop import TrailingStopManager
 
@@ -87,6 +97,8 @@ _protection_manager = ProtectionManager()
 _trailing_stop_manager: TrailingStopManager | None = None
 _strategy_instances: dict[str, IStrategy] = {}
 _hyperopt_results: dict[str, Any] = {}
+_agent_rate_limiter = AgentRateLimiter()
+_agent_sessions: dict[str, dict[str, Any]] = {}
 
 
 # ── Request/Response Models ───────────────────────────────────────────────
@@ -133,12 +145,14 @@ class LossFunctionInfo(BaseModel):
 
 
 class ProtectionConfigureRequest(BaseModel):
-    protection: str  # "cooldown", "stoploss_guard", "drawdown"
+    # "cooldown", "stoploss_guard", "drawdown", "volatility", "time_based", "consecutive_loss"
+    protection: str
     params: dict[str, Any] = Field(default_factory=dict)
 
 
 class PairListConfigureRequest(BaseModel):
-    type: str  # "static", "volume", "change_pct"
+    # "static", "volume", "change_pct", "momentum", "volatility", "sector_diversified"
+    type: str
     params: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -153,6 +167,24 @@ class LLMClientCreateRequest(BaseModel):
     provider: str
     model: str
     base_url: str | None = None
+
+
+class SessionCreateRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=64)
+    ttl_seconds: int = Field(default=3600, ge=60, le=86400)
+
+
+class SessionResponse(BaseModel):
+    session_token: str
+    agent_id: str
+    expires_at: str
+    ttl_seconds: int
+
+
+class SessionValidateResponse(BaseModel):
+    valid: bool
+    agent_id: str | None = None
+    expires_at: str | None = None
 
 
 # ── Strategy Endpoints ───────────────────────────────────────────────────
@@ -432,6 +464,22 @@ async def configure_protection(
             protection = DrawdownProtection(
                 max_daily_drawdown_pct=float(request.params.get("max_daily_drawdown_pct", 5.0)),
             )
+        elif request.protection == "volatility":
+            protection = VolatilityProtection(
+                max_volatility_pct=float(request.params.get("max_volatility_pct", 5.0)),
+                lookback_trades=int(request.params.get("lookback_trades", 20)),
+            )
+        elif request.protection == "time_based":
+            protection = TimeBasedProtection(
+                blocked_hours=request.params.get("blocked_hours", [12, 13]),
+                timezone_name=str(request.params.get("timezone_name", "Asia/Bangkok")),
+            )
+        elif request.protection == "consecutive_loss":
+            protection = ConsecutiveLossProtection(
+                max_consecutive_losses=int(request.params.get("max_consecutive_losses", 3)),
+                stop_duration_candles=int(request.params.get("stop_duration_candles", 6)),
+                candle_duration_seconds=int(request.params.get("candle_duration_seconds", 3600)),
+            )
         else:
             raise ValueError(f"Unknown protection type: {request.protection}")
 
@@ -507,6 +555,22 @@ async def configure_pairlist(
                 number_assets=int(request.params.get("number_assets", 50)),
                 min_change_pct=float(request.params.get("min_change_pct", 0.0)),
                 max_change_pct=request.params.get("max_change_pct"),
+            )
+        elif request.type == "momentum":
+            pairlist = MomentumPairList(
+                number_assets=int(request.params.get("number_assets", 50)),
+                min_change_pct=float(request.params.get("min_change_pct", 0.0)),
+                top_only=bool(request.params.get("top_only", True)),
+            )
+        elif request.type == "volatility":
+            pairlist = VolatilityPairList(
+                max_volatility_pct=float(request.params.get("max_volatility_pct", 5.0)),
+                number_assets=int(request.params.get("number_assets", 50)),
+            )
+        elif request.type == "sector_diversified":
+            pairlist = SectorDiversifiedPairList(
+                max_per_sector=int(request.params.get("max_per_sector", 5)),
+                number_assets=int(request.params.get("number_assets", 50)),
             )
         else:
             raise ValueError(f"Unknown pairlist type: {request.type}")
@@ -671,4 +735,85 @@ async def get_llm_key_status(
         "configured": bool(key),
         "env_var": env_var,
         "masked_key": mask_api_key(key) if key else None,
+    }
+
+
+# ── Agent Session Management Endpoints ──────────────────────────────────
+
+
+@router.post("/agents/session", response_model=SessionResponse)
+async def create_agent_session(
+    request: SessionCreateRequest,
+    _principal: PlatformPrincipal,
+) -> SessionResponse:
+    """Create an authenticated session for an agent.
+
+    Returns a session token that can be used for subsequent authenticated
+    requests. The session expires after ttl_seconds.
+    """
+    rate_limited = not await _agent_rate_limiter.allow_request(request.agent_id)
+    if rate_limited:
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
+    try:
+        service = AgentService(StateStore())
+        session = service.create_session(request.agent_id, request.ttl_seconds)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return SessionResponse(
+        session_token=session["session_token"],
+        agent_id=request.agent_id,
+        expires_at=session["expires_at"],
+        ttl_seconds=session["ttl_seconds"],
+    )
+
+
+@router.get("/agents/session/validate", response_model=SessionValidateResponse)
+async def validate_agent_session(
+    session_token: str,
+    _principal: PlatformPrincipal,
+) -> SessionValidateResponse:
+    """Validate a session token and return session info."""
+    rate_limited = not await _agent_rate_limiter.allow_request("session_validation")
+    if rate_limited:
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+
+    service = AgentService(StateStore())
+    session = service.get_session(session_token)
+    if session is None:
+        return SessionValidateResponse(valid=False)
+
+    return SessionValidateResponse(
+        valid=True,
+        agent_id=session["agent_id"],
+        expires_at=session["expires_at"],
+    )
+
+
+@router.delete("/agents/session")
+async def expire_agent_session(
+    session_token: str,
+    _principal: PlatformPrincipal,
+) -> dict[str, Any]:
+    """Expire (invalidate) a session token."""
+    service = AgentService(StateStore())
+    expired = service.expire_session(session_token)
+    return {"expired": expired}
+
+
+# ── Agent Rate Limit Status ─────────────────────────────────────────────
+
+
+@router.get("/agents/rate-limit/{agent_id}")
+async def get_agent_rate_limit(
+    agent_id: str,
+    _principal: PlatformPrincipal,
+) -> dict[str, Any]:
+    """Get remaining requests for an agent in the current rate limit window."""
+    remaining = _agent_rate_limiter.remaining(agent_id)
+    return {
+        "agent_id": agent_id,
+        "remaining": remaining,
+        "limit": _agent_rate_limiter.limit,
     }
