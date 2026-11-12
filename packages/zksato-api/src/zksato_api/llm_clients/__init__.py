@@ -7,6 +7,7 @@ from .gemini4_hydrogen import (
     HydrogenThinkingLevel,
     LLMResponse,
 )
+from .local_llama_server import LocalLLMServerConfig, LocalLLMServerManager
 from .local_llm import LocalLLMBackend, LocalLLMClient, LocalLLMConfig, LocalLLMResponse
 from .orchestrator import (
     ModelOrchestrator,
@@ -26,6 +27,8 @@ __all__ = [
     "LocalLLMClient",
     "LocalLLMConfig",
     "LocalLLMResponse",
+    "LocalLLMServerConfig",
+    "LocalLLMServerManager",
     "ModelOrchestrator",
     "OrchestratorDecision",
     "OrchestratorModel",

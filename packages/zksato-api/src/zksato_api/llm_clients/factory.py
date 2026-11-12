@@ -10,6 +10,10 @@ from zksato_api.llm_clients.gemini4_hydrogen import (
     Gemini4HydrogenConfig,
     HydrogenThinkingLevel,
 )
+from zksato_api.llm_clients.local_llama_server import (
+    LocalLLMServerConfig,
+    LocalLLMServerManager,
+)
 from zksato_api.llm_clients.local_llm import (
     LocalLLMBackend,
     LocalLLMClient,
@@ -97,3 +101,24 @@ class LLMClientFactory:
             api_key=api_key,
         )
         return LocalLLMClient(config=config)
+
+    def create_local_llama_server(
+        self,
+        config: LocalLLMServerConfig | None = None,
+    ) -> LocalLLMServerManager:
+        """Create a local LLM server manager for offline inference.
+
+        Convenience method for agentic workflows that need a locally-hosted
+        LLM server (e.g., llama.cpp) without external API calls — keeping
+        all data on-premise.
+
+        Args:
+            config: LocalLLMServerConfig with server settings. If None,
+                a default config is used.
+
+        Returns:
+            LocalLLMServerManager instance
+        """
+        if config is None:
+            config = LocalLLMServerConfig()
+        return LocalLLMServerManager(config=config)
