@@ -1,6 +1,7 @@
 # Documentation index
 
 ## Start here
+- `MASTER-PROMPT-EXECUTION-2026-11-12.md` — task-scoped execution register and evidence map for the universal engineering master prompt
 - `../README.md` — product overview and quick start
 - `../AGENTS.md` — engineering/agent operating contract
 - `../ROADMAP.md` — implementation roadmap and external gates
