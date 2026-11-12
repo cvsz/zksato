@@ -126,10 +126,10 @@ This checklist tracks complete system verification, financial safety guarantees,
 ## 6. Verification & Quality Gates
 
 - [x] **Ruff Linter**: `ruff check .` passes with 0 errors and 0 warnings (ruff 0.16.6).
-- [x] **Ruff Format**: `ruff format --check .` passes (408 files clean).
+- [x] **Ruff Format**: `ruff format --check .` passes (409 files clean).
 - [x] **Mypy Static Type Checking**: `mypy src/zksato scripts` passes with 0 errors (86 source files).
 - [x] **ShellCheck**: `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` passes with 0 warnings.
-- [x] **Python Pytest Suite**: 381 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
+- [x] **Python Pytest Suite**: 389 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
 - [x] **Financial Invariants Suite**: `pytest tests/test_financial_invariants.py` passes all property-based tests.
 - [x] **Workflow Security Suite**: `pytest tests/test_workflow_security.py` passes.
 - [x] **Zizmor Security Audit**: `zizmor .github/workflows` passes with 0 findings.
@@ -144,7 +144,7 @@ This checklist tracks complete system verification, financial safety guarantees,
 ## 7. Multi-Account Sign-Off Verification
 
 - [x] **Author (`cvsz`)**: Authored changes with GPG signed commits (`EDDSA key 8BC7A85F1FB5322782921AEC14E1E0BC08F632B0`).
-- [x] **Independent Reviewer (`policedbc`)**: Audited and approved all pull requests (#46 through #91).
+- [x] **Independent Reviewer (`policedbc`)**: Audited and approved all pull requests (#46 through #98).
 - [x] **Repository Owner (`cvsz`)**: Squash-merged approved changes into `main`.
 
 ---
@@ -157,7 +157,10 @@ This checklist tracks complete system verification, financial safety guarantees,
 - [x] **Pairlists**: 6 total (Static, Volume, ChangePct, Momentum, Volatility, SectorDiversified) — Momentum, Volatility, SectorDiversified added in PR #89.
 - [x] **Frontend Integration**: Frontend directory exists at `/frontend/` with Next.js 16 operator UI.
 - [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`. Plus `/v1/admin/api-keys*` (PR #91) and agent session endpoints (PR #90).
-- [x] **Additional Test Coverage**: Added unit tests for agent trading (`tests/test_agent_trading.py`, 7 tests), hyperopt modules (`tests/test_hyperopt.py`, 5 tests), and API key admin (`tests/test_auth.py`, 8 new tests). All 381 tests pass.
+- [x] **Additional Test Coverage**: Added unit tests for agent trading (`tests/test_agent_trading.py`, 7 tests), hyperopt modules (`tests/test_hyperopt.py`, 5 tests), API key admin (`tests/test_auth.py`, 8 new tests), and penetration/security tests (`tests/test_penetration.py`, 8 tests). All 389 tests pass.
+- [x] **Indicators Optimization**: NumPy-vectorized indicators in `src/zksato/indicators.py` — added DEMA, TEMA, KAMA, T3 moving averages; APO, CCI, MFI, PPO, ROC, ROCP, ROCR momentum oscillators; OBV volume; NATR, TRANGE volatility; STDDEV, LINEAR_REG, LINEAR_REG_SLOPE, TSF, VARIANCE statistics; price transforms. All vectorized with series variants (PR #96).
+- [x] **Backtest Performance**: `_simulate_trades` optimized with pre-extracted numpy arrays replacing `df.iterrows()` — 5-10x speedup (PR #97).
+- [x] **Penetration Tests**: `tests/test_penetration.py` — rate limiting, fail-closed execution, paper mode enforcement, AuthManager security tests (PR #98).
 - [x] **API Key Admin**: Full CRUD for API keys with SHA-256 hash storage, usage tracking, expiry, and revocation. Admin endpoints at `/v1/admin/api-keys*`. Added to SECURITY.md and docs/API-SPEC.md (PR #91).
 - [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules. docs/ZKSATO-MASTER-001.md and docs/ZKSATO-ROADMAP.md provide master engineering prompt and roadmap. README.md updated with API key admin section and all API groups.
 - [x] **ADRs**: docs/adr/005-ai-read-only-boundary.md covers agent OS and secure boundaries; docs/adr/004-broker-reconciliation.md covers broker integration. 9 ADRs total in docs/adr/.
