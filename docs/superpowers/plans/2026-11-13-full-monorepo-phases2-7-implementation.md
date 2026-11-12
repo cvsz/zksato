@@ -73,6 +73,7 @@ def test_all_packages_importable():
     import zksato_api
     import zksato_cli
     import zksato_test_utils
+
     assert zksato_core.__version__ == "2.0.0-dev"
 ```
 

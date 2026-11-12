@@ -220,15 +220,16 @@ class BrokerAdapter(Protocol):
     def name(self) -> str: ...
     @property
     def capabilities(self) -> set[Capability]: ...
-    
+
     async def connect(self, config: BrokerConfig) -> None: ...
     async def disconnect(self) -> None: ...
-    
+
     async def place_order(self, order: OrderRequest) -> OrderResult: ...
     async def cancel_order(self, order_id: str) -> CancelResult: ...
     async def get_positions(self) -> list[Position]: ...
     async def get_account(self) -> Account: ...
     async def health_check(self) -> HealthStatus: ...
+
 
 # Plugin discovery via entry points
 # pyproject.toml:
@@ -249,15 +250,16 @@ class StrategyPlugin(Protocol):
     version: str
     description: str
     parameter_space: ParameterSpace
-    
+
     def create_strategy(self, config: StrategyConfig) -> Strategy: ...
+
 
 class PluginRegistry:
     def __init__(self):
         self.strategies: dict[str, StrategyPlugin] = {}
         self.indicators: dict[str, IndicatorPlugin] = {}
         self.brokers: dict[str, BrokerAdapter] = {}
-    
+
     def discover(self) -> None:
         # Load from entry points
         for ep in importlib.metadata.entry_points(group="zksato.strategies"):
@@ -318,27 +320,30 @@ from opentelemetry.instrument.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.instrument.redis import RedisInstrumentor
 from opentelemetry.instrument.httpx import HTTPXClientInstrumentor
 
+
 def setup_observability(config: ObservabilityConfig) -> None:
     # Traces
     trace.set_tracer_provider(TracerProvider())
     trace.get_tracer_provider().add_span_processor(
         BatchSpanProcessor(OTLPSpanExporter(endpoint=config.otlp_endpoint))
     )
-    
+
     # Metrics
     metrics.set_meter_provider(MeterProvider())
     metrics.get_meter_provider().add_metric_reader(
         PeriodicExportingMetricReader(OTLPMetricExporter(endpoint=config.otlp_endpoint))
     )
-    
+
     # Auto-instrumentation
     FastAPIInstrumentor.instrument()
     SQLAlchemyInstrumentor.instrument()
     RedisInstrumentor.instrument()
     HTTPXClientInstrumentor.instrument()
 
+
 # Custom spans for trading
 tracer = trace.get_tracer("zksato.trading")
+
 
 @contextmanager
 def risk_evaluation_span(order: OrderRequest):
@@ -347,6 +352,7 @@ def risk_evaluation_span(order: OrderRequest):
         span.set_attribute("order.side", order.side.value)
         span.set_attribute("order.notional", str(order.notional))
         yield span
+
 
 @contextmanager
 def order_placement_span(order: OrderRequest, broker: str):
@@ -434,11 +440,12 @@ class SessionCheckpoint:
     risk_context: RiskContext
     event_log_position: int  # For event-sourced resume
 
+
 class CheckpointManager:
     async def save_checkpoint(self, session: AgentSession) -> None:
         checkpoint = SessionCheckpoint.from_session(session)
         await self.store.save(checkpoint)
-    
+
     async def restore_session(self, session_id: ULID) -> AgentSession:
         checkpoint = await self.store.load(session_id)
         session = AgentSession(session_id, checkpoint.subaccount_id)
@@ -490,6 +497,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 app = typer.Typer()
 console = Console()
 
+
 @app.command()
 def start(
     strategy: str = typer.Option(..., "--strategy", "-s", help="Strategy name"),
@@ -507,8 +515,9 @@ def start(
         # Start bot via API
         result = await api_client.bot_start(strategy, symbol, capital, dry_run)
         progress.update(task, completed=True)
-    
+
     console.print(f"[green]Bot started:[/green] {result.bot_id}")
+
 
 @app.command()
 def status(
@@ -539,15 +548,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 import tomllib
 from pathlib import Path
 
+
 class RiskPolicyConfig(BaseModel):
     daily_loss_limit: NotionalLimit = Field(default_factory=NotionalLimit)
     position_concentration: ConcentrationLimit = Field(default_factory=ConcentrationLimit)
     feed_freshness: StalenessLimit = Field(default_factory=StalenessLimit)
 
+
 class BrokerConfig(BaseModel):
     paper: PaperBrokerConfig = Field(default_factory=PaperBrokerConfig)
     settrade: SettradeConfig | None = None
     ccxt: CCXTConfig | None = None
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -556,24 +568,27 @@ class Settings(BaseSettings):
         toml_file=Path("config/settings.toml"),
         extra="ignore",
     )
-    
+
     trading_mode: TradingMode = TradingMode.PAPER
     database_url: str
     redis_url: str
     risk: RiskPolicyConfig = Field(default_factory=RiskPolicyConfig)
     brokers: BrokerConfig = Field(default_factory=BrokerConfig)
-    
+
     @classmethod
     def load(cls, env: str | None = None) -> "Settings":
         """Load with environment-specific overrides."""
         data = {}
-        for f in [Path("config/settings.toml")] + \
-                 ([Path(f"config/environments/{env}.toml")] if env else []) + \
-                 [Path("config/settings.local.toml")]:
+        for f in (
+            [Path("config/settings.toml")]
+            + ([Path(f"config/environments/{env}.toml")] if env else [])
+            + [Path("config/settings.local.toml")]
+        ):
             if f.exists():
                 with f.open("rb") as fp:
                     deep_merge(data, tomllib.load(fp))
         return cls(**data)
+
 
 # Generate JSON schemas for validation
 def generate_schemas():
@@ -661,23 +676,25 @@ class SkillRegistry:
 # zksato-automation/src/zksato_automation/tools/registry.py
 from pydantic import BaseModel, create_model
 
+
 class ToolRegistry:
     def __init__(self):
         self.tools: dict[str, TradingTool] = {}
         self.schemas: dict[str, Type[BaseModel]] = {}
-    
+
     def register(self, tool: TradingTool) -> None:
         self.tools[tool.name] = tool
         self.schemas[tool.name] = tool.parameters
-    
+
     def get_schema(self, name: str) -> dict:
         """Return JSON schema for tool (for LLM function calling)."""
         return self.schemas[name].model_json_schema()
-    
+
     async def execute(self, name: str, params: dict, ctx: ToolContext) -> ToolResult:
         tool = self.tools[name]
         validated = tool.parameters(**params)
         return await tool.execute(validated, ctx)
+
 
 # Auto-generate OpenAPI from tool registry
 def generate_tool_openapi(registry: ToolRegistry) -> dict:
@@ -686,7 +703,9 @@ def generate_tool_openapi(registry: ToolRegistry) -> dict:
         paths[f"/tools/{name}"] = {
             "post": {
                 "summary": tool.description,
-                "requestBody": {"content": {"application/json": {"schema": registry.get_schema(name)}}},
+                "requestBody": {
+                    "content": {"application/json": {"schema": registry.get_schema(name)}}
+                },
                 "responses": {"200": {"description": "Tool result"}},
             }
         }
@@ -709,13 +728,14 @@ class HookType(Enum):
     ON_RECONCILIATION_DRIFT = "on_reconciliation_drift"
     ON_RISK_LIMIT_BREACH = "on_risk_limit_breach"
 
+
 class HookManager:
     def __init__(self):
         self.hooks: dict[HookType, list[Callable]] = defaultdict(list)
-    
+
     def register(self, hook_type: HookType, fn: Callable) -> None:
         self.hooks[hook_type].append(fn)
-    
+
     async def run(self, hook_type: HookType, *args, **kwargs) -> list[Any]:
         results = []
         for hook in self.hooks[hook_type]:
@@ -726,16 +746,17 @@ class HookManager:
                 logger.error(f"Hook {hook_type} failed: {e}")
         return results
 
+
 # Example usage in scheduler:
 async def execute_tool(self, tool: TradingTool, params: BaseModel, ctx: ToolContext):
     await self.hooks.run(HookType.PRE_RISK_CHECK, tool, params, ctx)
     risk_result = await self.risk_engine.evaluate(ctx)
     await self.hooks.run(HookType.POST_RISK_CHECK, tool, params, ctx, risk_result)
-    
+
     if not risk_result.allowed:
         await self.hooks.run(HookType.ON_REJECT, tool, params, ctx, risk_result)
         raise RiskRejected(risk_result)
-    
+
     await self.hooks.run(HookType.PRE_ORDER_PLACE, tool, params, ctx)
     result = await tool.execute(params, ctx)
     await self.hooks.run(HookType.POST_ORDER_PLACE, tool, params, ctx, result)
@@ -751,9 +772,11 @@ async def execute_tool(self, tool: TradingTool, params: BaseModel, ctx: ToolCont
 import json
 from typing import Any
 
+
 def stable_json_dumps(obj: Any) -> str:
     """Deterministic JSON serialization for idempotency keys."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
 
 def generate_idempotency_key(order: OrderRequest) -> str:
     """Generate deterministic idempotency key from order."""
@@ -769,7 +792,9 @@ def generate_idempotency_key(order: OrderRequest) -> str:
     }
     # Hash for fixed-length key
     import hashlib
+
     return hashlib.sha256(stable_json_dumps(key_data).encode()).hexdigest()[:32]
+
 
 # Usage in broker adapters:
 async def place_order(self, order: OrderRequest) -> OrderResult:
@@ -788,26 +813,32 @@ async def place_order(self, order: OrderRequest) -> OrderResult:
 ```python
 # zksato-broker/src/zksato_broker/errors.py
 class BrokerErrorCategory(Enum):
-    TRANSIENT = "transient"           # Retry with backoff
-    RATE_LIMITED = "rate_limited"     # Retry after delay
-    AUTH_FAILED = "auth_failed"       # Re-authenticate
-    INVALID_ORDER = "invalid_order"   # Don't retry, fix order
-    REJECTED = "rejected"             # Order rejected by exchange
-    UNKNOWN = "unknown"               # Alert, manual intervention
+    TRANSIENT = "transient"  # Retry with backoff
+    RATE_LIMITED = "rate_limited"  # Retry after delay
+    AUTH_FAILED = "auth_failed"  # Re-authenticate
+    INVALID_ORDER = "invalid_order"  # Don't retry, fix order
+    REJECTED = "rejected"  # Order rejected by exchange
+    UNKNOWN = "unknown"  # Alert, manual intervention
+
 
 class BrokerError(Exception):
-    def __init__(self, message: str, category: BrokerErrorCategory, 
-                 original_error: Exception | None = None,
-                 retry_after: float | None = None):
+    def __init__(
+        self,
+        message: str,
+        category: BrokerErrorCategory,
+        original_error: Exception | None = None,
+        retry_after: float | None = None,
+    ):
         super().__init__(message)
         self.category = category
         self.original_error = original_error
         self.retry_after = retry_after
 
+
 def classify_error(error: Exception, broker: str) -> BrokerError:
     """Classify broker errors for consistent handling."""
     error_str = str(error).lower()
-    
+
     if "timeout" in error_str or "connection" in error_str:
         return BrokerError(str(error), BrokerErrorCategory.TRANSIENT, error)
     elif "rate limit" in error_str or "429" in error_str:
@@ -821,11 +852,14 @@ def classify_error(error: Exception, broker: str) -> BrokerError:
     else:
         return BrokerError(str(error), BrokerErrorCategory.UNKNOWN, error)
 
+
 # Retry policy per category
 RETRY_POLICIES = {
     BrokerErrorCategory.TRANSIENT: RetryPolicy(max_attempts=3, base_delay=1.0, max_delay=30.0),
     BrokerErrorCategory.RATE_LIMITED: RetryPolicy(max_attempts=5, base_delay=5.0, max_delay=60.0),
-    BrokerErrorCategory.AUTH_FAILED: RetryPolicy(max_attempts=1, base_delay=0, max_delay=0),  # Re-auth then retry
+    BrokerErrorCategory.AUTH_FAILED: RetryPolicy(
+        max_attempts=1, base_delay=0, max_delay=0
+    ),  # Re-auth then retry
     BrokerErrorCategory.INVALID_ORDER: RetryPolicy(max_attempts=0),
     BrokerErrorCategory.REJECTED: RetryPolicy(max_attempts=0),
     BrokerErrorCategory.UNKNOWN: RetryPolicy(max_attempts=1, base_delay=10.0, max_delay=10.0),
@@ -839,11 +873,13 @@ RETRY_POLICIES = {
 ```python
 # zksato-market/src/zksato_market/feeds/composite.py
 class FeedRouter:
-    def __init__(self, feeds: list[MarketFeed], strategy: RoutingStrategy = RoutingStrategy.PRIORITY):
+    def __init__(
+        self, feeds: list[MarketFeed], strategy: RoutingStrategy = RoutingStrategy.PRIORITY
+    ):
         self.feeds = feeds
         self.strategy = strategy
         self.active_feed: MarketFeed | None = None
-    
+
     async def connect(self) -> None:
         for feed in self.feeds:
             try:
@@ -872,12 +908,13 @@ class FeedRouter:
         await self.hooks.run(HookType.ON_FEED_FAILURE)
         raise FeedUnavailable("All market feeds unavailable")
 
+
 # Broker failover
 class BrokerRouter:
     def __init__(self, brokers: list[BrokerAdapter]):
         self.brokers = {b.name: b for b in brokers}
         self.primary: str | None = None
-    
+
     async def place_order(self, order: OrderRequest) -> OrderResult:
         # Try primary
         if self.primary and self.primary in self.brokers:
@@ -913,11 +950,12 @@ class ApprovalToken:
     expires_at: datetime
     metadata: dict = field(default_factory=dict)
 
+
 class ConfirmationBus:
     def __init__(self, store: ApprovalStore, notifier: Notifier):
         self.store = store
         self.notifier = notifier
-    
+
     async def request_approval(self, order: OrderRequest, requester: str) -> ApprovalToken:
         token = ApprovalToken(
             order_id=order.order_id,
@@ -928,7 +966,7 @@ class ConfirmationBus:
         await self.store.save(token)
         await self.notifier.notify_approvers(token)
         return token
-    
+
     async def approve(self, token_id: ULID, approver: str) -> ApprovalStatus:
         token = await self.store.get(token_id)
         if approver in token.approved_by:
@@ -938,10 +976,11 @@ class ConfirmationBus:
             token.status = ApprovalStatus.APPROVED
         await self.store.save(token)
         return token.status
-    
+
     async def wait_for_approval(self, token_id: ULID, timeout: float = 900) -> ApprovalStatus:
         # Poll or wait for notification
         pass
+
 
 # Integration with risk engine:
 async def evaluate(self, context: RiskContext) -> RiskResult:
@@ -965,6 +1004,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import json
 
+
 class TradingEvent(BaseModel):
     event_id: ULID
     event_type: TradingEventType
@@ -972,6 +1012,7 @@ class TradingEvent(BaseModel):
     account_id: str
     correlation_id: ULID | None = None
     payload: dict
+
 
 class TradingEventType(Enum):
     ORDER_PLACED = "order.placed"
@@ -988,41 +1029,54 @@ class TradingEventType(Enum):
     POSITION_CLOSED = "position.closed"
     PNL_REALIZED = "pnl.realized"
 
+
 class TelemetryLogger:
     def __init__(self, exporter: TelemetryExporter):
         self.exporter = exporter
         self.tracer = trace.get_tracer("zksato.telemetry")
-    
+
     async def log(self, event: TradingEvent) -> None:
         # Structured logging
         logger.info("trading_event", extra=event.model_dump())
-        
+
         # OpenTelemetry span
         with self.tracer.start_as_current_span(f"trading.{event.event_type.value}") as span:
             span.set_attribute("account_id", event.account_id)
             span.set_attribute("event_type", event.event_type.value)
             for k, v in event.payload.items():
                 span.set_attribute(f"payload.{k}", str(v))
-        
+
         # Export to audit store
         await self.exporter.export(event)
-    
+
     # Convenience methods
     async def log_order_placed(self, order: OrderRequest, result: OrderResult) -> None:
-        await self.log(TradingEvent(
-            event_type=TradingEventType.ORDER_PLACED,
-            account_id=order.account_id,
-            correlation_id=order.correlation_id,
-            payload={"order_id": str(result.order_id), "symbol": order.symbol, "side": order.side.value}
-        ))
+        await self.log(
+            TradingEvent(
+                event_type=TradingEventType.ORDER_PLACED,
+                account_id=order.account_id,
+                correlation_id=order.correlation_id,
+                payload={
+                    "order_id": str(result.order_id),
+                    "symbol": order.symbol,
+                    "side": order.side.value,
+                },
+            )
+        )
 
     async def log_risk_check(self, context: RiskContext, result: RiskResult) -> None:
-        await self.log(TradingEvent(
-            event_type=TradingEventType.RISK_CHECK,
-            account_id=context.account_id,
-            correlation_id=context.correlation_id,
-            payload={"allowed": result.allowed, "reason": result.reason, "checks": [c.model_dump() for c in result.checks]}
-        ))
+        await self.log(
+            TradingEvent(
+                event_type=TradingEventType.RISK_CHECK,
+                account_id=context.account_id,
+                correlation_id=context.correlation_id,
+                payload={
+                    "allowed": result.allowed,
+                    "reason": result.reason,
+                    "checks": [c.model_dump() for c in result.checks],
+                },
+            )
+        )
 ```
 
 ---

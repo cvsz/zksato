@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
+from typing import Any
+
 from zksato_core.models import OrderIntent, RiskContext, Side
+from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
 
 
 class KillSwitchPolicy(Policy):
@@ -235,16 +237,24 @@ class ExposureLimitPolicy(Policy):
         reasons: list[str] = []
 
         if context.gross_exposure_pct > self._max_gross_pct:
-            reasons.append(f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self._max_gross_pct:.1f}%")
+            reasons.append(
+                f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self._max_gross_pct:.1f}%"
+            )
 
         if abs(context.net_exposure_pct) > self._max_net_pct:
-            reasons.append(f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self._max_net_pct:.1f}%")
+            reasons.append(
+                f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self._max_net_pct:.1f}%"
+            )
 
         if context.symbol_exposure_pct > self._max_symbol_pct:
-            reasons.append(f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self._max_symbol_pct:.1f}%")
+            reasons.append(
+                f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self._max_symbol_pct:.1f}%"
+            )
 
         if context.sector_exposure_pct > self._max_sector_pct:
-            reasons.append(f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self._max_sector_pct:.1f}%")
+            reasons.append(
+                f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self._max_sector_pct:.1f}%"
+            )
 
         if reasons:
             return PolicyResult(decision=PolicyDecision.REJECT, reasons=reasons)
@@ -384,7 +394,9 @@ class PriceDeviationPolicy(Policy):
             if deviation > self._max_deviation_pct:
                 return PolicyResult(
                     decision=PolicyDecision.REJECT,
-                    reasons=[f"limit price deviates {deviation:.2f}% from reference (max {self._max_deviation_pct:.2f}%)"],
+                    reasons=[
+                        f"limit price deviates {deviation:.2f}% from reference (max {self._max_deviation_pct:.2f}%)"
+                    ],
                 )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
@@ -407,7 +419,12 @@ class PerTradeRiskPolicy(Policy):
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
 
-        if opening_risk and intent.stop_loss is not None and context.reference_price and context.portfolio_value:
+        if (
+            opening_risk
+            and intent.stop_loss is not None
+            and context.reference_price
+            and context.portfolio_value
+        ):
             per_share_risk = max(0.0, float(context.reference_price) - float(intent.stop_loss))
             risk_value = per_share_risk * intent.quantity
             estimated_risk_pct = risk_value / float(context.portfolio_value) * 100
@@ -415,7 +432,9 @@ class PerTradeRiskPolicy(Policy):
             if estimated_risk_pct > self._max_risk_per_trade_pct:
                 return PolicyResult(
                     decision=PolicyDecision.REJECT,
-                    reasons=[f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self._max_risk_per_trade_pct:.2f}%"],
+                    reasons=[
+                        f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self._max_risk_per_trade_pct:.2f}%"
+                    ],
                 )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)

@@ -2,39 +2,43 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+from dataclasses import asdict
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import orjson
-from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 
 
-def json_dumps(obj: Any) -> str:
+def json_dumps(obj: object) -> str:
     """Serialize to JSON string using orjson for performance."""
     return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY, default=default_encoder).decode()
 
 
-def json_loads(data: str | bytes) -> Any:
+def json_loads(data: str | bytes) -> object:
     """Deserialize from JSON string."""
     return orjson.loads(data)
 
 
-def pydantic_to_dict(model: Any, **kwargs: Any) -> dict[str, Any]:
+def pydantic_to_dict(model: object, **kwargs: object) -> dict[str, object]:
     """Convert Pydantic model or dataclass to dict with JSON-serializable values."""
     if hasattr(model, "model_dump"):
-        return to_jsonable_python(model.model_dump(**kwargs))
+        raw = model.model_dump(**kwargs)
+        result: dict[str, object] = to_jsonable_python(raw)
+        return result
     elif hasattr(model, "__dataclass_fields__"):
-        from dataclasses import asdict
-        return to_jsonable_python(asdict(model))
+        raw = asdict(cast(Any, model))
+        result = to_jsonable_python(raw)
+        return result
     else:
         raise TypeError(f"Expected Pydantic model or dataclass, got {type(model)}")
 
 
-def pydantic_to_json(model: Any, **kwargs: Any) -> str:
+def pydantic_to_json(model: object, **kwargs: object) -> str:
     """Convert Pydantic model or dataclass to JSON string."""
     return json_dumps(pydantic_to_dict(model, **kwargs))
 
@@ -42,7 +46,7 @@ def pydantic_to_json(model: Any, **kwargs: Any) -> str:
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder for non-standard types."""
 
-    def default(self, obj: Any) -> Any:
+    def default(self, obj: object) -> object:
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         if isinstance(obj, Decimal):
@@ -56,7 +60,7 @@ class CustomJSONEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def default_encoder(obj: Any) -> Any:
+def default_encoder(obj: object) -> object:
     """Default encoder for non-standard types (for orjson default)."""
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
@@ -91,14 +95,13 @@ def deserialize_decimal(value: str) -> Decimal:
     return Decimal(value)
 
 
-def stable_json_dumps(obj: Any) -> str:
+def stable_json_dumps(obj: object) -> str:
     """Deterministic JSON serialization for idempotency keys."""
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def generate_idempotency_key(order: dict[str, Any]) -> str:
+def generate_idempotency_key(order: dict[str, object]) -> str:
     """Generate deterministic idempotency key from order data."""
-    import hashlib
     key_data = {
         "symbol": order.get("symbol"),
         "side": order.get("side"),

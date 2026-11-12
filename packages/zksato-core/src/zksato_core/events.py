@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Generic, TypeVar
 from uuid import UUID, uuid4
 
+import orjson
+
 from zksato_core.ids import new_correlation_id
 from zksato_core.serialization import json_dumps
-
 
 T = TypeVar("T")
 
@@ -27,18 +29,19 @@ class Event:
 
     def to_json(self) -> str:
         """Serialize event to JSON."""
-        return json_dumps({
-            "id": str(self.id),
-            "event_type": self.event_type,
-            "timestamp": self.timestamp.isoformat(),
-            "correlation_id": self.correlation_id,
-            "payload": self.payload,
-        })
+        return json_dumps(
+            {
+                "id": str(self.id),
+                "event_type": self.event_type,
+                "timestamp": self.timestamp.isoformat(),
+                "correlation_id": self.correlation_id,
+                "payload": self.payload,
+            }
+        )
 
     @classmethod
     def from_json(cls, data: str) -> Event:
         """Deserialize event from JSON."""
-        import orjson
         obj = orjson.loads(data)
         return cls(
             id=UUID(obj["id"]),
@@ -102,12 +105,12 @@ class EventPublisher(ABC):
         ...
 
     @abstractmethod
-    async def subscribe(self, event_type: str, handler: callable) -> None:
+    async def subscribe(self, event_type: str, handler: Callable[[Event], None]) -> None:
         """Subscribe to an event type."""
         ...
 
     @abstractmethod
-    async def unsubscribe(self, event_type: str, handler: callable) -> None:
+    async def unsubscribe(self, event_type: str, handler: Callable[[Event], None]) -> None:
         """Unsubscribe from an event type."""
         ...
 
