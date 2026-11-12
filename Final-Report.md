@@ -269,6 +269,9 @@ $ docker compose config --quiet
 | **Persistence** | PostgreSQL system of record | ✅ Implemented |
 | **Persistence** | Order archival (bounded memory) | ✅ Implemented |
 | **Observability** | Prometheus + JSON logs + optional OTel | ✅ Implemented |
+| **LLM/Agent** | Gemini 4 Hydrogen client (4 thinking levels, 1M context) | ✅ Implemented |
+| **LLM/Agent** | Model orchestrator (Carbon/Hydrogen routing) | ✅ Implemented |
+| **LLM/Agent** | LLM-powered skills (code generation, analysis, test verification) | ✅ Implemented |
 | **DR** | Backup/restore automation + ephemeral drill | ✅ Implemented |
 
 ---
@@ -296,6 +299,64 @@ Browser/API Client → FastAPI (validation, no secrets) → TradingService (risk
 5. **Audit** → Hash-linked chain (SHA-256, verifiable via `/v1/audit/verify`)
 6. **Broker execution** → Paper or Settrade (ambiguous outcomes → `NEEDS_RECONCILIATION`)
 7. **Reconciliation** → Incremental fill deltas from cumulative snapshots
+
+---
+
+## Gemini 4 Hydrogen Integration
+
+### LLM Client (`packages/zksato-api/src/zksato_api/llm_clients/`)
+
+Gemini 4 Hydrogen is Google's daily driver model for agentic workflows, optimized
+for rapid execution across coding, testing, and verification tasks. The zksato
+integration provides:
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `Gemini4HydrogenClient` | `gemini4_hydrogen.py` | Async client with 4 thinking levels (low/medium/high/xhigh), 1M token context window, automatic retry with exponential backoff, stub mode for development |
+| `Gemini4HydrogenConfig` | `gemini4_hydrogen.py` | Configuration dataclass with API key, model, thinking level, token limits, temperature, retry policy |
+| `LLMResponse` | `gemini4_hydrogen.py` | Structured response with content, token counts, latency, safety ratings |
+| `LLMClientFactory` | `factory.py` | Factory that registers `gemini-4-hydrogen` provider, convenience `create_hydrogen_client()` method |
+
+### Model Orchestrator (`orchestrator.py`)
+
+Implements the Gemini 4 Orchestrator pattern — dynamically switches between
+Gemini 4 Carbon (deep reasoning) and Gemini 4 Hydrogen (fast execution) within
+the same session. On Terminal-Bench benchmarks, this approach reaches near-Carbon
+task success rates while consuming 24% less quota and completing 19% faster.
+
+| Strategy | Description |
+|----------|-------------|
+| `always_hydrogen` | Use Hydrogen for all tasks |
+| `always_carbon` | Use Carbon for all tasks |
+| `complexity_route` | Route based on estimated task complexity (threshold: 0.6) |
+| `parallel` | Run both models, pick best result |
+
+### LLM-Powered Skills (`packages/zksato-automation/src/zksato_automation/agent_os/skills.py`)
+
+| Skill | Name | Capabilities |
+|-------|------|--------------|
+| `CodeGenerationSkill` | `generate_code` | `code_generation`, `llm` — generates production-ready code with type hints and error handling |
+| `CodeAnalysisSkill` | `analyze_code` | `code_analysis`, `llm` — analyzes code for bugs, security, performance (uses xhigh thinking) |
+| `TestVerificationSkill` | `verify_test` | `test_verification`, `llm` — verifies test coverage against source code |
+
+### Configuration (`packages/zksato-core/src/zksato_core/config.py`)
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `gemini_api_key` | `""` | Gemini API key (server-side only) |
+| `gemini_model` | `"gemini-4-hydrogen"` | Model name |
+| `gemini_thinking_level` | `"high"` | Default thinking level |
+| `gemini_max_input_tokens` | `1,000,000` | Max input context tokens |
+| `gemini_max_output_tokens` | `1,000,000` | Max output tokens |
+| `gemini_temperature` | `0.7` | Sampling temperature |
+| `gemini_max_retries` | `3` | Max API retry attempts |
+
+### Safety & Security
+
+- API keys remain server-side, never logged or rendered
+- `gemini_configured` property for runtime validation
+- Fail-closed behavior: stub mode when no API key configured
+- All agentic actions route through RiskEngine before execution (no autonomous live execution)
 
 ---
 

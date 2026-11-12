@@ -206,6 +206,14 @@ class Settings(BaseConfig):
     max_complete_set_cost: float = Field(default=1.0, gt=0)
     min_prediction_edge: float = Field(default=0.03, ge=0, le=1)
 
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-4-hydrogen"
+    gemini_thinking_level: str = "high"
+    gemini_max_input_tokens: int = Field(default=1_000_000, gt=0)
+    gemini_max_output_tokens: int = Field(default=1_000_000, gt=0)
+    gemini_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    gemini_max_retries: int = Field(default=3, ge=1, le=10)
+
     @property
     def settrade_configured(self) -> bool:
         return all(
@@ -235,6 +243,11 @@ class Settings(BaseConfig):
         secret = getattr(self, secret_field, None)
         passphrase = getattr(self, passphrase_field, None)
         return key, secret, passphrase
+
+    @property
+    def gemini_configured(self) -> bool:
+        """Check if Gemini API key is configured."""
+        return bool(self.gemini_api_key)
 
 
 def load_toml_config(config_path: Path) -> dict[str, Any]:
