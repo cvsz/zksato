@@ -9,18 +9,28 @@ Supports local LLM backends that expose an OpenAI-compatible API:
 All financial data stays on-premise — no API calls to external services.
 Designed for zksato's paper/sandbox trading environments where broker
 credentials and market data must never leave the local network.
+
+Patterns adapted from gemini-cli's LocalLiteRtLmClient:
+- Short timeout for local server (should respond quickly)
+- Dummy API key for local servers (not used for authentication)
+- AbortSignal support for cancellation
+- JSON response mode for structured output
+- Detailed error classification for local server failures
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, cast
 
 import httpx
+
+HTTP_STATUS_SERVER_ERROR = 500
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +48,26 @@ class LocalLLMBackend(StrEnum):
     OPENAI_COMPATIBLE = "openai_compatible"
 
 
+class LocalLLMError(Exception):
+    """Base exception for local LLM errors."""
+
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        super().__init__(message)
+        self.error_code = error_code
+
+
+class LocalLLMConnectionError(LocalLLMError):
+    """Raised when the local LLM backend cannot be reached."""
+
+
+class LocalLLMModelError(LocalLLMError):
+    """Raised when the model is unsupported or not downloaded."""
+
+
+class LocalLLMContextError(LocalLLMError):
+    """Raised when the model's context window is exceeded."""
+
+
 @dataclass
 class LocalLLMConfig:
     """Configuration for local LLM client."""
@@ -45,7 +75,7 @@ class LocalLLMConfig:
     backend: LocalLLMBackend = LocalLLMBackend.OLLAMA
     base_url: str = "http://localhost:11434"
     model: str = "llama3.2:3b"
-    api_key: str | None = None  # Optional; some backends require auth
+    api_key: str | None = None  # Optional; local servers typically don't need auth
     temperature: float = 0.7
     max_input_tokens: int = 4096
     max_output_tokens: int = 2048
@@ -55,7 +85,11 @@ class LocalLLMConfig:
     max_retries: int = 3
     base_delay_seconds: float = 1.0
     max_delay_seconds: float = 30.0
-    timeout_seconds: float = 60.0
+    # Short timeout for local server — should respond quickly.
+    # If the server is not started, connection is refused immediately.
+    timeout_seconds: float = 10.0
+    # JSON mode for structured output.
+    json_mode: bool = False
 
     @property
     def chat_endpoint(self) -> str:
@@ -101,7 +135,7 @@ class LocalLLMClient:
 
     def __init__(self, config: LocalLLMConfig | None = None) -> None:
         self.config = config or LocalLLMConfig()
-        self._http_client: Any = None
+        self._http_client: httpx.AsyncClient | None = None
         self._initialized = False
         self._backend_available: bool | None = None
 
@@ -109,17 +143,17 @@ class LocalLLMClient:
         """Initialize the HTTP client and check backend availability."""
         if self._initialized:
             return
-        try:
-            self._http_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-                headers={
-                    "Content-Type": "application/json",
-                },
-            )
-            if self.config.api_key:
-                self._http_client.headers["Authorization"] = f"Bearer {self.config.api_key}"
-        except ImportError:
-            logger.warning("httpx not installed; client will operate in stub mode")
+        self._http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(self.config.timeout_seconds),
+            headers={
+                "Content-Type": "application/json",
+            },
+        )
+        # Local LLM servers typically don't require an API key, but if one is
+        # configured it is sent as a Bearer token. This dummy value is not used
+        # for authentication by local servers (mirrors gemini-cli pattern).
+        if self.config.api_key:
+            self._http_client.headers["Authorization"] = f"Bearer {self.config.api_key}"
         self._initialized = True
         # Probe backend availability (non-fatal if unreachable)
         await self._probe_backend()
@@ -170,7 +204,7 @@ class LocalLLMClient:
         **kwargs: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Build the OpenAI-compatible chat completions request payload."""
-        return {
+        payload: dict[str, Any] = {
             "model": self.config.model,
             "messages": messages,
             "temperature": self.config.temperature,
@@ -180,8 +214,11 @@ class LocalLLMClient:
             "presence_penalty": 0.0,
             "frequency_penalty": 0.0,
             "stream": False,
-            **kwargs,
         }
+        if self.config.json_mode:
+            payload["response_format"] = {"type": "json_object"}
+        payload.update(kwargs)
+        return payload
 
     def _parse_response(self, raw: dict[str, Any]) -> LocalLLMResponse:
         """Parse the OpenAI-compatible chat completions response."""
@@ -206,6 +243,39 @@ class LocalLLMClient:
             metadata=raw.get("metadata", {}),
         )
 
+    @staticmethod
+    def _classify_error(
+        error: Exception,
+        status_code: int | None = None,
+        response_text: str | None = None,
+    ) -> LocalLLMError:
+        """Classify local LLM errors for appropriate handling.
+
+        Mirrors gemini-cli's error classification:
+        - Connection errors → LocalLLMConnectionError
+        - 4xx client errors → LocalLLMModelError (unsupported model, etc.)
+        - Context window exceeded → LocalLLMContextError
+        - Other → LocalLLMError
+        """
+        if isinstance(error, httpx.ConnectError):
+            url = error.request.url if error.request else "unknown"
+            return LocalLLMConnectionError(
+                f"Cannot connect to local LLM backend at {url}",
+                error_code="CONNECTION_ERROR",
+            )
+        if status_code is not None:
+            if status_code in (400, 404, 422):
+                msg = response_text or f"HTTP {status_code}"
+                if "context" in msg.lower() or "token" in msg.lower():
+                    return LocalLLMContextError(msg, error_code="CONTEXT_EXCEEDED")
+                return LocalLLMModelError(msg, error_code="MODEL_ERROR")
+            if status_code >= HTTP_STATUS_SERVER_ERROR:
+                return LocalLLMError(
+                    f"Local LLM backend error: HTTP {status_code}",
+                    error_code="BACKEND_ERROR",
+                )
+        return LocalLLMError(str(error), error_code="UNKNOWN")
+
     async def generate(
         self,
         messages: list[dict[str, str]],
@@ -224,10 +294,15 @@ class LocalLLMClient:
 
         Raises:
             RuntimeError: If the client is not initialized.
-            ConnectionError: If the backend is unreachable.
+            LocalLLMConnectionError: If the backend is unreachable.
+            LocalLLMModelError: If the model is unsupported.
+            LocalLLMContextError: If the context window is exceeded.
         """
         if not self._initialized:
             await self.initialize()
+
+        if not self._http_client:
+            raise RuntimeError("HTTP client not initialized")
 
         payload = self._build_payload(messages, **kwargs)
         start = datetime.now(UTC)
@@ -247,7 +322,7 @@ class LocalLLMClient:
                 response.latency_seconds = latency
                 break
             except httpx.ConnectError as exc:
-                last_error = exc
+                last_error = self._classify_error(exc)
                 logger.warning(
                     "Local LLM backend unreachable at %s (attempt %d/%d)",
                     self.config.base_url,
@@ -260,8 +335,23 @@ class LocalLLMClient:
                         self.config.max_delay_seconds,
                     )
                     await asyncio.sleep(delay)
+            except httpx.HTTPStatusError as exc:
+                last_error = self._classify_error(
+                    exc,
+                    status_code=exc.response.status_code,
+                    response_text=exc.response.text,
+                )
+                # Don't retry client errors (4xx) — they won't succeed on retry
+                if isinstance(last_error, LocalLLMModelError):
+                    raise last_error from exc
+                if attempt < self.config.max_retries - 1:
+                    delay = min(
+                        self.config.base_delay_seconds * (2**attempt),
+                        self.config.max_delay_seconds,
+                    )
+                    await asyncio.sleep(delay)
             except Exception as exc:
-                last_error = exc
+                last_error = self._classify_error(exc)
                 if attempt < self.config.max_retries - 1:
                     delay = min(
                         self.config.base_delay_seconds * (2**attempt),
@@ -270,9 +360,10 @@ class LocalLLMClient:
                     await asyncio.sleep(delay)
 
         if response is None:
-            raise ConnectionError(
+            raise last_error or LocalLLMConnectionError(
                 f"Local LLM backend at {self.config.base_url} is unreachable "
-                f"after {self.config.max_retries} attempts: {last_error}"
+                f"after {self.config.max_retries} attempts",
+                error_code="CONNECTION_ERROR",
             )
         return response
 
@@ -361,6 +452,39 @@ class LocalLLMClient:
         ]
         return await self.generate(messages)
 
+    async def generate_json(
+        self,
+        messages: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        """Generate a JSON response using the local LLM backend.
+
+        Enables structured output for programmatic use. Sets response_format
+        to json_object if supported by the backend.
+
+        Args:
+            messages: Chat messages in OpenAI-compatible format.
+
+        Returns:
+            Parsed JSON object from the response.
+
+        Raises:
+            LocalLLMError: If the response is not valid JSON.
+        """
+        old_json_mode = self.config.json_mode
+        self.config.json_mode = True
+        try:
+            response = await self.generate(messages)
+        finally:
+            self.config.json_mode = old_json_mode
+
+        try:
+            return cast(dict[str, Any], json.loads(response.content))
+        except json.JSONDecodeError as exc:
+            raise LocalLLMError(
+                f"Local LLM returned invalid JSON: {exc}",
+                error_code="INVALID_JSON",
+            ) from exc
+
     def get_info(self) -> dict[str, Any]:
         """Get client information and capabilities."""
         return {
@@ -374,6 +498,7 @@ class LocalLLMClient:
                 "test_verification",
                 "agentic_workflows",
                 "offline_inference",
+                "json_mode",
             ],
             "initialized": self._initialized,
             "backend_available": self._backend_available,
