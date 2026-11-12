@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
 
 
 def normalize_content(response: Any) -> Any:
@@ -59,7 +62,7 @@ class BaseLLMClient(ABC):
         )
 
     @abstractmethod
-    def get_llm(self) -> Any:
+    def get_llm(self) -> BaseChatModel:
         """Return the configured LangChain-compatible LLM instance."""
         ...
 

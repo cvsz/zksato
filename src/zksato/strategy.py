@@ -14,6 +14,7 @@ from zksato.indicators import (
     vwap,
     williams_r,
 )
+from zksato.prediction.core import Tick
 from zksato.prediction.strategy import ProbabilityEdgeStrategy
 
 
@@ -82,7 +83,7 @@ class StrategyEngine:
     def evaluate_prediction(
         self,
         symbol: str,
-        ticks: list,
+        ticks: list[Tick],
         min_edge: float = 0.03,
     ) -> Signal:
         """Evaluate prediction market ticks using ProbabilityEdgeStrategy.

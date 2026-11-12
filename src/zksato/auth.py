@@ -6,7 +6,7 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import Cookie, Header, HTTPException, Request
@@ -335,7 +335,7 @@ class AuthManager:
         return principal
 
 
-def require_roles(manager: AuthManager, *roles: Role):
+def require_roles(manager: AuthManager, *roles: Role) -> Any:
     required = set(roles)
     cookie_alias = manager.settings.session_cookie_name
 

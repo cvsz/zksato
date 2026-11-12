@@ -221,7 +221,7 @@ LiveApprovalHeader = Annotated[str | None, Header(alias="X-Live-Approval-Id")]
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> Any:
     if settings.environment == "prod" and not settings.auth_required:
         raise RuntimeError("auth_required must be true in prod")
     if settings.trading_mode != "paper" and settings.reconciliation_enabled:
@@ -280,7 +280,7 @@ app.include_router(api_freqtrade_router)
 
 
 @app.middleware("http")
-async def observe_http(request: Request, call_next):
+async def observe_http(request: Request, call_next: Any) -> Any:
     supplied = request.headers.get("X-Request-ID")
     correlation_id = supplied[:128] if supplied else None
     token = bind_correlation_id(correlation_id)
@@ -466,7 +466,7 @@ async def readiness() -> dict[str, object]:
 
 
 @app.get("/metrics", include_in_schema=False)
-async def metrics(_principal: ReadPrincipal):
+async def metrics(_principal: ReadPrincipal) -> Any:
     if not settings.metrics_enabled:
         raise HTTPException(status_code=404, detail="metrics disabled")
     return metrics_response()
@@ -952,7 +952,8 @@ async def delete_alert(alert_id: str, _principal: StrategyPrincipal) -> dict[str
 @app.get("/v1/audit")
 async def audit(_principal: AuditorPrincipal, limit: int = 100) -> list[dict[str, object]]:
     rows = [event.model_dump(mode="json") for event in store.list_audit(min(max(limit, 1), 1000))]
-    return redact_sensitive(rows)
+    redacted = redact_sensitive(rows)
+    return redacted if isinstance(redacted, list) else []
 
 
 @app.get("/v1/audit/verify")
@@ -1183,7 +1184,7 @@ async def research_video_ea_lifecycle_metrics(
 
 
 @app.get("/v1/research/video-ea/state/{symbol}")
-async def research_video_ea_state(symbol: str, _principal: ReadPrincipal):
+async def research_video_ea_state(symbol: str, _principal: ReadPrincipal) -> Any:
     _require_video_ea_paper_mode()
     with video_ea_runtime_lock:
         return _load_video_ea_runtime(symbol).snapshot()

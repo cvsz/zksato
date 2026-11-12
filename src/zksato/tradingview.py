@@ -61,7 +61,7 @@ class TradingViewConfigStore:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._secrets: dict[str, str] = {}
-        self._alert_configs: dict[str, dict] = {}
+        self._alert_configs: dict[str, dict[str, object]] = {}
 
     def set_webhook_secret(self, symbol: str, secret: str) -> None:
         with self._lock:
@@ -75,11 +75,11 @@ class TradingViewConfigStore:
         with self._lock:
             return self._secrets.pop(symbol.strip().upper(), None) is not None
 
-    def set_alert_config(self, symbol: str, config: dict) -> None:
+    def set_alert_config(self, symbol: str, config: dict[str, object]) -> None:
         with self._lock:
             self._alert_configs[symbol.strip().upper()] = config
 
-    def get_alert_config(self, symbol: str) -> dict | None:
+    def get_alert_config(self, symbol: str) -> dict[str, object] | None:
         with self._lock:
             return self._alert_configs.get(symbol.strip().upper())
 

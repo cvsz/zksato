@@ -19,6 +19,7 @@ from zksato.domain import (
 )
 from zksato.video_ea import (
     VideoDerivedEaPlanner,
+    VideoEaActivationRequest,
     VideoEaConfig,
     VideoEaPlan,
     VideoEaPlanRequest,
@@ -713,9 +714,9 @@ def _replay_plan(plan: VideoEaPlan, prices: list[float]) -> VideoEaReplayResult:
     )
 
 
-def _activation_request(plan: VideoEaPlan, previous: float, current: float):
-    from zksato.video_ea import VideoEaActivationRequest
-
+def _activation_request(
+    plan: VideoEaPlan, previous: float, current: float
+) -> VideoEaActivationRequest:
     return VideoEaActivationRequest(
         plan=plan,
         previous_price=previous,

@@ -4,6 +4,14 @@ from typing import Any
 
 from zksato.llm_clients.api_key_env import require_api_key
 from zksato.llm_clients.base_client import BaseLLMClient
+from zksato.llm_clients.openai_client import (
+    AnthropicClient,
+    AzureOpenAIClient,
+    BedrockClient,
+    GoogleClient,
+    OpenAIClient,
+    is_openai_compatible,
+)
 
 
 def create_llm_client(
@@ -13,10 +21,6 @@ def create_llm_client(
     **kwargs: Any,
 ) -> BaseLLMClient:
     """Create an LLM client for the specified provider.
-
-    Provider modules are imported lazily so that simply importing this
-    factory (e.g. during test collection) does not pull in heavy LLM SDKs
-    or fail when their API keys are absent.
 
     Args:
         provider: LLM provider name (e.g. ``openai``, ``anthropic``, ``google``,
@@ -38,26 +42,16 @@ def create_llm_client(
     # doesn't import the OpenAI client. Everything else routes through the
     # OpenAI-compatible client.
     if provider_lower == "anthropic":
-        from .anthropic_client import AnthropicClient
-
         return AnthropicClient(model, base_url, **kwargs)
 
     if provider_lower == "google":
-        from .google_client import GoogleClient
-
         return GoogleClient(model, base_url, **kwargs)
 
     if provider_lower == "azure":
-        from .azure_client import AzureOpenAIClient
-
         return AzureOpenAIClient(model, base_url, **kwargs)
 
     if provider_lower == "bedrock":
-        from .bedrock_client import BedrockClient
-
         return BedrockClient(model, base_url, **kwargs)
-
-    from .openai_client import OpenAIClient, is_openai_compatible
 
     if is_openai_compatible(provider_lower):
         return OpenAIClient(model, base_url, provider=provider_lower, **kwargs)
@@ -148,7 +142,8 @@ def _coerce_max_tokens(value: Any) -> int:
 
 def tier_provider(config: dict[str, Any], tier: str) -> str:
     """The provider of the ``quick`` or ``deep`` model tier: its own, else ``llm_provider``."""
-    return (config.get(f"{tier}_think_provider") or config.get("llm_provider", "openai")).lower()
+    provider = config.get(f"{tier}_think_provider") or config.get("llm_provider", "openai")
+    return str(provider).lower()
 
 
 def create_tier_client(
@@ -164,7 +159,7 @@ def create_tier_client(
 
     Args:
         config: Configuration dictionary.
-        tier: Either ``"quick"`` or ``"deep"``.
+        tier: Either ``"quick"`` or ``"deep``.
         **extra: Additional keyword arguments passed to ``create_llm_client``.
 
     Returns:
