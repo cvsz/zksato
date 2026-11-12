@@ -269,19 +269,23 @@ class TestConsecutiveLossProtection:
 
 class TestProtectionManager:
     def test_allows_when_all_protections_pass(self) -> None:
-        manager = ProtectionManager([
-            CooldownPeriodProtection(),
-            DrawdownProtection(),
-        ])
+        manager = ProtectionManager(
+            [
+                CooldownPeriodProtection(),
+                DrawdownProtection(),
+            ]
+        )
         context = _make_context()
         result = manager.evaluate_all(context)
         assert result.allowed is True
 
     def test_blocks_on_first_failing_protection(self) -> None:
-        manager = ProtectionManager([
-            DrawdownProtection(max_daily_drawdown_pct=5.0),
-            CooldownPeriodProtection(),
-        ])
+        manager = ProtectionManager(
+            [
+                DrawdownProtection(max_daily_drawdown_pct=5.0),
+                CooldownPeriodProtection(),
+            ]
+        )
         context = _make_context(daily_pnl_pct=-10.0)
         result = manager.evaluate_all(context)
         assert result.allowed is False
@@ -320,12 +324,14 @@ class TestProtectionManager:
 class TestProtectionIntegration:
     def test_combined_protections_work_together(self) -> None:
         """Test that multiple protections can be combined and work correctly."""
-        manager = ProtectionManager([
-            CooldownPeriodProtection(stop_duration_candles=2, candle_duration_seconds=60),
-            DrawdownProtection(max_daily_drawdown_pct=3.0),
-            ConsecutiveLossProtection(max_consecutive_losses=2),
-            VolatilityProtection(max_volatility_pct=10.0),
-        ])
+        manager = ProtectionManager(
+            [
+                CooldownPeriodProtection(stop_duration_candles=2, candle_duration_seconds=60),
+                DrawdownProtection(max_daily_drawdown_pct=3.0),
+                ConsecutiveLossProtection(max_consecutive_losses=2),
+                VolatilityProtection(max_volatility_pct=10.0),
+            ]
+        )
 
         # Normal conditions - should allow
         context = _make_context(daily_pnl_pct=-1.0)
@@ -344,16 +350,16 @@ class TestProtectionIntegration:
 
     def test_cooldown_and_consecutive_independent(self) -> None:
         """Cooldown and consecutive loss should track independently."""
-        manager = ProtectionManager([
-            CooldownPeriodProtection(
-                stop_duration_candles=1, candle_duration_seconds=1
-            ),
-            ConsecutiveLossProtection(
-                max_consecutive_losses=1,
-                stop_duration_candles=1,
-                candle_duration_seconds=1,
-            ),
-        ])
+        manager = ProtectionManager(
+            [
+                CooldownPeriodProtection(stop_duration_candles=1, candle_duration_seconds=1),
+                ConsecutiveLossProtection(
+                    max_consecutive_losses=1,
+                    stop_duration_candles=1,
+                    candle_duration_seconds=1,
+                ),
+            ]
+        )
 
         base_time = datetime.now(UTC)
         manager.record_trade_exit("AAPL", base_time, was_loss=True)

@@ -74,26 +74,32 @@ class TestPolymarketClobAdapter:
 
     @pytest.fixture
     def mock_client(self) -> MockHttpClient:
-        return MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123": MagicMock(
-                status_code=200,
-                json=lambda: {"up_ask": 0.55, "down_ask": 0.45, "up_bid": 0.54, "down_bid": 0.44}
-            ),
-            "https://test.polymarket.com/order": MagicMock(
-                status_code=200,
-                json=lambda: {
-                    "order_id": "order_123",
-                    "market_id": "market_123",
-                    "price": "0.55",
-                    "size": "18.18",
-                    "status": "open",
-                },
-            ),
-            "https://test.polymarket.com/order/order_123": MagicMock(
-                status_code=200,
-                json=lambda: {"success": True}
-            ),
-        })
+        return MockHttpClient(
+            {
+                "https://test.polymarket.com/book?token_id=market_123": MagicMock(
+                    status_code=200,
+                    json=lambda: {
+                        "up_ask": 0.55,
+                        "down_ask": 0.45,
+                        "up_bid": 0.54,
+                        "down_bid": 0.44,
+                    },
+                ),
+                "https://test.polymarket.com/order": MagicMock(
+                    status_code=200,
+                    json=lambda: {
+                        "order_id": "order_123",
+                        "market_id": "market_123",
+                        "price": "0.55",
+                        "size": "18.18",
+                        "status": "open",
+                    },
+                ),
+                "https://test.polymarket.com/order/order_123": MagicMock(
+                    status_code=200, json=lambda: {"success": True}
+                ),
+            }
+        )
 
     def test_init_with_settings(self, settings: Settings) -> None:
         adapter = PolymarketClobAdapter(settings=settings)
@@ -168,12 +174,14 @@ class TestPolymarketClobAdapter:
 
     @pytest.mark.asyncio
     async def test_get_market_quote_from_bids_asks(self, settings: Settings) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123": MagicMock(
-                status_code=200,
-                json=lambda: {"asks": [{"price": "0.51"}], "bids": [{"price": "0.49"}]}
-            ),
-        })
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/book?token_id=market_123": MagicMock(
+                    status_code=200,
+                    json=lambda: {"asks": [{"price": "0.51"}], "bids": [{"price": "0.49"}]},
+                ),
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         quote = await adapter.get_market_quote("market_123")
         assert quote["up_ask"] == 0.51
@@ -185,15 +193,17 @@ class TestPolymarketClobAdapter:
 
     @pytest.mark.asyncio
     async def test_get_market_quote_falls_back_to_price_endpoints(self, settings: Settings) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(
-                status_code=200, json=lambda: {"price": "0.52"}
-            ),
-            "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(
-                status_code=200, json=lambda: {"price": "0.48"}
-            ),
-        })
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
+                "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(
+                    status_code=200, json=lambda: {"price": "0.52"}
+                ),
+                "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(
+                    status_code=200, json=lambda: {"price": "0.48"}
+                ),
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         quote = await adapter.get_market_quote("market_123")
         assert quote["up_ask"] == 0.52
@@ -203,15 +213,16 @@ class TestPolymarketClobAdapter:
     async def test_get_market_quote_falls_back_to_markets_endpoint(
         self, settings: Settings
     ) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=buy&token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=sell&token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/markets/market_123":
-                MagicMock(
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
+                "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(
+                    status_code=404
+                ),
+                "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(
+                    status_code=404
+                ),
+                "https://test.polymarket.com/markets/market_123": MagicMock(
                     status_code=200,
                     json=lambda: {
                         "market_id": "market_123",
@@ -220,7 +231,8 @@ class TestPolymarketClobAdapter:
                         "down_ask": "0.47",
                     },
                 ),
-        })
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         quote = await adapter.get_market_quote("market_123")
         assert quote["up_ask"] == 0.55
@@ -228,16 +240,18 @@ class TestPolymarketClobAdapter:
 
     @pytest.mark.asyncio
     async def test_get_market_quote_raises_on_not_found(self, settings: Settings) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=buy&token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=sell&token_id=market_123":
-                MagicMock(status_code=404),
-            "https://test.polymarket.com/markets/market_123":
-                MagicMock(status_code=404),
-        })
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
+                "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(
+                    status_code=404
+                ),
+                "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(
+                    status_code=404
+                ),
+                "https://test.polymarket.com/markets/market_123": MagicMock(status_code=404),
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         with pytest.raises(RuntimeError, match="market not found"):
             await adapter.get_market_quote("market_123")
@@ -282,13 +296,15 @@ class TestPolymarketClobAdapter:
 
     @pytest.mark.asyncio
     async def test_place_order_rejected_raises_runtime_error(self, settings: Settings) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/order": MagicMock(
-                status_code=400,
-                json=lambda: {"error": "Invalid price"},
-                text="Invalid price",
-            ),
-        })
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/order": MagicMock(
+                    status_code=400,
+                    json=lambda: {"error": "Invalid price"},
+                    text="Invalid price",
+                ),
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         with pytest.raises(RuntimeError, match="order rejected"):
             await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
@@ -303,9 +319,11 @@ class TestPolymarketClobAdapter:
 
     @pytest.mark.asyncio
     async def test_cancel_order_not_found(self, settings: Settings) -> None:
-        mock_client = MockHttpClient({
-            "https://test.polymarket.com/order/order_123": MagicMock(status_code=404),
-        })
+        mock_client = MockHttpClient(
+            {
+                "https://test.polymarket.com/order/order_123": MagicMock(status_code=404),
+            }
+        )
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         result = await adapter.cancel_order("order_123")
         assert result is False
@@ -317,9 +335,7 @@ class TestPolymarketClobAdapter:
             await adapter.cancel_order("order_123")
 
     @pytest.mark.asyncio
-    async def test_cancel_order_network_error_raises_ambiguous(
-        self, settings: Settings
-    ) -> None:
+    async def test_cancel_order_network_error_raises_ambiguous(self, settings: Settings) -> None:
         async def failing_delete(*args, **kwargs):
             raise ConnectionError("Network down")
 
@@ -342,10 +358,11 @@ class TestPolymarketClobAdapter:
     async def test_client_lifecycle_creates_own_client(self, settings: Settings) -> None:
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_instance = AsyncMock()
-            mock_instance.get = AsyncMock(return_value=MagicMock(
-                status_code=200,
-                json=lambda: {"up_ask": 0.5, "down_ask": 0.5}
-            ))
+            mock_instance.get = AsyncMock(
+                return_value=MagicMock(
+                    status_code=200, json=lambda: {"up_ask": 0.5, "down_ask": 0.5}
+                )
+            )
             mock_instance.aclose = AsyncMock()
             mock_client_class.return_value = mock_instance
 

@@ -73,6 +73,7 @@ class TestReconciliationService:
     @pytest.fixture
     def store(self) -> StateStore:
         from zksato.store import StateStore
+
         return StateStore()
 
     @pytest.fixture
@@ -90,6 +91,7 @@ class TestReconciliationService:
 
         report = service.run()
         import asyncio
+
         report = asyncio.run(report)
 
         assert report.examined_remote == 1
