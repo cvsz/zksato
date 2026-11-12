@@ -290,6 +290,8 @@ class SqlStateStore(StateStore):
             # freshness assertion about this process/session and must be established
             # by a successful broker snapshot after every restart.
             self._broker_reconciliation_ready = False
+            # Rebuild order indexes after loading from database
+            self._rebuild_order_indexes()
 
     def _upsert_payload(
         self,
