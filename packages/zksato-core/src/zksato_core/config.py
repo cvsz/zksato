@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tomllib
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -70,6 +71,20 @@ class BaseConfig(BaseSettings):
             path = Path("config/settings.local.toml")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.to_toml())
+
+
+class LocalLLMBackend(StrEnum):
+    """Supported local LLM backends.
+
+    All backends expose an OpenAI-compatible /v1/chat/completions endpoint.
+    All inference runs on-premise — no data leaves the local machine.
+    """
+
+    OLLAMA = "ollama"
+    LLAMACPP = "llamacpp"
+    VLLM = "vllm"
+    TGI = "tgi"
+    OPENAI_COMPATIBLE = "openai_compatible"
 
 
 class DatabaseConfig(BaseConfig):
@@ -214,6 +229,17 @@ class Settings(BaseConfig):
     gemini_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     gemini_max_retries: int = Field(default=3, ge=1, le=10)
 
+    # Local LLM configuration (offline/private inference)
+    local_llm_backend: str = "ollama"
+    local_llm_base_url: str = "http://localhost:11434"
+    local_llm_model: str = "llama3.2:3b"
+    local_llm_api_key: str | None = None
+    local_llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    local_llm_max_input_tokens: int = Field(default=4096, gt=0)
+    local_llm_max_output_tokens: int = Field(default=2048, gt=0)
+    local_llm_max_retries: int = Field(default=3, ge=1, le=10)
+    local_llm_timeout_seconds: float = Field(default=60.0, gt=0)
+
     @property
     def settrade_configured(self) -> bool:
         return all(
@@ -248,6 +274,18 @@ class Settings(BaseConfig):
     def gemini_configured(self) -> bool:
         """Check if Gemini API key is configured."""
         return bool(self.gemini_api_key)
+
+    @property
+    def local_llm_configured(self) -> bool:
+        """Check if local LLM backend is configured."""
+        return bool(self.local_llm_base_url)
+
+    def local_llm_backend_enum(self) -> LocalLLMBackend:
+        """Get the local LLM backend as a LocalLLMBackend enum."""
+        try:
+            return LocalLLMBackend(self.local_llm_backend)
+        except ValueError:
+            return LocalLLMBackend.OLLAMA
 
 
 def load_toml_config(config_path: Path) -> dict[str, Any]:
