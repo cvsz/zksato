@@ -49,7 +49,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app,
+        app: Any,
         requests_per_minute: int = 600,
         coordination: CoordinationManager | None = None,
     ) -> None:
@@ -59,9 +59,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._events: dict[str, deque[float]] = defaultdict(deque)
         self._lock = RLock()
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
         if request.url.path in {"/health", "/metrics"}:
-            return await call_next(request)
+            return await call_next(request)  # type: ignore[no-any-return]
         client = request.client.host if request.client else "unknown"
         if self.coordination is not None and self.coordination.redis is not None:
             allowed = await self.coordination.allow_request(
@@ -71,7 +71,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             if not allowed:
                 return self._limited()
-            return await call_next(request)
+            return await call_next(request)  # type: ignore[no-any-return]
 
         now = monotonic()
         with self._lock:
@@ -81,7 +81,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if len(events) >= self.limit:
                 return self._limited()
             events.append(now)
-        return await call_next(request)
+        return await call_next(request)  # type: ignore[no-any-return]
 
     @staticmethod
     def _limited() -> JSONResponse:
@@ -139,7 +139,10 @@ class AgentRateLimiter:
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
+    def __init__(self, app: Any) -> None:
+        super().__init__(app)
+
+    async def dispatch(self, request: Request, call_next: Any) -> Response:
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -159,4 +162,4 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        return response
+        return response  # type: ignore[no-any-return]

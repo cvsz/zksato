@@ -318,9 +318,10 @@ def dema_series(values: list[float], period: int) -> list[float]:
     if period <= 0 or not values:
         return []
     arr = _arr(values)
-    ema1 = np.array(ema_series(arr.tolist(), period))
-    ema2 = np.array(ema_series(ema1.tolist(), period))
-    return (2 * ema1 - ema2).tolist()
+    ema1 = np.array(ema_series(arr.tolist(), period), dtype=np.float64)
+    ema2 = np.array(ema_series(ema1.tolist(), period), dtype=np.float64)
+    result = 2 * ema1 - ema2
+    return result.tolist()  # type: ignore[no-any-return]
 
 
 def tema(values: list[float], period: int) -> float | None:
@@ -340,10 +341,11 @@ def tema_series(values: list[float], period: int) -> list[float]:
     if period <= 0 or not values:
         return []
     arr = _arr(values)
-    ema1 = np.array(ema_series(arr.tolist(), period))
-    ema2 = np.array(ema_series(ema1.tolist(), period))
-    ema3 = np.array(ema_series(ema2.tolist(), period))
-    return (3 * ema1 - 3 * ema2 + ema3).tolist()
+    ema1 = np.array(ema_series(arr.tolist(), period), dtype=np.float64)
+    ema2 = np.array(ema_series(ema1.tolist(), period), dtype=np.float64)
+    ema3 = np.array(ema_series(ema2.tolist(), period), dtype=np.float64)
+    result = 3 * ema1 - 3 * ema2 + ema3
+    return result.tolist()  # type: ignore[no-any-return]
 
 
 def kama(values: list[float], period: int = 10) -> float | None:
@@ -411,17 +413,18 @@ def t3_series(values: list[float], period: int = 10, v_factor: float = 0.7) -> l
     if period <= 0 or not values:
         return []
     arr = _arr(values)
-    e1 = np.array(ema_series(arr.tolist(), period))
-    e2 = np.array(ema_series(e1.tolist(), period))
-    e3 = np.array(ema_series(e2.tolist(), period))
-    e4 = np.array(ema_series(e3.tolist(), period))
-    e5 = np.array(ema_series(e4.tolist(), period))
-    e6 = np.array(ema_series(e5.tolist(), period))
+    e1 = np.array(ema_series(arr.tolist(), period), dtype=np.float64)
+    e2 = np.array(ema_series(e1.tolist(), period), dtype=np.float64)
+    e3 = np.array(ema_series(e2.tolist(), period), dtype=np.float64)
+    e4 = np.array(ema_series(e3.tolist(), period), dtype=np.float64)
+    e5 = np.array(ema_series(e4.tolist(), period), dtype=np.float64)
+    e6 = np.array(ema_series(e5.tolist(), period), dtype=np.float64)
     c1 = -(v_factor**3)
     c2 = 3 * v_factor**2 + 3 * v_factor**3
     c3 = -6 * v_factor**2 - 3 * v_factor - 3 * v_factor**3
     c4 = 1 + 3 * v_factor + 3 * v_factor**2 + 3 * v_factor**3
-    return (c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3).tolist()
+    result = c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
+    return result.tolist()  # type: ignore[no-any-return]
 
 
 # ── VWAP ───────────────────────────────────────────────────────────────────
@@ -445,7 +448,8 @@ def vwap_series(candles: list[Candle], period: int | None = None) -> list[float]
     vols = np.array([c.volume for c in window], dtype=np.float64)
     cum_typical_vol = np.cumsum(typicals * vols)
     cum_vol = np.cumsum(vols)
-    return (cum_typical_vol / cum_vol).tolist()
+    result = cum_typical_vol / cum_vol
+    return result.tolist()  # type: ignore[no-any-return]
 
 
 # ── ADX ──────────────────────────────────────────────────────────────────
@@ -535,7 +539,7 @@ def max_drawdown_series(equity_curve: list[float]) -> list[float]:
     arr = _arr(equity_curve)
     running_max = np.maximum.accumulate(arr)
     drawdown = (running_max - arr) / np.where(running_max > 0, running_max, 1.0) * 100.0
-    return drawdown.tolist()
+    return drawdown.tolist()  # type: ignore[no-any-return]
 
 
 # ── Momentum Oscillators ───────────────────────────────────────────────────
@@ -556,9 +560,10 @@ def apo_series(values: list[float], fast_period: int = 12, slow_period: int = 26
     if fast_period <= 0 or slow_period <= fast_period or len(values) < slow_period:
         return []
     arr = _arr(values)
-    fast_ema = np.array(ema_series(arr.tolist(), fast_period))
-    slow_ema = np.array(ema_series(arr.tolist(), slow_period))
-    return (fast_ema - slow_ema).tolist()
+    fast_ema = np.array(ema_series(arr.tolist(), fast_period), dtype=np.float64)
+    slow_ema = np.array(ema_series(arr.tolist(), slow_period), dtype=np.float64)
+    result = fast_ema - slow_ema
+    return result.tolist()  # type: ignore[no-any-return]
 
 
 def cci(candles: list[Candle], period: int = 14) -> float | None:
@@ -663,7 +668,7 @@ def obv_series(candles: list[Candle]) -> list[float]:
     direction = np.where(closes[1:] > closes[:-1], volumes[1:], 0.0)
     direction = np.where(closes[1:] < closes[:-1], -volumes[1:], direction)
     obv_vals = np.concatenate([[volumes[0]], np.cumsum(direction)])
-    return obv_vals.tolist()
+    return obv_vals.tolist()  # type: ignore[no-any-return]
 
 
 # ── Volatility Indicators ──────────────────────────────────────────────────

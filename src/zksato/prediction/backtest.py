@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from zksato.domain import Side
 from zksato.prediction.broker import PaperPredictionBroker, RiskRejected
-from zksato.prediction.core import RiskLimits, Side, Tick
+from zksato.prediction.core import RiskLimits, Tick
 from zksato.prediction.strategy import ProbabilityEdgeStrategy
 
 

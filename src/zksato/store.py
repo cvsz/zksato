@@ -611,8 +611,9 @@ class StateStore:
             agent = self._agents.get(uid)
             if agent is None:
                 raise ValueError("Agent not found")
-            if agent.get("token"):
-                return agent["token"]
+            token = agent.get("token")
+            if isinstance(token, str) and token:
+                return token
             token = secrets.token_urlsafe(32)
             agent["token"] = token
             agent["updated_at"] = datetime.now(UTC)
@@ -636,7 +637,8 @@ class StateStore:
             agent = self._agents.get(uid)
             if agent is None:
                 raise ValueError("Agent not found")
-            return agent.get("points", 0)
+            points = agent.get("points", 0)
+            return int(points) if isinstance(points, (int, float)) else 0
 
     def add_agent_points(
         self,
