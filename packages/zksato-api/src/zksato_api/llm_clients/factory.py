@@ -10,22 +10,29 @@ from zksato_api.llm_clients.gemini4_hydrogen import (
     Gemini4HydrogenConfig,
     HydrogenThinkingLevel,
 )
+from zksato_api.llm_clients.local_llm import (
+    LocalLLMBackend,
+    LocalLLMClient,
+    LocalLLMConfig,
+)
 
 
 @dataclass
 class LLMClientFactory:
     """Factory for LLM clients.
 
-    Supports OpenAI, Anthropic, Gemini, and Gemini 4 Hydrogen providers.
-    Gemini 4 Hydrogen is optimized for agentic workflows with four thinking
-    levels (low, medium, high, xhigh) and a 1M token context window.
+    Supports OpenAI, Anthropic, Gemini, Gemini 4 Hydrogen, and local LLM
+    providers. Local LLM backends (Ollama, llama.cpp, vLLM, TGI) expose
+    an OpenAI-compatible API and keep all data on-premise — critical for
+    zksato's paper/sandbox trading environments.
     """
 
     def create_client(self, provider: str, **kwargs: Any) -> Any:  # noqa: ANN401
         """Create an LLM client for the given provider.
 
         Args:
-            provider: Provider name (openai, anthropic, gemini, gemini-4-hydrogen).
+            provider: Provider name (openai, anthropic, gemini,
+                gemini-4-hydrogen, local-llm).
             **kwargs: Provider-specific configuration.
 
         Returns:
@@ -40,6 +47,9 @@ class LLMClientFactory:
         if provider == "gemini":
             config = Gemini4HydrogenConfig(model="gemini", **kwargs)
             return Gemini4HydrogenClient(config=config)
+        if provider == "local-llm":
+            local_config = LocalLLMConfig(**kwargs)
+            return LocalLLMClient(config=local_config)
         # Would create OpenAI, Anthropic, etc. clients
         return None
 
@@ -50,6 +60,7 @@ class LLMClientFactory:
             "anthropic",
             "gemini",
             "gemini-4-hydrogen",
+            "local-llm",
         ]
 
     def create_hydrogen_client(
@@ -66,3 +77,23 @@ class LLMClientFactory:
             thinking_level=thinking_level,
         )
         return Gemini4HydrogenClient(config=config)
+
+    def create_local_llm_client(
+        self,
+        backend: LocalLLMBackend = LocalLLMBackend.OLLAMA,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.2:3b",
+        api_key: str | None = None,
+    ) -> LocalLLMClient:
+        """Create a local LLM client for offline inference.
+
+        Convenience method for agentic workflows that need local LLM
+        inference without external API calls — keeping all data on-premise.
+        """
+        config = LocalLLMConfig(
+            backend=backend,
+            base_url=base_url,
+            model=model,
+            api_key=api_key,
+        )
+        return LocalLLMClient(config=config)
