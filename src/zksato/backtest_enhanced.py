@@ -237,9 +237,14 @@ def calculate_max_drawdown(
     max_dd = drawdown[max_dd_idx]
     max_dd_pct = drawdown_pct[max_dd_idx] if not pd.isna(drawdown_pct[max_dd_idx]) else 0.0
 
-    peak_idx = equity_curve.loc[:max_dd_idx].idxmax()
-    dd_start = equity_curve.index[peak_idx]
-    dd_end = equity_curve.index[max_dd_idx]
+    # Get integer positions for DatetimeIndex
+    max_dd_pos = equity_curve.index.get_loc(max_dd_idx)
+    peak_pos = equity_curve.iloc[: max_dd_pos + 1].idxmax()
+    # peak_pos is a Timestamp, get its integer position
+    peak_int_pos = equity_curve.index.get_loc(peak_pos)
+
+    dd_start = equity_curve.index[peak_int_pos]
+    dd_end = equity_curve.index[max_dd_pos]
 
     duration = (dd_end - dd_start).total_seconds()
 
@@ -716,7 +721,21 @@ class EnhancedBacktester:
         end_date = df["date"].iloc[-1]
         days = (end_date - start_date).total_seconds() / 86400
         years = days / 365.25
-        cagr = ((final_balance / self.initial_cash) ** (1 / years) - 1) * 100 if years > 0 else 0.0
+        if years > 0 and final_balance > 0 and self.initial_cash > 0:
+            ratio = final_balance / self.initial_cash
+            # Clamp ratio to prevent overflow in exp/log
+            ratio = max(min(ratio, 1e6), 1e-6)
+            # Check exponent magnitude before computing
+            exponent = np.log(ratio) / years
+            if exponent > 20:  # exp(20) ~ 4.8e8, safe
+                cagr = 1e6
+            elif exponent < -20:
+                cagr = -100.0
+            else:
+                cagr = float((np.exp(exponent) - 1) * 100)
+            cagr = max(min(cagr, 1e6), -100.0)
+        else:
+            cagr = 0.0
 
         best_pair = symbol
         best_pair_pct = total_profit_pct

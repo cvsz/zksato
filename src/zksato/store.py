@@ -40,6 +40,10 @@ class StateStore:
         self.quotes: dict[str, Quote] = {}
         self.price_history: dict[str, deque[float]] = {}
         self.orders: list[OrderRecord] = []
+        # Order indexes for O(1) lookups
+        self._order_by_id: dict[UUID, OrderRecord] = {}
+        self._order_by_client_id: dict[str, OrderRecord] = {}
+        self._order_by_broker_id: dict[str, OrderRecord] = {}
         self._max_orders = max_orders
         self._archived_order_count: int = 0
         self.order_events: deque[OrderEvent] = deque(maxlen=history_size * 4)
@@ -100,15 +104,40 @@ class StateStore:
 
     def upsert_order(self, order: OrderRecord) -> OrderRecord:
         with self._lock:
-            for index, existing in enumerate(self.orders):
-                if existing.id == order.id:
-                    self.orders[index] = order
-                    return order
-            self.orders.append(order)
+            # Update indexes for existing order
+            if order.id in self._order_by_id:
+                # Remove old indexes
+                old_order = self._order_by_id[order.id]
+                if old_order.client_order_id:
+                    self._order_by_client_id.pop(old_order.client_order_id, None)
+                if old_order.broker_order_id:
+                    self._order_by_broker_id.pop(old_order.broker_order_id, None)
+                # Update in list
+                for index, existing in enumerate(self.orders):
+                    if existing.id == order.id:
+                        self.orders[index] = order
+                        break
+            else:
+                self.orders.append(order)
+            
+            # Add new indexes
+            self._order_by_id[order.id] = order
+            if order.client_order_id:
+                self._order_by_client_id[order.client_order_id] = order
+            if order.broker_order_id:
+                self._order_by_broker_id[order.broker_order_id] = order
+            
             # Archive oldest orders if exceeding max to prevent unbounded growth
             if len(self.orders) > self._max_orders:
                 overflow = len(self.orders) - self._max_orders
                 self._archived_order_count += overflow
+                # Remove archived orders from indexes
+                for archived in self.orders[:overflow]:
+                    self._order_by_id.pop(archived.id, None)
+                    if archived.client_order_id:
+                        self._order_by_client_id.pop(archived.client_order_id, None)
+                    if archived.broker_order_id:
+                        self._order_by_broker_id.pop(archived.broker_order_id, None)
                 self.orders = self.orders[overflow:]
             return order
 
@@ -122,28 +151,22 @@ class StateStore:
 
     def find_order(self, order_id: str) -> OrderRecord | None:
         with self._lock:
-            return next(
-                (
-                    order
-                    for order in self.orders
-                    if str(order.id) == order_id or order.broker_order_id == order_id
-                ),
-                None,
-            )
+            # Try UUID first
+            try:
+                uid = UUID(order_id)
+                return self._order_by_id.get(uid)
+            except ValueError:
+                pass
+            # Fall back to broker_order_id
+            return self._order_by_broker_id.get(order_id)
 
     def find_order_by_client_order_id(self, client_order_id: str) -> OrderRecord | None:
         with self._lock:
-            return next(
-                (order for order in self.orders if order.client_order_id == client_order_id),
-                None,
-            )
+            return self._order_by_client_id.get(client_order_id)
 
     def find_order_by_broker_order_id(self, broker_order_id: str) -> OrderRecord | None:
         with self._lock:
-            return next(
-                (order for order in self.orders if order.broker_order_id == broker_order_id),
-                None,
-            )
+            return self._order_by_broker_id.get(broker_order_id)
 
     def add_order_event(self, event: OrderEvent) -> OrderEvent:
         with self._lock:
@@ -741,3 +764,16 @@ class StateStore:
 
     def close(self) -> None:
         return None
+
+    def _rebuild_order_indexes(self) -> None:
+        """Rebuild order indexes from the orders list."""
+        with self._lock:
+            self._order_by_id.clear()
+            self._order_by_client_id.clear()
+            self._order_by_broker_id.clear()
+            for order in self.orders:
+                self._order_by_id[order.id] = order
+                if order.client_order_id:
+                    self._order_by_client_id[order.client_order_id] = order
+                if order.broker_order_id:
+                    self._order_by_broker_id[order.broker_order_id] = order
