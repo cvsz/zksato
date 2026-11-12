@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zksato-api"
+version = "2.0.0-dev"
+description = "zksato FastAPI REST API and dashboard"
+requires-python = ">=3.12"
+dependencies = [
+    "zksato-core",
+    "zksato-risk",
+    "zksato-market",
+    "zksato-broker",
+    "zksato-strategy",
+    "zksato-portfolio",
+    "zksato-automation",
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "fastapi>=0.110,<1.0",
+    "uvicorn>=0.30,<1.0",
+    "starlette>=0.37,<1.0",
+    "python-jose>=3.3,<4.0",
+    "passlib>=1.7,<2.0",
+    "python-multipart>=0.0.9,<1.0",
+    "httpx>=0.27,<1.0",
+    "websockets>=12.0,<13.0",
+    "jinja2>=3.1,<4.0",
+    "pyyaml>=6.0,<7.0",
+]
+readme = "README.md"
+license = { text = "MIT" }
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0,<10.0",
+    "pytest-asyncio>=1.4,<2.0",
+    "hypothesis>=6.160,<7.0",
+    "ruff==0.16.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zksato_api"]

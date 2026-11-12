@@ -89,3 +89,24 @@ def serialize_decimal(d: Decimal) -> str:
 def deserialize_decimal(value: str) -> Decimal:
     """Deserialize string to Decimal."""
     return Decimal(value)
+
+
+def stable_json_dumps(obj: Any) -> str:
+    """Deterministic JSON serialization for idempotency keys."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def generate_idempotency_key(order: dict[str, Any]) -> str:
+    """Generate deterministic idempotency key from order data."""
+    import hashlib
+    key_data = {
+        "symbol": order.get("symbol"),
+        "side": order.get("side"),
+        "type": order.get("type"),
+        "quantity": str(order.get("quantity", 0)),
+        "price": str(order.get("price")) if order.get("price") else None,
+        "account_id": order.get("account_id"),
+        "strategy_id": order.get("strategy_id"),
+        "timestamp": order.get("timestamp"),
+    }
+    return hashlib.sha256(stable_json_dumps(key_data).encode()).hexdigest()[:32]

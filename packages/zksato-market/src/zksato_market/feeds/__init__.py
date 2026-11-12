@@ -3,7 +3,7 @@
 from zksato_market.feeds.base import Feed, MarketDataFeed, FeedMetrics, CompositeFeed, FeedEvent
 from zksato_market.feeds.settrade import SettradeFeed, SettradeRealtimeFeed
 from zksato_market.feeds.ccxt import CCXTFeed, BinanceFeed, BinanceTHFeed, KuCoinFeed, OKXFeed, BybitFeed
-from zksato_market.feeds.composite import MultiFeed
+from zksato_market.feeds.composite import MultiFeed, FeedRouter
 from zksato_market.feeds.replay import ReplayFeed, ReplayEvent
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "OKXFeed",
     "BybitFeed",
     "MultiFeed",
+    "FeedRouter",
     "ReplayFeed",
     "ReplayEvent",
 ]

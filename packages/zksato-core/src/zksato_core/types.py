@@ -38,6 +38,12 @@ class BotState(StrEnum):
     ERROR = "error"
 
 
+class TradingMode(StrEnum):
+    PAPER = "paper"
+    SANDBOX = "sandbox"
+    LIVE = "live"
+
+
 # Type aliases
 OrderId = str
 ClientOrderId = str

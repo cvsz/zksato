@@ -1,12 +1,8 @@
-[build-system]
-requires = ["hatchling>=1.27"]
-build-backend = "hatchling.build"
-
 [project]
 name = "zksato-workspace"
 version = "2.0.0-dev"
 description = "zksato modular monorepo workspace"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = []
 
 [tool.uv.workspace]

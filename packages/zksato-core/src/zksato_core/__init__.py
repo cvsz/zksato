@@ -6,6 +6,7 @@ from zksato_core.types import (
     OrderStatus,
     SignalAction,
     BotState,
+    TradingMode,
     OrderId,
     ClientOrderId,
     BrokerOrderId,
@@ -63,6 +64,23 @@ from zksato_core.serialization import (
     deserialize_datetime,
     serialize_decimal,
     deserialize_decimal,
+    stable_json_dumps,
+    generate_idempotency_key,
+)
+
+from zksato_core.observability import (
+    ObservabilityConfig,
+    setup_observability,
+    get_tracer,
+    get_meter,
+)
+
+from zksato_core.telemetry import (
+    TradingEvent,
+    TradingEventType,
+    TelemetryLogger,
+    TelemetryExporter,
+    LoggingTelemetryExporter,
 )
 
 from zksato_core.exceptions import (
@@ -122,6 +140,7 @@ from zksato_core.config import (
     RedisConfig,
     LoggingConfig,
     AuthConfig,
+    Settings,
     load_toml_config,
     merge_configs,
 )
@@ -168,6 +187,7 @@ __all__ = [
     "OrderStatus",
     "SignalAction",
     "BotState",
+    "TradingMode",
     "OrderId",
     "ClientOrderId",
     "BrokerOrderId",
@@ -217,6 +237,19 @@ __all__ = [
     "deserialize_datetime",
     "serialize_decimal",
     "deserialize_decimal",
+    "stable_json_dumps",
+    "generate_idempotency_key",
+    # Observability
+    "ObservabilityConfig",
+    "setup_observability",
+    "get_tracer",
+    "get_meter",
+    # Telemetry
+    "TradingEvent",
+    "TradingEventType",
+    "TelemetryLogger",
+    "TelemetryExporter",
+    "LoggingTelemetryExporter",
     # Exceptions
     "ZksatoError",
     "ConfigurationError",
@@ -270,6 +303,7 @@ __all__ = [
     "RedisConfig",
     "LoggingConfig",
     "AuthConfig",
+    "Settings",
     "load_toml_config",
     "merge_configs",
     # Models

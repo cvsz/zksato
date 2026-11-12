@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "zksato-market"
 version = "2.0.0-dev"
 description = "zksato market data, feeds, and adapters"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "zksato-core",
     "pydantic>=2.10,<3.0",
