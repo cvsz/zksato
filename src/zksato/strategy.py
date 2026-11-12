@@ -4,12 +4,14 @@ from zksato.domain import Candle, Signal, SignalAction, StrategyConfig
 from zksato.indicators import (
     atr,
     bollinger_bands,
+    bollinger_bands_series,
     ema,
+    ema_series,
     highest,
-    macd,
+    macd_series,
     rate_of_change,
     rsi,
-    sma,
+    sma_series,
     stochastic_oscillator,
     vwap,
     williams_r,
@@ -140,15 +142,17 @@ class StrategyEngine:
         )
 
     def _ema_cross(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
-        fast = ema(prices, config.fast_period)
-        slow = ema(prices, config.slow_period)
-        prev_fast = ema(prices[:-1], config.fast_period)
-        prev_slow = ema(prices[:-1], config.slow_period)
+        fast_series = ema_series(prices, config.fast_period)
+        slow_series = ema_series(prices, config.slow_period)
         price = prices[-1]
-        if fast is None or slow is None or prev_fast is None or prev_slow is None:
+        if len(fast_series) < 2 or len(slow_series) < 2:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient EMA history"
             )
+        fast = fast_series[-1]
+        slow = slow_series[-1]
+        prev_fast = fast_series[-2]
+        prev_slow = slow_series[-2]
         if prev_fast <= prev_slow and fast > slow:
             return self._signal(
                 symbol,
@@ -226,15 +230,17 @@ class StrategyEngine:
         )
 
     def _sma_cross(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
-        fast = sma(prices, config.fast_period)
-        slow = sma(prices, config.slow_period)
-        prev_fast = sma(prices[:-1], config.fast_period)
-        prev_slow = sma(prices[:-1], config.slow_period)
+        fast_series = sma_series(prices, config.fast_period)
+        slow_series = sma_series(prices, config.slow_period)
         price = prices[-1]
-        if fast is None or slow is None or prev_fast is None or prev_slow is None:
+        if len(fast_series) < 2 or len(slow_series) < 2:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient SMA history"
             )
+        fast = fast_series[-1]
+        slow = slow_series[-1]
+        prev_fast = fast_series[-2]
+        prev_slow = slow_series[-2]
         if prev_fast <= prev_slow and fast > slow:
             return self._signal(
                 symbol,
@@ -367,31 +373,38 @@ class StrategyEngine:
         )
 
     def _macd_cross(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
-        current = macd(prices, config.fast_period, config.slow_period, config.signal_period)
-        previous = macd(prices[:-1], config.fast_period, config.slow_period, config.signal_period)
+        series = macd_series(prices, config.fast_period, config.slow_period, config.signal_period)
         price = prices[-1]
-        if current is None or previous is None:
+        if series is None:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient MACD history"
             )
-        line, signal_line, histogram = current
-        prev_line, prev_signal, _ = previous
-        if prev_line <= prev_signal and line > signal_line:
+        macd_line, signal_line, histogram = series
+        if len(macd_line) < 2 or len(signal_line) < 2:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "insufficient MACD history"
+            )
+        line = macd_line[-1]
+        signal = signal_line[-1]
+        hist = histogram[-1]
+        prev_line = macd_line[-2]
+        prev_signal = signal_line[-2]
+        if prev_line <= prev_signal and line > signal:
             return self._signal(
                 symbol,
                 config,
                 price,
                 SignalAction.BUY,
-                0.5 + abs(histogram) / price * 20,
+                0.5 + abs(hist) / price * 20,
                 "MACD crossed above signal line",
             )
-        if prev_line >= prev_signal and line < signal_line:
+        if prev_line >= prev_signal and line < signal:
             return self._signal(
                 symbol,
                 config,
                 price,
                 SignalAction.SELL,
-                0.5 + abs(histogram) / price * 20,
+                0.5 + abs(hist) / price * 20,
                 "MACD crossed below signal line",
             )
         return self._signal(
@@ -400,7 +413,7 @@ class StrategyEngine:
             price,
             SignalAction.HOLD,
             0.25,
-            f"MACD histogram {histogram:.4f} without crossover",
+            f"MACD histogram {hist:.4f} without crossover",
         )
 
     def _breakout(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
@@ -467,21 +480,29 @@ class StrategyEngine:
 
     def _scalp(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
         """Fast EMA crossover with Bollinger Band confirmation."""
-        fast = ema(prices, config.scalp_fast_period)
-        slow = ema(prices, config.scalp_slow_period)
-        prev_fast = ema(prices[:-1], config.scalp_fast_period)
-        prev_slow = ema(prices[:-1], config.scalp_slow_period)
+        fast_series = ema_series(prices, config.scalp_fast_period)
+        slow_series = ema_series(prices, config.scalp_slow_period)
         price = prices[-1]
-        if fast is None or slow is None or prev_fast is None or prev_slow is None:
+        if len(fast_series) < 2 or len(slow_series) < 2:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient scalp EMA history"
             )
-        bands = bollinger_bands(prices, period=20, deviations=2.0)
+        fast = fast_series[-1]
+        slow = slow_series[-1]
+        prev_fast = fast_series[-2]
+        prev_slow = slow_series[-2]
+        bands = bollinger_bands_series(prices, period=20, deviations=2.0)
         if bands is None:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient Bollinger history"
             )
-        lower, _, upper = bands
+        lowers, _, uppers = bands
+        if len(lowers) == 0 or len(uppers) == 0:
+            return self._signal(
+                symbol, config, price, SignalAction.HOLD, 0.0, "insufficient Bollinger history"
+            )
+        lower = lowers[-1]
+        upper = uppers[-1]
         band_width = upper - lower
         near_upper = price >= upper - band_width * 0.1
         near_lower = price <= lower + band_width * 0.1
@@ -547,15 +568,17 @@ class StrategyEngine:
 
     def _position(self, symbol: str, prices: list[float], config: StrategyConfig) -> Signal:
         """Long-term SMA crossover for high-conviction position signals."""
-        fast = sma(prices, config.position_fast_period)
-        slow = sma(prices, config.position_slow_period)
-        prev_fast = sma(prices[:-1], config.position_fast_period)
-        prev_slow = sma(prices[:-1], config.position_slow_period)
+        fast_series = sma_series(prices, config.position_fast_period)
+        slow_series = sma_series(prices, config.position_slow_period)
         price = prices[-1]
-        if fast is None or slow is None or prev_fast is None or prev_slow is None:
+        if len(fast_series) < 2 or len(slow_series) < 2:
             return self._signal(
                 symbol, config, price, SignalAction.HOLD, 0.0, "insufficient position SMA history"
             )
+        fast = fast_series[-1]
+        slow = slow_series[-1]
+        prev_fast = fast_series[-2]
+        prev_slow = slow_series[-2]
         crossover_gap = abs(fast - slow) / price
         if prev_fast <= prev_slow and fast > slow and crossover_gap >= 0.02:
             return self._signal(
