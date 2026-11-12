@@ -6,9 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-from zksato_api.llm_clients import (  # type: ignore[import-untyped]
-    HydrogenThinkingLevel,
-)
+from zksato_api.llm_clients import HydrogenThinkingLevel  # type: ignore[import-untyped]
 
 from zksato_automation.agent_os.session import AgentSession
 from zksato_automation.agent_os.skills import (
