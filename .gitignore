@@ -30,4 +30,6 @@ backups/
 .terraform/
 .terraform.lock.hcl
 .mcp.json
+frontend/test-results/
+frontend/playwright-report/
 

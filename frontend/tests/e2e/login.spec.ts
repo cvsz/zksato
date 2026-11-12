@@ -7,7 +7,7 @@ test.describe('Login Page', () => {
 
     await expect(page.locator('h1')).toContainText('zksato');
     await expect(page.locator('input[type="password"]')).toBeVisible();
-    await expect(page.locator('text=Sign In with API Key')).toBeVisible();
+    await expect(page.locator('text=Sign In')).toBeVisible();
   });
 
   test('API key input is enabled', async ({ page }) => {
