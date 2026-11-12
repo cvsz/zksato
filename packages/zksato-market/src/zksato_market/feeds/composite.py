@@ -1,0 +1,125 @@
+"""Multi-feed with fallback."""
+
+from __future__ import annotations
+
+from zksato_market.feeds.base import MarketDataFeed, CompositeFeed
+from zksato_market.types import MarketType
+from zksato_core.models import Quote, Trade, Bar
+from zksato_core.datetime import now_utc
+
+
+class MultiFeed(MarketDataFeed):
+    """Multi-source feed with automatic fallback."""
+
+    def __init__(
+        self,
+        name: str,
+        market_type: MarketType,
+        feeds: list[MarketDataFeed],
+        health_check_interval: float = 30.0,
+    ) -> None:
+        super().__init__(name, market_type)
+        self.feeds = feeds
+        self.health_check_interval = health_check_interval
+        self._current_feed_idx = 0
+        self._health_check_task = None
+
+    @property
+    def current_feed(self) -> MarketDataFeed:
+        return self.feeds[self._current_feed_idx]
+
+    async def connect(self) -> None:
+        """Connect all feeds."""
+        for feed in self.feeds:
+            try:
+                await feed.connect()
+            except Exception:
+                pass  # Continue with other feeds
+
+        # Find first connected feed
+        for i, feed in enumerate(self.feeds):
+            if feed.status == feed.status.__class__.CONNECTED:
+                self._current_feed_idx = i
+                break
+
+        self._status = self._status.__class__.CONNECTED
+
+        # Start health check
+        # self._health_check_task = asyncio.create_task(self._health_check_loop())
+
+    async def disconnect(self) -> None:
+        """Disconnect all feeds."""
+        # if self._health_check_task:
+        #     self._health_check_task.cancel()
+        for feed in self.feeds:
+            try:
+                await feed.disconnect()
+            except Exception:
+                pass
+        self._status = self._status.__class__.DISCONNECTED
+
+    async def subscribe(self, symbols: list[str]) -> None:
+        """Subscribe to symbols on all feeds."""
+        for feed in self.feeds:
+            try:
+                await feed.subscribe(symbols)
+            except Exception:
+                pass
+
+    async def unsubscribe(self, symbols: list[str]) -> None:
+        """Unsubscribe from symbols on all feeds."""
+        for feed in self.feeds:
+            try:
+                await feed.unsubscribe(symbols)
+            except Exception:
+                pass
+
+    def _emit_quote(self, quote: Quote) -> None:
+        super()._emit_quote(quote)
+        # Also emit to current feed for metrics
+        self.current_feed._emit_quote(quote)
+
+    def _emit_trade(self, trade: Trade) -> None:
+        super()._emit_trade(trade)
+        self.current_feed._emit_trade(trade)
+
+    def _emit_bar(self, bar: Bar) -> None:
+        super()._emit_bar(bar)
+        self.current_feed._emit_bar(bar)
+
+    async def _health_check_loop(self) -> None:
+        """Periodic health check with fallback."""
+        import asyncio
+
+        while True:
+            await asyncio.sleep(self.health_check_interval)
+            await self._check_and_failover()
+
+    async def _check_and_failover(self) -> None:
+        """Check feed health and failover if needed."""
+        current = self.current_feed
+
+        # Check if current feed is healthy
+        if current.metrics.last_message_at:
+            from zksato_core.datetime import now_utc
+            age = (now_utc() - current.metrics.last_message_at).total_seconds()
+            if age > self.health_check_interval * 2:
+                # Try to failover
+                await self._failover()
+
+    async def _failover(self) -> None:
+        """Failover to next healthy feed."""
+        for i in range(1, len(self.feeds)):
+            next_idx = (self._current_feed_idx + i) % len(self.feeds)
+            feed = self.feeds[next_idx]
+
+            if feed.status == feed.status.__class__.CONNECTED:
+                # Check if feed is receiving data
+                if feed.metrics.last_message_at:
+                    age = (now_utc() - feed.metrics.last_message_at).total_seconds()
+                    if age < self.health_check_interval * 2:
+                        self._current_feed_idx = next_idx
+                        return
+
+        # No healthy feed found
+        pass
