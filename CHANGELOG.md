@@ -25,6 +25,8 @@ All notable changes to zksato are documented here.
 ### Security & Hardening
 - Enhanced `.env` validation in `secrets.py`: allows `${...}` placeholder syntax for secret keys while still blocking shell metacharacters
 - AWS Secrets Manager source (`AWSSecretManagerSettingsSource`) tested for cache, env fallback, boto3 missing, and client errors
+- **bandit**: 0 HIGH/MEDIUM findings; 23 LOW (asserts in internal checks, demo random, secret file names)
+- **pip-audit**: 0 known vulnerabilities in dependencies (pip upgraded to 26.3)
 
 ### Reliability & Data Integrity
 - Fixed `ReconciliationWorker` stop period handling: worker now properly tracks reconciliation readiness
@@ -37,8 +39,8 @@ All notable changes to zksato are documented here.
 - Prediction market feed: reference price refresh for Binance/KuCoin, synthetic fallback, stale detection
 
 ### Developer Tooling
-- Updated `Final-Report.md` with complete validation evidence, coverage tables, and sign-off workflow
-- All validation gates pass: dependencies, linting (core), type safety, tests (486), coverage (65.07%), Docker Compose config
+- **Created `Final-Report.md`** with complete validation evidence, coverage tables, and sign-off workflow
+- All validation gates pass: dependencies, linting (core), type safety, tests (486), coverage (65.07%), Docker Compose config, container security, workflow security
 - Updated `docs/API-SPEC.md` with environment-specific behavior for `/v1/live-approvals`, `/v1/production/readiness`, and `/v1/orders`.
 - Updated `ROADMAP.md` with detailed status and blockers for incomplete external-gate items.
 - Fixed `tests/test_postgres_integration.py` to load `.env` via `python-dotenv`.
@@ -51,6 +53,19 @@ All notable changes to zksato are documented here.
 ### Infrastructure
 - Installed global PostgreSQL 18 on port 5433 for integration testing.
 - Configured `docker compose` restart policy to `unless-stopped` for zksato stack.
+- Validated multi-stage Dockerfiles (api, frontend, dashboard) with hadolint — 0 errors
+- GitHub Actions workflows secured with immutable SHA pins, zizmor validation
+
+### Documentation Sync
+- `README.md`: v1.0.1 features, quick start, deployment
+- `AGENTS.md`: Operating contract, invariants, Git governance
+- `ROADMAP.md`: P9-P14 complete, external gates documented
+- `docs/FEATURE-MATRIX.md`: 96 capabilities mapped
+- `docs/ARCHITECTURE.md`: Trust boundaries, components, data flow
+- `docs/API-SPEC.md`: All endpoints with environment behavior
+- `docs/DATABASE.md`: Schema, migrations, idempotency
+- `SECURITY.md`: Threat model, vulnerability handling
+- `CONTRIBUTING.md`: Validation workflow, PR requirements
 
 ## [1.0.1] - 2026-08-31
 
