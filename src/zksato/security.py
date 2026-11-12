@@ -61,7 +61,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
         if request.url.path in {"/health", "/metrics"}:
-            return await call_next(request)  # type: ignore[no-any-return]
+            return await call_next(request)
         client = request.client.host if request.client else "unknown"
         if self.coordination is not None and self.coordination.redis is not None:
             allowed = await self.coordination.allow_request(
@@ -71,7 +71,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             if not allowed:
                 return self._limited()
-            return await call_next(request)  # type: ignore[no-any-return]
+            return await call_next(request)
 
         now = monotonic()
         with self._lock:
@@ -81,7 +81,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if len(events) >= self.limit:
                 return self._limited()
             events.append(now)
-        return await call_next(request)  # type: ignore[no-any-return]
+        return await call_next(request)
 
     @staticmethod
     def _limited() -> JSONResponse:
@@ -162,4 +162,4 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        return response  # type: ignore[no-any-return]
+        return response

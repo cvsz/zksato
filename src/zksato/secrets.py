@@ -95,9 +95,11 @@ def validate_env_file(env_path: str = ".env") -> None:
         val = val.strip()
         if not key_re.match(key):
             raise ValueError(f"{env_path}:{lineno}: invalid environment variable name '{key}'")
-        if shell_meta.search(val):
+        # Allow ${...} placeholder syntax for secret values
+        is_placeholder = val.startswith("${") and val.endswith("}")
+        if not is_placeholder and shell_meta.search(val):
             raise ValueError(
                 f"{env_path}:{lineno}: value for '{key}' contains shell metacharacters"
             )
-        if secret_hints.search(key) and val and not val.startswith("${"):
+        if secret_hints.search(key) and val and not is_placeholder:
             raise ValueError(f"{env_path}:{lineno}: secret key '{key}' must use a placeholder")
