@@ -13,6 +13,7 @@ from zksato_core.ids import new_ulid
 
 class A2AMessageType(str, Enum):
     """A2A message types."""
+
     REQUEST = "request"
     RESPONSE = "response"
     EVENT = "event"
@@ -22,6 +23,7 @@ class A2AMessageType(str, Enum):
 @dataclass
 class A2AMessage:
     """A2A protocol message."""
+
     message_id: UUID = field(default_factory=new_ulid)
     from_agent: str = ""
     to_agent: str = ""
@@ -34,6 +36,7 @@ class A2AMessage:
 @dataclass
 class AgentInfo:
     """Information about a registered agent."""
+
     agent_id: str
     name: str
     capabilities: set[str] = field(default_factory=set)
@@ -43,36 +46,36 @@ class AgentInfo:
 
 class AgentRegistry:
     """Registry for A2A agents."""
-    
+
     def __init__(self) -> None:
         self.agents: dict[str, AgentInfo] = {}
         self._message_handlers: dict[str, list[Callable]] = {}
-    
+
     def register(self, agent: AgentInfo) -> None:
         """Register an agent."""
         self.agents[agent.agent_id] = agent
-    
+
     def unregister(self, agent_id: str) -> bool:
         """Unregister an agent."""
         if agent_id in self.agents:
             del self.agents[agent_id]
             return True
         return False
-    
+
     def get_agent(self, agent_id: str) -> AgentInfo | None:
         """Get agent info."""
         return self.agents.get(agent_id)
-    
+
     def list_agents(self) -> list[AgentInfo]:
         """List all agents."""
         return list(self.agents.values())
-    
+
     def register_handler(self, message_type: str, handler: Callable) -> None:
         """Register a message handler."""
         if message_type not in self._message_handlers:
             self._message_handlers[message_type] = []
         self._message_handlers[message_type].append(handler)
-    
+
     async def send_message(self, message: A2AMessage) -> A2AMessage | None:
         """Send a message to an agent."""
         target = self.agents.get(message.to_agent)
@@ -84,7 +87,7 @@ class AgentRegistry:
                 correlation_id=message.message_id,
                 payload={"error": "Agent not found"},
             )
-        
+
         # Call handlers
         handlers = self._message_handlers.get(message.message_type.value, [])
         for handler in handlers:
@@ -92,9 +95,9 @@ class AgentRegistry:
                 await handler(message, target)
             except Exception:
                 pass  # Log in production
-        
+
         return None  # Would return response in real implementation
-    
+
     async def broadcast(self, message: A2AMessage) -> None:
         """Broadcast message to all agents."""
         for agent in self.agents.values():
