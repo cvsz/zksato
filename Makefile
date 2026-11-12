@@ -14,24 +14,29 @@
 # PHONY targets — every target is phony so make always runs it
 # ------------------------------------------------------------------
 .PHONY: help \
-install install-settrade install-ccxt install-prediction \
-install-observability install-all install-deps \
-lint format format-check shellcheck type \
-test test-resilience test-performance test-uat test-postgres \
-test-concurrency test-frontend test-e2e test-security \
-coverage coverage-html \
-contract openapi licenses \
-security audit bandit gitleaks \
-db-migrate db-status db-backup db-restore \
-docker docker-run docker-scan compose \
-resilience dr-drill dr-restore load-test env-check github-health \
-all all-features all-services start-all stop-all \
-start-backend stop-backend start-frontend stop-frontend \
-start-dashboard stop-dashboard health-check-all \
-frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
-dashboard-lint dashboard-type dashboard-build \
-security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
-ci ci-full ci-security clean
+	install install-settrade install-ccxt install-prediction \
+	install-observability install-all install-deps \
+	lint format format-check shellcheck type \
+	test test-resilience test-performance test-uat test-postgres \
+	test-concurrency test-frontend test-e2e test-security \
+	coverage coverage-html \
+	contract openapi licenses \
+	security audit bandit gitleaks \
+	db-migrate db-status db-backup db-restore \
+	docker docker-run docker-scan compose \
+	resilience dr-drill dr-restore load-test env-check github-health \
+	all all-features all-services start-all stop-all restart-all \
+	start-backend stop-backend restart-backend \
+	start-frontend stop-frontend restart-frontend \
+	start-dashboard stop-dashboard restart-dashboard \
+	health-check-all \
+	frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
+	dashboard-lint dashboard-type dashboard-build \
+	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
+	ci ci-full ci-security clean
+	dashboard-lint dashboard-type dashboard-build \
+	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
+	ci ci-full ci-security clean
 
 # ------------------------------------------------------------------
 # Colour helpers
@@ -131,6 +136,10 @@ help:
 	@printf '  $(GREEN)all-services$(RESET)           Start all services (backend+frontend+dashboard)\n'
 	@printf '  $(GREEN)start-all$(RESET)                Start backend + frontend + dashboard\n'
 	@printf '  $(GREEN)stop-all$(RESET)                 Stop all services\n'
+	@printf '  $(GREEN)restart-all$(RESET)            Restart all services (stop + start)\n'
+	@printf '  $(GREEN)restart-backend$(RESET)          Restart uvicorn API\n'
+	@printf '  $(GREEN)restart-frontend$(RESET)         Restart Next.js dev server\n'
+	@printf '  $(GREEN)restart-dashboard$(RESET)        Restart Vite dashboard\n'
 	@printf '  $(GREEN)start-backend$(RESET)            Start uvicorn API on :9569\n'
 	@printf '  $(GREEN)stop-backend$(RESET)             Stop uvicorn API\n'
 	@printf '  $(GREEN)start-frontend$(RESET)           Start Next.js dev on :3016\n'
@@ -229,6 +238,16 @@ stop-dashboard:
 	else \
 		printf '$(YELLOW)No dashboard PID file found$(RESET)\n'; \
 	fi
+
+# ---- Restart targets ----
+restart-backend: stop-backend start-backend
+
+restart-frontend: stop-frontend start-frontend
+
+restart-dashboard: stop-dashboard start-dashboard
+
+restart-all: stop-all start-all
+
 
 health-check-all:
 	@printf '$(CYAN)Health-checking all services…$(RESET)\n'
