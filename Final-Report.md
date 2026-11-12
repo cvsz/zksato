@@ -272,6 +272,7 @@ $ docker compose config --quiet
 | **LLM/Agent** | Gemini 4 Hydrogen client (4 thinking levels, 1M context) | ✅ Implemented |
 | **LLM/Agent** | Model orchestrator (Carbon/Hydrogen routing) | ✅ Implemented |
 | **LLM/Agent** | LLM-powered skills (code generation, analysis, test verification) | ✅ Implemented |
+| **LLM/Agent** | Local LLM client (Ollama, llama.cpp, vLLM, TGI) | ✅ Implemented |
 | **DR** | Backup/restore automation + ephemeral drill | ✅ Implemented |
 
 ---
@@ -356,6 +357,66 @@ task success rates while consuming 24% less quota and completing 19% faster.
 - API keys remain server-side, never logged or rendered
 - `gemini_configured` property for runtime validation
 - Fail-closed behavior: stub mode when no API key configured
+- All agentic actions route through RiskEngine before execution (no autonomous live execution)
+
+---
+
+## Local LLM Integration (`packages/zksato-api/src/zksato_api/llm_clients/`)
+
+Local LLM support enables offline/private inference for zksato's paper/sandbox
+trading environments where broker credentials, PINs, and market data must never
+leave the local network. Connects to locally-hosted LLM backends via their
+OpenAI-compatible API.
+
+### LocalLLMClient (`local_llm.py`)
+
+| Component | Description |
+|-----------|-------------|
+| `LocalLLMClient` | Async client with retry logic, backend probing, stub mode when unreachable |
+| `LocalLLMConfig` | Configuration: backend, base_url, model, temperature, token limits |
+| `LocalLLMResponse` | Structured response with token counts and metadata |
+| `LocalLLMBackend` | StrEnum: ollama, llamacpp, vllm, tgi, openai_compatible |
+
+| Method | Description |
+|--------|-------------|
+| `generate()` | Generate response from chat messages |
+| `generate_code()` | Generate production-ready code with type hints |
+| `analyze_code()` | Analyze code for bugs, security, performance |
+| `verify_test()` | Verify test coverage against source code |
+
+### Factory Updates
+
+| Method | Description |
+|--------|-------------|
+| `create_client("local-llm", ...)` | Create a LocalLLMClient instance |
+| `create_local_llm_client()` | Convenience method with sensible defaults |
+| `get_available_providers()` | Returns `["openai", "anthropic", "gemini", "gemini-4-hydrogen", "local-llm"]` |
+
+### Configuration (`packages/zksato-core/src/zksato_core/config.py`)
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `local_llm_backend` | `"ollama"` | Backend: ollama, llamacpp, vllm, tgi, openai_compatible |
+| `local_llm_base_url` | `"http://localhost:11434"` | Backend API base URL |
+| `local_llm_model` | `"llama3.2:3b"` | Model name |
+| `local_llm_api_key` | `""` | Optional API key for backend auth |
+| `local_llm_temperature` | `0.7` | Sampling temperature |
+| `local_llm_max_input_tokens` | `4096` | Max input context tokens |
+| `local_llm_max_output_tokens` | `2048` | Max output tokens |
+| `local_llm_max_retries` | `3` | Max API retry attempts |
+| `local_llm_timeout_seconds` | `60.0` | Request timeout |
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `local_llm_configured` | Check if local LLM base URL is set |
+| `local_llm_backend_enum()` | Get backend as LocalLLMBackend enum |
+
+### Safety & Security
+
+- All inference runs on-premise — no external API calls beyond the configured local backend
+- API keys (if any) remain server-side, never logged or rendered
+- Fail-closed: stub mode when backend is unreachable
+- Deterministic output when temperature=0
 - All agentic actions route through RiskEngine before execution (no autonomous live execution)
 
 ---
