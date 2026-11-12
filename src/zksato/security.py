@@ -7,7 +7,7 @@ from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse
 
 from zksato.coordination import CoordinationManager
 
@@ -59,7 +59,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._events: dict[str, deque[float]] = defaultdict(deque)
         self._lock = RLock()
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         if request.url.path in {"/health", "/metrics"}:
             return await call_next(request)
         client = request.client.host if request.client else "unknown"
@@ -142,7 +142,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: Any) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")

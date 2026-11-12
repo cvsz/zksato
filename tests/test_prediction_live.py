@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -82,7 +81,13 @@ class TestPolymarketClobAdapter:
             ),
             "https://test.polymarket.com/order": MagicMock(
                 status_code=200,
-                json=lambda: {"order_id": "order_123", "market_id": "market_123", "price": "0.55", "size": "18.18", "status": "open"}
+                json=lambda: {
+                    "order_id": "order_123",
+                    "market_id": "market_123",
+                    "price": "0.55",
+                    "size": "18.18",
+                    "status": "open",
+                },
             ),
             "https://test.polymarket.com/order/order_123": MagicMock(
                 status_code=200,
@@ -131,7 +136,9 @@ class TestPolymarketClobAdapter:
 
     def test_validate_order_respects_max_order_usd(self, settings: Settings) -> None:
         adapter = PolymarketClobAdapter(settings=settings)
-        with pytest.raises(ValueError, match="prediction order exceeds configured per-order USD limit"):
+        with pytest.raises(
+            ValueError, match="prediction order exceeds configured per-order USD limit"
+        ):
             adapter._validate_order(0.5, 15.0)
 
     def test_auth_headers_without_credentials(self, settings: Settings) -> None:
@@ -148,7 +155,9 @@ class TestPolymarketClobAdapter:
         assert "X-PASSPHRASE" in headers
 
     @pytest.mark.asyncio
-    async def test_get_market_quote_from_book_endpoint(self, settings: Settings, mock_client: MockHttpClient) -> None:
+    async def test_get_market_quote_from_book_endpoint(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         quote = await adapter.get_market_quote("market_123")
         assert quote["market_id"] == "market_123"
@@ -191,15 +200,26 @@ class TestPolymarketClobAdapter:
         assert quote["down_ask"] == 0.48
 
     @pytest.mark.asyncio
-    async def test_get_market_quote_falls_back_to_markets_endpoint(self, settings: Settings) -> None:
+    async def test_get_market_quote_falls_back_to_markets_endpoint(
+        self, settings: Settings
+    ) -> None:
         mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/markets/market_123": MagicMock(
-                status_code=200,
-                json=lambda: {"market_id": "market_123", "price": "0.55", "up_bid": "0.53", "down_ask": "0.47"}
-            ),
+            "https://test.polymarket.com/book?token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=buy&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=sell&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/markets/market_123":
+                MagicMock(
+                    status_code=200,
+                    json=lambda: {
+                        "market_id": "market_123",
+                        "price": "0.55",
+                        "up_bid": "0.53",
+                        "down_ask": "0.47",
+                    },
+                ),
         })
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         quote = await adapter.get_market_quote("market_123")
@@ -209,17 +229,23 @@ class TestPolymarketClobAdapter:
     @pytest.mark.asyncio
     async def test_get_market_quote_raises_on_not_found(self, settings: Settings) -> None:
         mock_client = MockHttpClient({
-            "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(status_code=404),
-            "https://test.polymarket.com/markets/market_123": MagicMock(status_code=404),
+            "https://test.polymarket.com/book?token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=buy&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=sell&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/markets/market_123":
+                MagicMock(status_code=404),
         })
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         with pytest.raises(RuntimeError, match="market not found"):
             await adapter.get_market_quote("market_123")
 
     @pytest.mark.asyncio
-    async def test_place_order_success(self, settings: Settings, mock_client: MockHttpClient) -> None:
+    async def test_place_order_success(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         result = await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
         assert result["order_id"] == "order_123"
@@ -230,11 +256,15 @@ class TestPolymarketClobAdapter:
     @pytest.mark.asyncio
     async def test_place_order_requires_credentials(self, settings: Settings) -> None:
         adapter = PolymarketClobAdapter(settings=None, api_key=None, api_secret=None)
-        with pytest.raises(RuntimeError, match="Polymarket mutation requires api_key and api_secret"):
+        with pytest.raises(
+            RuntimeError, match="Polymarket mutation requires api_key and api_secret"
+        ):
             await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
 
     @pytest.mark.asyncio
-    async def test_place_order_validates_side(self, settings: Settings, mock_client: MockHttpClient) -> None:
+    async def test_place_order_validates_side(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         with pytest.raises(ValueError, match="prediction adapter requires UP or DOWN side"):
             await adapter.place_order("market_123", Side.BUY, 0.55, 10.0)
@@ -264,7 +294,9 @@ class TestPolymarketClobAdapter:
             await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
 
     @pytest.mark.asyncio
-    async def test_cancel_order_success(self, settings: Settings, mock_client: MockHttpClient) -> None:
+    async def test_cancel_order_success(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         result = await adapter.cancel_order("order_123")
         assert result is True
@@ -285,7 +317,9 @@ class TestPolymarketClobAdapter:
             await adapter.cancel_order("order_123")
 
     @pytest.mark.asyncio
-    async def test_cancel_order_network_error_raises_ambiguous(self, settings: Settings) -> None:
+    async def test_cancel_order_network_error_raises_ambiguous(
+        self, settings: Settings
+    ) -> None:
         async def failing_delete(*args, **kwargs):
             raise ConnectionError("Network down")
 
@@ -296,7 +330,9 @@ class TestPolymarketClobAdapter:
             await adapter.cancel_order("order_123")
 
     @pytest.mark.asyncio
-    async def test_client_lifecycle_with_injected_client(self, settings: Settings, mock_client: MockHttpClient) -> None:
+    async def test_client_lifecycle_with_injected_client(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
         adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
         await adapter.get_market_quote("market_123")
         # Injected client should not be closed
