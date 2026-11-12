@@ -26,6 +26,7 @@ from zksato_market.feeds import (
     OKXFeed,
     BybitFeed,
     MultiFeed,
+    FeedRouter,
     ReplayFeed,
     ReplayEvent,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "OKXFeed",
     "BybitFeed",
     "MultiFeed",
+    "FeedRouter",
     "ReplayFeed",
     "ReplayEvent",
     # Adapters

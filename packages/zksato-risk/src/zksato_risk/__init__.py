@@ -30,6 +30,7 @@ from zksato_risk.policies.approval import (
     ApprovalRequest,
     FourEyesPolicy,
     ApprovalManager,
+    ConfirmationBus,
 )
 from zksato_risk.checks.base import RiskCheck, BaseRiskCheck, CompositeRiskCheck
 from zksato_risk.checks.position import (
@@ -118,6 +119,7 @@ __all__ = [
     "ApprovalRequest",
     "FourEyesPolicy",
     "ApprovalManager",
+    "ConfirmationBus",
     # Checks base
     "RiskCheck",
     "BaseRiskCheck",

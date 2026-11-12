@@ -154,3 +154,24 @@ class ApprovalManager:
                 **{**self.requests[rid].__dict__, "status": ApprovalStatus.EXPIRED}
             )
         return len(expired)
+
+
+class ConfirmationBus:
+    """Confirmation bus for four-eyes approval workflow."""
+    
+    def __init__(self, manager: ApprovalManager | None = None):
+        self.manager = manager or ApprovalManager()
+    
+    async def request_approval(self, order_intent: Any, risk_context: Any, requested_by: str) -> Any:
+        """Request approval for an order."""
+        return self.manager.create_request(order_intent, risk_context, requested_by)
+    
+    async def wait_for_approval(self, request_id: UUID, timeout: float = 900) -> Any:
+        """Wait for approval decision."""
+        # Would implement waiting logic
+        request = self.manager.get_request(request_id)
+        return request
+    
+    def get_status(self, request_id: UUID) -> Any:
+        """Get approval status."""
+        return self.manager.get_request(request_id)

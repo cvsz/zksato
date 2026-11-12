@@ -1,0 +1,247 @@
+"""Prediction market broker adapter."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any, Protocol
+
+from zksato_core.types import Side, OrderType, OrderStatus
+from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot, Position
+from zksato_core.config import Settings
+from zksato_broker.base import BaseBroker, BrokerConfig, BrokerCapabilities, BrokerAmbiguousError
+from zksato_broker.errors import classify_error
+
+
+class PredictionMarketClient(Protocol):
+    """Pluggable prediction market venue client."""
+    
+    async def create_order(
+        self, market_id: str, side: str, amount_usd: float, price: float
+    ) -> dict[str, Any]: ...
+    async def cancel_order(self, order_id: str) -> dict[str, Any]: ...
+    async def fetch_open_orders(self, market_id: str) -> list[dict[str, Any]]: ...
+    async def fetch_balance(self) -> dict[str, Any]: ...
+
+
+class PaperPredictionBroker:
+    """Paper prediction market broker for testing."""
+    
+    def __init__(self, settings: Settings) -> None:
+        self.settings = settings
+        self._orders: dict[str, dict] = {}
+        self._next_id = 1
+    
+    async def create_order(
+        self, market_id: str, side: str, amount_usd: float, price: float
+    ) -> dict[str, Any]:
+        order_id = f"paper_pred_{self._next_id}"
+        self._next_id += 1
+        order = {
+            "id": order_id,
+            "market_id": market_id,
+            "side": side,
+            "amount": amount_usd,
+            "price": price,
+            "status": "filled",
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+        self._orders[order_id] = order
+        return order
+    
+    async def cancel_order(self, order_id: str) -> dict[str, Any]:
+        if order_id in self._orders:
+            self._orders[order_id]["status"] = "cancelled"
+            return self._orders[order_id]
+        raise ValueError(f"Order not found: {order_id}")
+    
+    async def fetch_open_orders(self, market_id: str) -> list[dict[str, Any]]:
+        return [
+            o for o in self._orders.values()
+            if o.get("market_id") == market_id and o.get("status") == "open"
+        ]
+    
+    async def fetch_balance(self) -> dict[str, Any]:
+        return {"cash": 10000.0}
+
+
+class PredictionBroker(BaseBroker):
+    """Prediction-market broker adapter with complete-set settlement tracking."""
+    
+    def __init__(
+        self,
+        config: BrokerConfig,
+        settings: Settings,
+        client: PredictionMarketClient | None = None,
+    ) -> None:
+        super().__init__(config)
+        if not settings.prediction_enabled:
+            raise RuntimeError("Prediction market is not enabled")
+        self.settings = settings
+        self._client = client or PaperPredictionBroker(settings)
+        self._directional_residual: dict[str, float] = {}
+        self._complete_set_cost: dict[str, float] = {}
+        self._shares_by_side: dict[str, dict[Side, float]] = {}
+    
+    @property
+    def capabilities(self) -> set[BrokerCapabilities]:
+        return {
+            BrokerCapabilities.PREDICTION_MARKETS,
+            BrokerCapabilities.MARKET_ORDERS,
+            BrokerCapabilities.LIMIT_ORDERS,
+            BrokerCapabilities.POSITION_TRACKING,
+            BrokerCapabilities.ACCOUNT_BALANCE,
+        }
+    
+    async def _do_connect(self) -> None:
+        pass
+    
+    async def _do_disconnect(self) -> None:
+        pass
+    
+    async def place_order(self, intent: OrderIntent) -> OrderRecord:
+        if intent.side not in {Side.UP, Side.DOWN}:
+            raise ValueError("prediction broker requires UP or DOWN side")
+        if intent.price is None or not (0.0 < float(intent.price) < 1.0):
+            raise ValueError("prediction order requires price between 0 and 1")
+        amount_usd = intent.price * intent.quantity
+        if amount_usd > self.settings.prediction_max_order_usd:
+            raise ValueError("prediction order exceeds configured per-order USD limit")
+        market_id = intent.symbol
+        side_str = "UP" if intent.side == Side.UP else "DOWN"
+        try:
+            response = await self._client.create_order(
+                market_id, side_str, amount_usd, float(intent.price)
+            )
+        except (TimeoutError, ConnectionError, OSError) as exc:
+            raise BrokerAmbiguousError("prediction market order response ambiguous") from exc
+        record = self._map_fill(response, intent=intent)
+        self._update_residual_and_cost(market_id, intent.side, intent.quantity, amount_usd)
+        return record
+    
+    async def cancel_order(self, order_id: str) -> OrderRecord:
+        try:
+            response = await self._client.cancel_order(order_id)
+        except (TimeoutError, ConnectionError, OSError) as exc:
+            raise BrokerAmbiguousError("prediction market cancel response ambiguous") from exc
+        intent = OrderIntent(
+            symbol=str(response.get("market_id", "UNKNOWN")),
+            side=Side.UP if str(response.get("side", "UP")).upper() == "UP" else Side.DOWN,
+            quantity=int(float(response.get("amount", 1)) or 1),
+            order_type=OrderType.LIMIT,
+            price=float(response.get("price", 0) or 0),
+            source="prediction.cancel",
+        )
+        record = self._map_fill(response, intent=intent)
+        record.status = OrderStatus.CANCELLED
+        return record
+    
+    async def list_orders(self, status: OrderStatus | None = None) -> list[OrderRecord]:
+        records: list[OrderRecord] = []
+        for market_id in self._directional_residual:
+            try:
+                orders = await self._client.fetch_open_orders(market_id)
+            except (TimeoutError, ConnectionError, OSError):
+                continue
+            for order in orders or []:
+                records.append(self._map_fill(order))
+        if status:
+            records = [r for r in records if r.status == status]
+        return records
+    
+    async def get_positions(self) -> list[Position]:
+        snap = await self.get_portfolio()
+        return snap.positions
+    
+    async def get_account(self) -> dict[str, Any]:
+        try:
+            balance = await self._client.fetch_balance()
+        except (TimeoutError, ConnectionError, OSError):
+            balance = {}
+        return {"cash": float(balance.get("cash", 0) or 0)}
+    
+    async def get_portfolio(self) -> PortfolioSnapshot:
+        try:
+            balance = await self._client.fetch_balance()
+        except (TimeoutError, ConnectionError, OSError):
+            balance = {}
+        cash = float(balance.get("cash", 0) or 0)
+        positions: list[Position] = []
+        for market_id, residual in self._directional_residual.items():
+            if residual <= 0:
+                continue
+            positions.append(
+                Position(
+                    symbol=market_id,
+                    quantity=int(residual),
+                    average_price=0.0,
+                    market_price=0.0,
+                    market_value=0.0,
+                    cost_value=self._complete_set_cost.get(market_id, 0.0),
+                    unrealized_pnl=0.0,
+                    unrealized_pnl_pct=0.0,
+                )
+            )
+        return PortfolioSnapshot(
+            cash=cash,
+            market_value=0.0,
+            equity=cash,
+            realized_pnl=0.0,
+            unrealized_pnl=0.0,
+            daily_pnl=0.0,
+            positions=positions,
+        )
+    
+    def _update_residual_and_cost(
+        self, market_id: str, side: Side, shares: float, cost: float
+    ) -> None:
+        current = self._directional_residual.get(market_id, 0.0)
+        delta = shares if side == Side.UP else -shares
+        self._directional_residual[market_id] = current + delta
+        bucket = self._shares_by_side.setdefault(market_id, {Side.UP: 0.0, Side.DOWN: 0.0})
+        bucket[side] = bucket.get(side, 0.0) + shares
+        up_shares = bucket.get(Side.UP, 0.0)
+        down_shares = bucket.get(Side.DOWN, 0.0)
+        hedged_shares = min(up_shares, down_shares)
+        residual_shares = abs(up_shares - down_shares)
+        avg_price = cost / shares if shares > 0 else 0.5
+        self._complete_set_cost[market_id] = hedged_shares * 1.0 + residual_shares * avg_price
+    
+    def directional_residual(self, market_id: str) -> float:
+        return abs(self._directional_residual.get(market_id, 0.0))
+    
+    def complete_set_cost(self, market_id: str) -> float:
+        return self._complete_set_cost.get(market_id, 0.0)
+    
+    def _map_fill(self, payload: dict[str, Any], intent: OrderIntent | None = None) -> OrderRecord:
+        side = Side.UP if str(payload.get("side", "UP")).upper() == "UP" else Side.DOWN
+        quantity = float(payload.get("amount", intent.quantity if intent else 0) or 0)
+        price = float(payload.get("price", intent.price if intent else 0) or 0)
+        raw_status = str(payload.get("status", "open")).lower()
+        status = OrderStatus.ACCEPTED
+        if "fill" in raw_status:
+            status = OrderStatus.FILLED
+        elif "cancel" in raw_status:
+            status = OrderStatus.CANCELLED
+        elif "reject" in raw_status:
+            status = OrderStatus.REJECTED
+        now = datetime.now(UTC)
+        return OrderRecord(
+            broker_order_id=str(payload.get("id", payload.get("order_id", ""))) or None,
+            client_order_id=intent.client_order_id if intent else None,
+            symbol=str(
+                payload.get("market_id", payload.get("symbol", intent.symbol if intent else ""))
+            ),
+            side=side,
+            quantity=quantity,
+            filled_quantity=quantity if status == OrderStatus.FILLED else 0,
+            order_type=OrderType.LIMIT,
+            price=price,
+            average_fill_price=price if status == OrderStatus.FILLED else None,
+            stop_loss=intent.stop_loss if intent else None,
+            take_profit=intent.take_profit if intent else None,
+            status=status,
+            source=intent.source if intent else "prediction",
+            message=str(payload.get("error", "")) or None,
+            created_at=now,
+            updated_at=now,
+        )

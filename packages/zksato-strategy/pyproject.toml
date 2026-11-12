@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zksato-strategy"
+version = "2.0.0-dev"
+description = "zksato strategies, indicators, backtesting, and research"
+requires-python = ">=3.12"
+dependencies = [
+    "zksato-core",
+    "zksato-risk",
+    "zksato-market",
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "numpy>=2.0,<3.0",
+    "pandas>=2.0,<3.0",
+    "ta-lib>=0.4,<1.0",
+]
+readme = "README.md"
+license = { text = "MIT" }
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0,<10.0",
+    "pytest-asyncio>=1.4,<2.0",
+    "hypothesis>=6.160,<7.0",
+    "ruff==0.16.6",
+]
+optuna = [
+    "optuna>=3.6,<4.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zksato_strategy"]

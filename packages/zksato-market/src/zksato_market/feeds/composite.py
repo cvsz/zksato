@@ -123,3 +123,49 @@ class MultiFeed(MarketDataFeed):
 
         # No healthy feed found
         pass
+
+
+class FeedRouter:
+    """Feed router with priority-based failover (alias for MultiFeed)."""
+    
+    def __init__(
+        self,
+        feeds: list[MarketDataFeed],
+        strategy: str = "priority",
+    ) -> None:
+        # Use first feed's name and market type
+        name = f"router_{feeds[0].name}" if feeds else "router"
+        market_type = feeds[0].market_type if feeds else MarketType.EQUITY
+        self.multi_feed = MultiFeed(name, market_type, feeds)
+    
+    @property
+    def name(self) -> str:
+        return self.multi_feed.name
+    
+    @property
+    def market_type(self) -> MarketType:
+        return self.multi_feed.market_type
+    
+    @property
+    def status(self):
+        return self.multi_feed.status
+    
+    @property
+    def metrics(self):
+        return self.multi_feed.metrics
+    
+    async def connect(self) -> None:
+        await self.multi_feed.connect()
+    
+    async def disconnect(self) -> None:
+        await self.multi_feed.disconnect()
+    
+    async def subscribe(self, symbols: list[str]) -> None:
+        await self.multi_feed.subscribe(symbols)
+    
+    async def unsubscribe(self, symbols: list[str]) -> None:
+        await self.multi_feed.unsubscribe(symbols)
+    
+    @property
+    def active_feed(self) -> MarketDataFeed:
+        return self.multi_feed.current_feed
