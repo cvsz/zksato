@@ -167,6 +167,35 @@ These are evidence/reporting endpoints only; they do not submit orders or certif
 
 Production TFEX mutation is intentionally absent.
 
+## Freqtrade Strategies, Protections, and Pairlists
+
+- `GET /v1/freqtrade/strategies` — list registered strategies
+- `POST /v1/freqtrade/strategies/register` — register a strategy class by import path
+- `GET /v1/freqtrade/strategies/{name}/parameters` — get hyperoptable parameters
+- `GET /v1/freqtrade/protections` — list configured protections
+- `POST /v1/freqtrade/protections/configure` — configure a protection (cooldown, stoploss_guard, drawdown, volatility, time_based, consecutive_loss)
+- `POST /v1/freqtrade/protections/evaluate` — evaluate all protections for a potential trade
+- `GET /v1/freqtrade/pairlist` — get current pairlist configuration
+- `POST /v1/freqtrade/pairlist/configure` — configure pairlist (static, volume, change_pct, momentum, volatility, sector_diversified)
+- `GET /v1/freqtrade/trailing-stop` — get trailing stop configuration
+- `POST /v1/freqtrade/trailing-stop` — configure trailing stop
+
+## Agent Session Management
+
+- `POST /v1/freqtrade/agents/session` — create an authenticated agent session (returns session token)
+- `GET /v1/freqtrade/agents/session/validate` — validate a session token
+- `DELETE /v1/freqtrade/agents/session` — expire (invalidate) a session token
+- `GET /v1/freqtrade/agents/rate-limit/{agent_id}` — get remaining rate-limit requests for an agent
+
+## API Key Administration (Platform Principal only)
+
+- `GET /v1/admin/api-keys` — list all API keys (metadata only, raw values never exposed)
+- `POST /v1/admin/api-keys` — create a new API key (raw key returned once only)
+- `GET /v1/admin/api-keys/{key_id}` — get key metadata by ID
+- `DELETE /v1/admin/api-keys/{key_id}` — revoke (deactivate) an API key
+
+API keys are stored as SHA-256 hashes only; the raw key value is never persisted and is shown only at creation time.
+
 ## Error and correlation semantics
 
 HTTP 4xx represents validation/policy/risk conflicts; 5xx is reserved for server faults. Broker ambiguity retains auditable unresolved state. API keys, session material, Settrade App Secret/PIN, reusable authorization data, and configured secret-file contents must never be returned in API/audit output.

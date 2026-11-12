@@ -129,7 +129,7 @@ This checklist tracks complete system verification, financial safety guarantees,
 - [x] **Ruff Format**: `ruff format --check .` passes (408 files clean).
 - [x] **Mypy Static Type Checking**: `mypy src/zksato scripts` passes with 0 errors (86 source files).
 - [x] **ShellCheck**: `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` passes with 0 warnings.
-- [x] **Python Pytest Suite**: 373 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
+- [x] **Python Pytest Suite**: 381 passed, 1 skipped, 5 deselected (`pytest -m "not uat and not performance"`).
 - [x] **Financial Invariants Suite**: `pytest tests/test_financial_invariants.py` passes all property-based tests.
 - [x] **Workflow Security Suite**: `pytest tests/test_workflow_security.py` passes.
 - [x] **Zizmor Security Audit**: `zizmor .github/workflows` passes with 0 findings.
@@ -144,19 +144,22 @@ This checklist tracks complete system verification, financial safety guarantees,
 ## 7. Multi-Account Sign-Off Verification
 
 - [x] **Author (`cvsz`)**: Authored changes with GPG signed commits (`EDDSA key 8BC7A85F1FB5322782921AEC14E1E0BC08F632B0`).
-- [x] **Independent Reviewer (`policedbc`)**: Audited and approved all pull requests (#46 through #75).
+- [x] **Independent Reviewer (`policedbc`)**: Audited and approved all pull requests (#46 through #91).
 - [x] **Repository Owner (`cvsz`)**: Squash-merged approved changes into `main`.
 
 ---
 
 ## 8. In Progress / Next Steps
 
-- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum, Breakout, Scalp, Swing, Position, VWAP, LLM Sentiment, Multi-Factor, TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all planned strategies implemented.
+- [x] **Additional Strategies**: Added MACD cross (PR #76), Bollinger Band Reversion (PR #78), Stochastic Oscillator (PR #80), Williams %R (PR #82), ATR Channel (PR #84), Momentum, Breakout, Scalp, Swing, Position, VWAP, LLM Sentiment, Multi-Factor, TFEX Spread (new) to `src/zksato/strategy_freqtrade.py`. Remaining: None - all 16 planned strategies implemented.
 - [x] **Hyperopt Loss Functions**: 8 loss functions implemented in `src/zksato/hyperopt.py` (OnlyProfit, Sharpe, SharpeDaily, Sortino, Calmar, MaxDrawDown, ProfitDrawDown, ShortTradeDur). Fixed `getattr()` access on BacktestSummaryMetrics dataclass objects.
+- [x] **Protections**: 6 total (CooldownPeriod, StoplossGuard, Drawdown, Volatility, TimeBased, ConsecutiveLoss) — Volatility, TimeBased, ConsecutiveLoss added in PR #89.
+- [x] **Pairlists**: 6 total (Static, Volume, ChangePct, Momentum, Volatility, SectorDiversified) — Momentum, Volatility, SectorDiversified added in PR #89.
 - [x] **Frontend Integration**: Frontend directory exists at `/frontend/` with Next.js 16 operator UI.
-- [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`.
-- [x] **Additional Test Coverage**: Added unit tests for agent trading (`tests/test_agent_trading.py`, 7 tests) and hyperopt modules (`tests/test_hyperopt.py`, 5 tests). All 12 tests pass.
-- [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules. docs/ZKSATO-MASTER-001.md and docs/ZKSATO-ROADMAP.md provide master engineering prompt and roadmap.
+- [x] **API Endpoints**: 20+ endpoints mounted at `/v1/freqtrade/*` and `/api/claw/*` in `src/zksato/api_freqtrade.py`. Plus `/v1/admin/api-keys*` (PR #91) and agent session endpoints (PR #90).
+- [x] **Additional Test Coverage**: Added unit tests for agent trading (`tests/test_agent_trading.py`, 7 tests), hyperopt modules (`tests/test_hyperopt.py`, 5 tests), and API key admin (`tests/test_auth.py`, 8 new tests). All 381 tests pass.
+- [x] **API Key Admin**: Full CRUD for API keys with SHA-256 hash storage, usage tracking, expiry, and revocation. Admin endpoints at `/v1/admin/api-keys*`. Added to SECURITY.md and docs/API-SPEC.md (PR #91).
+- [x] **Documentation**: docs/API-SPEC.md, docs/DOMAIN-MODEL.md, docs/RISK.md cover new modules. docs/ZKSATO-MASTER-001.md and docs/ZKSATO-ROADMAP.md provide master engineering prompt and roadmap. README.md updated with API key admin section and all API groups.
 - [x] **ADRs**: docs/adr/005-ai-read-only-boundary.md covers agent OS and secure boundaries; docs/adr/004-broker-reconciliation.md covers broker integration. 9 ADRs total in docs/adr/.
 
 ---

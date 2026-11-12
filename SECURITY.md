@@ -26,6 +26,17 @@ The repository supports local paper development and controlled broker UAT workfl
 ## Authentication and authorization
 The application supports API-key RBAC and signed HttpOnly sessions with CSRF controls. Production deployments must configure authentication, strong session signing material, trusted hosts/origins, TLS termination, rate limiting, account allow-lists, and least-privilege operator roles.
 
+### API Key Administration
+
+Platform administrators (`platform_admin` role) can manage API keys through:
+
+- `GET /v1/admin/api-keys` — list all API keys (metadata only, raw values never exposed)
+- `POST /v1/admin/api-keys` — create a new API key (raw key returned once only)
+- `GET /v1/admin/api-keys/{key_id}` — get key metadata by ID
+- `DELETE /v1/admin/api-keys/{key_id}` — revoke (deactivate) an API key
+
+API keys are stored as SHA-256 hashes only. The raw key value is never persisted and is shown only at creation time. Revoked or expired keys are rejected during authentication.
+
 ## Secrets
 Never commit or persist in logs/UI/audit messages:
 - Settrade App Secret, PIN, access/session tokens;
