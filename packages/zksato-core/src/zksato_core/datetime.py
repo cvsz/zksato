@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, time, timedelta
-from typing import List, Optional
+from datetime import date, time
 
 import pendulum
 from pendulum import DateTime
 
-
 BANGKOK_TZ = pendulum.timezone("Asia/Bangkok")
 UTC_TZ = pendulum.timezone("UTC")
+
+# Weekday constants (Monday=0, Sunday=6)
+WEEKDAY_SATURDAY = 5
+WEEKDAY_SUNDAY = 6
 
 
 def now_bangkok() -> DateTime:
@@ -45,7 +47,10 @@ def bangkok_today() -> date:
 
 def parse_iso_datetime(value: str) -> DateTime:
     """Parse ISO 8601 datetime string."""
-    return pendulum.parse(value)
+    parsed = pendulum.parse(value)
+    if not isinstance(parsed, DateTime):
+        raise TypeError(f"Expected datetime, got {type(parsed)}")
+    return parsed
 
 
 def format_iso_datetime(dt: DateTime) -> str:
@@ -83,11 +88,11 @@ DEFAULT_TFEX_NIGHT_SESSION = MarketSession("tfex_night", time(19, 0), time(23, 5
 class MarketCalendar:
     """Market calendar with sessions and holidays."""
 
-    equity_sessions: List[MarketSession]
+    equity_sessions: list[MarketSession]
     tfex_day_session: MarketSession
     tfex_night_session: MarketSession
     holidays: set[date]
-    special_sessions: dict[date, List[MarketSession]]
+    special_sessions: dict[date, list[MarketSession]]
 
     def is_holiday(self, dt: date) -> bool:
         return dt in self.holidays
@@ -95,10 +100,10 @@ class MarketCalendar:
     def is_trading_day(self, dt: date) -> bool:
         if self.is_holiday(dt):
             return False
-        # Weekend check (Saturday=5, Sunday=6)
-        return dt.weekday() < 5
+        # Weekend check (Saturday=5, Sunday=6) - neither Saturday nor Sunday are trading days
+        return dt.weekday() < WEEKDAY_SATURDAY
 
-    def get_sessions(self, dt: date, market: str = "equity") -> List[MarketSession]:
+    def get_sessions(self, dt: date, market: str = "equity") -> list[MarketSession]:
         """Get trading sessions for a given date and market."""
         if self.is_holiday(dt) or not self.is_trading_day(dt):
             return []
@@ -117,15 +122,20 @@ class MarketCalendar:
         sessions = self.get_sessions(dt.date(), market)
         return any(s.contains(dt) for s in sessions)
 
-    def next_session_open(self, dt: DateTime, market: str = "equity") -> Optional[DateTime]:
+    def next_session_open(self, dt: DateTime, market: str = "equity") -> DateTime | None:
         """Get next session open time."""
-        if not isinstance(dt, pendulum.DateTime):
-            dt = pendulum.instance(dt)
-        current = dt
+        current = pendulum.instance(dt)
         for _ in range(10):  # Look ahead up to 10 days
             sessions = self.get_sessions(current.date(), market)
             for session in sessions:
-                open_dt = pendulum.datetime(current.year, current.month, current.day, session.start.hour, session.start.minute, tz=BANGKOK_TZ)
+                open_dt = pendulum.datetime(
+                    current.year,
+                    current.month,
+                    current.day,
+                    session.start.hour,
+                    session.start.minute,
+                    tz=BANGKOK_TZ,
+                )
                 if open_dt > current:
                     return open_dt
             current = current.add(days=1).start_of("day")
@@ -133,9 +143,9 @@ class MarketCalendar:
 
 
 def create_default_calendar(
-    equity_sessions: Optional[List[MarketSession]] = None,
-    holidays: Optional[List[date]] = None,
-    special_sessions: Optional[dict[date, List[MarketSession]]] = None,
+    equity_sessions: list[MarketSession] | None = None,
+    holidays: list[date] | None = None,
+    special_sessions: dict[date, list[MarketSession]] | None = None,
 ) -> MarketCalendar:
     """Create a default market calendar."""
     return MarketCalendar(

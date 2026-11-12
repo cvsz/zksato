@@ -3,23 +3,25 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator, Callable, Coroutine
+from concurrent.futures import Executor
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Callable, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
 
 async def gather_with_limit(
     limit: int,
-    *coros: Callable[[], Any],
+    *coros: Coroutine[None, None, object],
     return_exceptions: bool = False,
-) -> list[Any]:
+) -> list[object]:
     """Run coroutines with concurrency limit."""
     semaphore = asyncio.Semaphore(limit)
 
-    async def limited(coro: Callable[[], Any]) -> Any:
+    async def limited(coro: Coroutine[None, None, object]) -> object:
         async with semaphore:
-            return await coro()
+            return await coro
 
     return await asyncio.gather(
         *(limited(coro) for coro in coros),
@@ -29,8 +31,8 @@ async def gather_with_limit(
 
 async def run_in_executor(
     func: Callable[..., T],
-    *args: Any,
-    executor: Any = None,
+    *args: object,
+    executor: Executor | None = None,
 ) -> T:
     """Run blocking function in executor."""
     loop = asyncio.get_running_loop()
@@ -40,18 +42,13 @@ async def run_in_executor(
 @asynccontextmanager
 async def timeout(duration: float) -> AsyncGenerator[None, None]:
     """Async context manager for timeout."""
-    try:
-        yield
-    except asyncio.TimeoutError:
-        raise
-    except Exception:
-        raise
+    yield
 
 
 async def wait_for_first(
-    *tasks: asyncio.Task,
+    *tasks: asyncio.Task[object],
     timeout: float | None = None,
-) -> tuple[Any, list[asyncio.Task]]:
+) -> tuple[object, list[asyncio.Task[object]]]:
     """Wait for first task to complete, return result and pending tasks."""
     done, pending = await asyncio.wait(
         tasks,
@@ -61,10 +58,10 @@ async def wait_for_first(
     if done:
         result = done.pop().result()
         return result, list(pending)
-    raise asyncio.TimeoutError("No tasks completed within timeout")
+    raise TimeoutError("No tasks completed within timeout")
 
 
-def create_task(coro: Any, name: str | None = None) -> asyncio.Task:
+def create_task(coro: Coroutine[None, None, T], name: str | None = None) -> asyncio.Task[T]:
     """Create a task with optional name."""
     task = asyncio.create_task(coro)
     if name:
@@ -72,7 +69,7 @@ def create_task(coro: Any, name: str | None = None) -> asyncio.Task:
     return task
 
 
-async def cancel_tasks(*tasks: asyncio.Task) -> None:
+async def cancel_tasks(*tasks: asyncio.Task[object]) -> None:
     """Cancel tasks and wait for cancellation."""
     for task in tasks:
         if not task.done():

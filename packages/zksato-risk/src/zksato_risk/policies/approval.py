@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from zksato_core.models import OrderIntent, RiskContext
+from zksato_core.models import OrderIntent, RiskContext, Side
 from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
 
 
@@ -35,7 +35,9 @@ class ApprovalRequest:
     """Request for order approval."""
 
     id: UUID = field(default_factory=uuid4)
-    order_intent: OrderIntent = field(default_factory=lambda: OrderIntent(symbol="", side=Side.BUY, quantity=0))
+    order_intent: OrderIntent = field(
+        default_factory=lambda: OrderIntent(symbol="", side=Side.BUY, quantity=0)
+    )
     risk_context: RiskContext = field(default_factory=RiskContext)
     requested_by: str = ""
     requested_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -97,7 +99,9 @@ class ApprovalManager:
             risk_context=risk_context,
             requested_by=requested_by,
             approval_token=secrets.token_urlsafe(32),
-            expires_at=datetime.now(UTC).replace(second=datetime.now(UTC).second + self.approval_ttl_seconds),
+            expires_at=datetime.now(UTC).replace(
+                second=datetime.now(UTC).second + self.approval_ttl_seconds
+            ),
         )
         self.requests[request.id] = request
         return request
@@ -146,7 +150,8 @@ class ApprovalManager:
         """Remove expired requests."""
         now = datetime.now(UTC)
         expired = [
-            rid for rid, req in self.requests.items()
+            rid
+            for rid, req in self.requests.items()
             if req.expires_at and now > req.expires_at and req.status == ApprovalStatus.PENDING
         ]
         for rid in expired:
@@ -158,20 +163,22 @@ class ApprovalManager:
 
 class ConfirmationBus:
     """Confirmation bus for four-eyes approval workflow."""
-    
-    def __init__(self, manager: ApprovalManager | None = None):
+
+    def __init__(self, manager: ApprovalManager | None = None) -> None:
         self.manager = manager or ApprovalManager()
-    
-    async def request_approval(self, order_intent: Any, risk_context: Any, requested_by: str) -> Any:
+
+    async def request_approval(
+        self, order_intent: Any, risk_context: Any, requested_by: str
+    ) -> Any:
         """Request approval for an order."""
         return self.manager.create_request(order_intent, risk_context, requested_by)
-    
+
     async def wait_for_approval(self, request_id: UUID, timeout: float = 900) -> Any:
         """Wait for approval decision."""
         # Would implement waiting logic
         request = self.manager.get_request(request_id)
         return request
-    
+
     def get_status(self, request_id: UUID) -> Any:
         """Get approval status."""
         return self.manager.get_request(request_id)

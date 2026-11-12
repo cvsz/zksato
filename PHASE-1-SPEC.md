@@ -498,6 +498,7 @@ apps/api/
 **main.py**:
 ```python
 """zksato API server entry point."""
+
 from zksato_api import create_app
 from zksato_api.config import load_config
 
@@ -506,6 +507,7 @@ app = create_app(config)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=9569)
 ```
 
@@ -573,6 +575,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 import tomllib
 
+
 class BaseConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="ZKSATO_",
@@ -586,7 +589,7 @@ class BaseConfig(BaseSettings):
     database_url: str
     redis_url: str
     log_level: str = "INFO"
-    
+
     @classmethod
     def load(cls, env: str | None = None) -> "BaseConfig":
         """Load config with environment-specific overrides."""
@@ -594,7 +597,7 @@ class BaseConfig(BaseSettings):
         if env:
             config_files.append(Path(f"config/environments/{env}.toml"))
         config_files.append(Path("config/settings.local.toml"))
-        
+
         # Merge TOML files, then apply env vars
         data = {}
         for f in config_files:
