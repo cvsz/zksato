@@ -3,106 +3,77 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "zksato"
-version = "1.0.1"
-description = "Risk-first automated trading platform and dashboard for SET / TFEX"
-readme = "README.md"
+name = "zksato-workspace"
+version = "2.0.0-dev"
+description = "zksato modular monorepo workspace"
 requires-python = ">=3.11"
-dependencies = [
-  "fastapi>=0.116,<1.0",
-  "httpx>=0.28,<1.0",
-  "numpy>=1.26,<3.0",
-  "pandas>=2.2,<3.0",
-  "optuna>=3.0,<4.0",
-  "prometheus-client>=0.22,<1.0",
-  "psycopg[binary]>=3.2,<4.0",
-  "pydantic>=2.10,<3.0",
-  "pydantic-settings>=2.7,<3.0",
-  "redis>=5.2,<9.0",
-  "sqlalchemy>=2.0,<3.0",
-  "uvicorn[standard]>=0.34,<1.0",
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/*",
+    "apps/*",
 ]
 
-[project.optional-dependencies]
-dev = [
-  "hypothesis>=6.160,<7.0",
-  "pytest>=9.0.3,<10.0",
-  "pytest-asyncio>=1.4,<2.0",
-  "pytest-cov>=7.1,<8.0",
-  "ruff==0.16.6",
-]
-quality = [
-  "build>=1.5,<2.0",
-  "hadolint-coatl==2.15.1",
-  "mypy>=2.3,<3.0",
-  "pip-licenses>=5.5.5,<6.0",
-  "twine>=6.2,<8.0",
-  "yamllint>=1.38,<2.0",
-  "zizmor==1.30.0",
-]
-security = [
-  "bandit>=1.8,<2.0",
-  "pip-audit>=2.8,<3.0",
-]
-settrade = [
-  "settrade-v2==2.2.1",
-]
-ccxt = [
-  "ccxt>=4.3,<5.0",
-]
-prediction = [
-  "xgboost>=2.0,<4.0",
-  "scikit-learn>=1.5,<2.0",
-]
-observability = [
-  "opentelemetry-api>=1.35,<2.0",
-  "opentelemetry-sdk>=1.35,<2.0",
-  "opentelemetry-exporter-otlp-proto-http>=1.35,<2.0",
-]
+[tool.uv.sources]
+zksato-core = { workspace = true }
+zksato-risk = { workspace = true }
+zksato-market = { workspace = true }
+zksato-broker = { workspace = true }
+zksato-strategy = { workspace = true }
+zksato-portfolio = { workspace = true }
+zksato-automation = { workspace = true }
+zksato-api = { workspace = true }
+zksato-cli = { workspace = true }
+zksato-test-utils = { workspace = true }
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/zksato"]
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "ARG", "PTH", "ERA", "PL", "TRY", "TID", "NPY", "PERF", "RUF", "UP"]
+ignore = ["ANN101", "ANN102", "ARG001", "ARG002", "PTH118", "ERA001", "PLW0603", "TRY003", "TID252", "NPY002"]
 
-[tool.pytest.ini_options]
-addopts = "-q"
-pythonpath = [".", "src"]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-markers = [
-  "performance: load/performance tests excluded from normal CI",
-  "uat: requires broker-provided UAT credentials",
-]
-
-[tool.coverage.run]
-branch = true
-source = ["zksato"]
-
-[tool.coverage.report]
-fail_under = 65
-show_missing = true
-skip_covered = true
-exclude_lines = [
-  "pragma: no cover",
-  "if TYPE_CHECKING:",
-  "if __name__ == .__main__.:",
-]
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/zksato", "scripts"]
-check_untyped_defs = true
-ignore_missing_imports = true
-no_implicit_optional = true
+strict = true
 warn_redundant_casts = true
 warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
 show_error_codes = true
 pretty = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+enable_error_code = ["ignore-without-code"]
 
-[tool.ruff]
-target-version = "py311"
-line-length = 100
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --strict-config"
+pythonpath = ["."]
+testpaths = ["tests", "packages/*/tests", "apps/*/tests"]
+asyncio_mode = "auto"
+markers = [
+    "performance: load/performance tests excluded from normal CI",
+    "uat: requires broker-provided UAT credentials",
+    "integration: requires external services",
+    "eval: evaluation/benchmark tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+[tool.coverage.run]
+branch = true
+source = ["packages", "apps"]
+parallel = true
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = true
