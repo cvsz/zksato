@@ -210,6 +210,41 @@ All 10 AGENTS.md invariants remain fully enforced:
 |----------|-------------|------------|
 | `ema_cross` | EMA Cross — buys on fast EMA cross above slow EMA | `buy_ema_fast`, `buy_ema_slow`, `sell_ema_fast`, `sell_ema_slow` |
 | `rsi_reversion` | RSI Reversion — buys oversold, sells overbought | `buy_rsi`, `sell_rsi`, `rsi_period` |
+| `macd_cross` | MACD Cross — buys on MACD/signal crossover | `buy_ema_fast`, `buy_ema_slow`, `sell_ema_fast`, `sell_ema_slow` |
+| `bollinger_reversion` | Bollinger Band Reversion — buys at lower band, sells at upper band | `bb_period`, `bb_deviation` |
+| `stochastic_oscillator` | Stochastic Oscillator — buys when %K crosses above %D in oversold | `k_period`, `d_period`, `oversold`, `overbought` |
+| `williams_r` | Williams %R — buys when %R crosses above -80, sells below -20 | `period` |
+| `atr_channel` | ATR Channel — buys at lower channel, sells at upper channel | `atr_period`, `atr_multiplier` |
+| `momentum` | Momentum — buys on ROC above zero, sells below zero | `momentum_period`, `momentum_buy_threshold`, `momentum_sell_threshold` |
+| `breakout` | Breakout — buys on breakout above N-bar high, sells below N-bar low | `breakout_lookback`, `breakout_buffer_pct` |
+| `scalp` | Scalp — quick trades on RSI extremes with tight risk controls | `scalp_rsi_period`, `scalp_rsi_oversold`, `scalp_rsi_overbought` |
+| `swing` | Swing — trend following using fast/slow EMA crossovers | `swing_fast_period`, `swing_slow_period` |
+| `position` | Position — long-term trend following with SMA and ADX confirmation | `position_fast_sma`, `position_slow_sma`, `position_adx_threshold` |
+| `vwap` | VWAP — mean reversion around volume-weighted average price | `vwap_period`, `vwap_deviation_pct` |
+| `llm_sentiment` | LLM Sentiment — advisory-only based on LLM sentiment signals | `sentiment_buy_threshold`, `sentiment_sell_threshold` |
+| `multi_factor` | Multi-Factor — combines RSI, EMA trend, and volume confirmation | `mf_rsi_period`, `mf_rsi_oversold`, `mf_rsi_overbought`, `mf_ema_fast`, `mf_ema_slow`, `mf_volume_multiplier` |
+| `tfex_spread` | TFEX Spread — trades futures spread, SET/TFEX domain separated | `tfex_spread_period`, `tfex_spread_buy_threshold`, `tfex_spread_sell_threshold` |
+
+---
+
+### Audit & Infrastructure (2026-11-12)
+
+| Area | Description | PR |
+|------|-------------|-----|
+| Hyperopt Loss Functions | Fixed `.get()` → `getattr()` on `BacktestSummaryMetrics` dataclass objects in all 8 loss functions | #87 |
+| Strategy Circular Reference | Fixed `_collect_hyperopt_params` to skip `hyperopt_params` property during `__init__` | #87 |
+| Production-Readiness Docs | Added `docs/ZKSATO-MASTER-001.md` (master engineering prompt) and `docs/ZKSATO-ROADMAP.md` (prioritized roadmap) | #88 |
+| Infrastructure Provisioning | Added `scripts/provision_zksato_infra.sh` for PostgreSQL/Redis provisioning | #88 |
+| MCP Configuration | Added `.mcp.example.json` for Postgres MCP server | #88 |
+| 9 New Strategies | Momentum, Breakout, Scalp, Swing, Position, VWAP, LLM Sentiment, Multi-Factor, TFEX Spread (16 total) | #89 |
+| 3 New Protections | VolatilityProtection, TimeBasedProtection, ConsecutiveLossProtection (6 total) | #89 |
+| 3 New Pairlists | MomentumPairList, VolatilityPairList, SectorDiversifiedPairList (6 total) | #89 |
+| Agent Rate Limiting | Per-agent `AgentRateLimiter` with in-memory and Redis coordination | #89 |
+| Agent Sessions | `create_session`, `get_session`, `expire_session`, `list_sessions` on `AgentService` | #89 |
+| Freqtrade API Wiring | Wired all new strategies, protections, pairlists into `/v1/freqtrade/*` endpoints | #90 |
+| Agent Session Endpoints | `POST/GET/DELETE /v1/freqtrade/agents/session*`, rate-limit status endpoint | #90 |
+| API Key Admin | `GET/POST/GET/DELETE /v1/admin/api-keys*` with SHA-256 hash storage | #91 |
+| API Key Tests | 8 unit tests covering create, auth, revoke, expiry, usage tracking | #91 |
 
 ---
 
@@ -309,6 +344,19 @@ All pull requests in repository history have been audited, resolved, and merged 
 | **#72** | `feat(freqtrade): integrate Freqtrade-inspired strategy framework, hyperopt, backtesting, protections, pairlist, LLM clients` | `cvsz` | `policedbc` | Squash-Merged | `6565646` |
 | **#73** | `feat(freqtrade): refactor strategy framework with entry/exit tags, position stacking, order expiration, market regime detection` | `cvsz` | `cvsz` | Squash-Merged | `3e19d97` |
 | **#74** | `feat(agent-os): add agent-native trading platform layer` | `cvsz` | `policedbc` | Squash-Merged | `131416f` |
+| **#75** | `feat(agent-os): add agent-native trading platform layer with social preview meta tags` | `cvsz` | `policedbc` | Squash-Merged | `eb10a38` |
+| **#76** | `feat(strategy): add MACD cross strategy` | `cvsz` | `policedbc` | Squash-Merged | — |
+| **#78** | `feat(strategy): add Bollinger Band Reversion strategy` | `cvsz` | `policedbc` | Squash-Merged | — |
+| **#80** | `feat(strategy): add Stochastic Oscillator strategy` | `cvsz` | `policedbc` | Squash-Merged | — |
+| **#82** | `feat(strategy): add Williams %R strategy` | `cvsz` | `policedbc` | Squash-Merged | — |
+| **#84** | `feat(strategy): add ATR Channel strategy` | `cvsz` | `policedbc` | Squash-Merged | — |
+| **#85** | `docs(checklist): mark ATR Channel strategy as implemented` | `cvsz` | `policedbc` | Squash-Merged | `7a49072` |
+| **#86** | `feat(strategy): add ATR Channel strategy` | `cvsz` | `policedbc` | Squash-Merged | `a7c4a2e` |
+| **#87** | `fix(hyperopt): fix loss functions, strategy circular ref, and test imports` | `cvsz` | `policedbc` | Squash-Merged | `191963f` |
+| **#88** | `docs(infra): commit production-readiness documentation and provisioning scripts` | `cvsz` | `policedbc` | Squash-Merged | `29d419e` |
+| **#89** | `feat(roadmap): implement immediate steps 1.1-1.7 - strategies, protections, pairlists, rate limiting, agent sessions` | `cvsz` | `policedbc` | Squash-Merged | `a34665c` |
+| **#90** | `feat(api): wire new strategies, protections, pairlists, rate limiting, agent sessions into freqtrade API` | `cvsz` | `policedbc` | Squash-Merged | `d1526fe` |
+| **#91** | `feat(auth): add API key admin management with CRUD endpoints` | `cvsz` | `policedbc` | Squash-Merged | `88693f7` |
 
 ---
 
@@ -347,7 +395,7 @@ The **zksato** platform has completed all repository-level implementation, vulne
 - **Enterprise Grade**: Verified.
 - **Production-Ready**: Verified.
 - **Financial Risk Invariants**: Enforced & Formally Tested.
-- **Test Suite**: 361/361 passing.
+- **Test Suite**: 381 passed, 1 skipped.
 - **All Pull Requests**: Resolved & Merged.
 
 ---

@@ -196,6 +196,9 @@ Machine clients can use `X-API-Key` or Bearer credentials. Browsers can exchange
 - Operations: `/v1/alerts`
 - Production readiness: `/v1/production/*`
 - TFEX: `/v1/tfex/*`
+- Freqtrade strategies/protections/pairlists/hyperopt: `/v1/freqtrade/*`
+- Agent sessions: `/v1/freqtrade/agents/session*`
+- API key admin: `/v1/admin/api-keys*`
 
 `/openapi.json` is authoritative for the running revision.
 
@@ -210,6 +213,17 @@ Key governance files:
 - [`GOVERNANCE.md`](GOVERNANCE.md) — decision/approval model
 - [`MAINTAINERS.md`](MAINTAINERS.md) — maintainer responsibilities
 - [`SUPPORT.md`](SUPPORT.md) — support and reporting routes
+
+## API Key Administration
+
+When `ZKSATO_AUTH_REQUIRED=true`, platform administrators can manage API keys through:
+
+- `GET /v1/admin/api-keys` — list all API keys (metadata only, raw values never exposed)
+- `POST /v1/admin/api-keys` — create a new API key (raw key returned once only)
+- `GET /v1/admin/api-keys/{key_id}` — get key metadata by ID
+- `DELETE /v1/admin/api-keys/{key_id}` — revoke (deactivate) an API key
+
+API keys are stored as SHA-256 hashes only; the raw key value is never persisted and is shown only at creation time.
 
 GitHub-specific issue/PR forms, CODEOWNERS, Dependabot, instructions, and workflow controls live in `.github/`.
 
