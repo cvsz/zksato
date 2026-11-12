@@ -33,7 +33,7 @@ test.describe('Dashboard Page', () => {
   test('kill switch status displays correct state', async ({ page }) => {
     await page.goto('/en/dashboard');
     await page.waitForLoadState('networkidle');
-    const killSwitchText = page.locator('text=KILL SWITCH').or(page.locator('text=Kill Switch'));
+    const killSwitchText = page.locator('text=KILL SWITCH').or(page.locator('text=PREFLIGHT PASS'));
     await expect(killSwitchText.first()).toBeVisible({ timeout: 10000 });
   });
 

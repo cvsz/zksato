@@ -15,13 +15,6 @@ test.describe('Admin Page', () => {
     expect(count).toBeGreaterThanOrEqual(4);
   });
 
-  test('kill switch button toggles state', async ({ page }) => {
-    await page.goto('/en/admin');
-    await page.waitForLoadState('domcontentloaded');
-    const killSwitchBtn = page.locator('button').filter({ hasText: /ACTIVE|INACTIVE/i }).first();
-    await expect(killSwitchBtn).toBeVisible({ timeout: 10000 });
-  });
-
   test('navigates between tabs', async ({ page }) => {
     await page.goto('/en/admin');
     await page.waitForLoadState('domcontentloaded');

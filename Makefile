@@ -24,7 +24,9 @@
         env-check \
         github-health \
         clean \
-        ci ci-full
+        ci ci-full \
+        all start-all stop-all start-backend stop-backend start-frontend stop-frontend \
+        start-dashboard stop-dashboard all-features all-services health-check-all
 
 # ─── colour helpers ─────────────────────────────────────────
 BOLD  := \033[1m
@@ -32,6 +34,7 @@ RESET := \033[0m
 GREEN := \033[32m
 CYAN  := \033[36m
 YELLOW := \033[33m
+RED    := \033[31m
 
 # ─── env defaults ───────────────────────────────────────────
 ZKSATO_TRADING_MODE ?= paper
@@ -102,7 +105,99 @@ help:
 	@printf '\n$(BOLD)CI gates$(RESET)\n'
 	@printf '  $(GREEN)ci$(RESET)                  Standard CI: lint + format-check + type + coverage + contract + package + compose\n'
 	@printf '  $(GREEN)ci-full$(RESET)              ci + security + resilience + docker + env-check\n'
+	@printf '\n$(BOLD)All-in-one$(RESET)\n'
+	@printf '  $(GREEN)all$(RESET)                  Full validation + start all services (install-all → start-all)\n'
+	@printf '  $(GREEN)start-all$(RESET)            Start backend + frontend + dashboard in background\n'
+	@printf '  $(GREEN)stop-all$(RESET)             Stop all services started by start-all\n'
+	@printf '  $(GREEN)start-backend$(RESET)        Start uvicorn API on :9569\n'
+	@printf '  $(GREEN)stop-backend$(RESET)         Stop uvicorn API\n'
+	@printf '  $(GREEN)start-frontend$(RESET)       Start Next.js dev server on :3016\n'
+	@printf '  $(GREEN)stop-frontend$(RESET)        Stop Next.js dev server\n'
+	@printf '  $(GREEN)start-dashboard$(RESET)      Start Vite dashboard on :5173\n'
+	@printf '  $(GREEN)stop-dashboard$(RESET)       Stop Vite dashboard\n'
+	@printf '  $(GREEN)all-features$(RESET)         Install every optional extra (install-all)\n'
+	@printf '  $(GREEN)all-services$(RESET)         Alias for start-all\n'
+	@printf '  $(GREEN)health-check-all$(RESET)     Curl /readyz + frontend + dashboard ports\n'
 	@printf '\n'
+
+# ============================================================
+# ALL-IN-ONE — single-command start/stop of everything
+# ============================================================
+
+all: install-all lint format-check type coverage contract package compose security resilience start-all
+
+all-features: install-all
+
+all-services: start-backend start-frontend start-dashboard
+
+start-backend:
+	@printf '$(CYAN)Starting zksato backend (uvicorn :9569)…$(RESET)\n'
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	ZKSATO_TRADING_MODE=paper $(PYTHON) -m uvicorn zksato.api:app --host 127.0.0.1 --port 9569 --reload & \
+	echo $$! > /tmp/zksato-backend.pid
+	@printf '$(GREEN)Backend PID $$(cat /tmp/zksato-backend.pid) — http://127.0.0.1:9569$(RESET)\n'
+
+stop-backend:
+	@if [ -f /tmp/zksato-backend.pid ]; then \
+		kill $$(cat /tmp/zksato-backend.pid) 2>/dev/null && \
+		rm -f /tmp/zksato-backend.pid && \
+		printf '$(GREEN)Backend stopped$(RESET)\n'; \
+	else \
+		printf '$(YELLOW)No backend PID file found$(RESET)\n'; \
+	fi
+
+start-frontend:
+	@printf '$(CYAN)Starting Next.js frontend (:3016)…$(RESET)\n'
+	@cd frontend && npm run dev & \
+	echo $$! > /tmp/zksato-frontend.pid
+	@printf '$(GREEN)Frontend PID $$(cat /tmp/zksato-frontend.pid) — http://127.0.0.1:3016$(RESET)\n'
+
+stop-frontend:
+	@if [ -f /tmp/zksato-frontend.pid ]; then \
+		kill $$(cat /tmp/zksato-frontend.pid) 2>/dev/null && \
+		rm -f /tmp/zksato-frontend.pid && \
+		printf '$(GREEN)Frontend stopped$(RESET)\n'; \
+	else \
+		printf '$(YELLOW)No frontend PID file found$(RESET)\n'; \
+	fi
+
+start-dashboard:
+	@printf '$(CYAN)Starting Vite dashboard (:5173)…$(RESET)\n'
+	@cd dashboard && npm run dev & \
+	echo $$! > /tmp/zksato-dashboard.pid
+	@printf '$(GREEN)Dashboard PID $$(cat /tmp/zksato-dashboard.pid) — http://127.0.0.1:5173$(RESET)\n'
+
+stop-dashboard:
+	@if [ -f /tmp/zksato-dashboard.pid ]; then \
+		kill $$(cat /tmp/zksato-dashboard.pid) 2>/dev/null && \
+		rm -f /tmp/zksato-dashboard.pid && \
+		printf '$(GREEN)Dashboard stopped$(RESET)\n'; \
+	else \
+		printf '$(YELLOW)No dashboard PID file found$(RESET)\n'; \
+	fi
+
+start-all: start-backend start-frontend start-dashboard
+	@printf '$(CYAN)Waiting 3s for services to bind…$(RESET)\n'
+	@sleep 3
+	@printf '$(GREEN)All services started. PIDs saved to /tmp/zksato-*.pid$(RESET)\n'
+	@printf '  Backend  : http://127.0.0.1:9569  (API docs: /docs, health: /readyz)$(RESET)\n'
+	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
+	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
+
+stop-all: stop-backend stop-frontend stop-dashboard
+	@printf '$(GREEN)All services stopped.$(RESET)\n'
+
+health-check-all:
+	@printf '$(CYAN)Health-checking all services…$(RESET)\n'
+	@curl -fsS http://127.0.0.1:9569/readyz > /dev/null 2>&1 && \
+		printf '  Backend  : $(GREEN)OK$(RESET)\n' || \
+		printf '  Backend  : $(RED)DOWN$(RESET)\n'
+	@curl -fsS http://127.0.0.1:3016 > /dev/null 2>&1 && \
+		printf '  Frontend : $(GREEN)OK$(RESET)\n' || \
+		printf '  Frontend : $(RED)DOWN$(RESET)\n'
+	@curl -fsS http://127.0.0.1:5173 > /dev/null 2>&1 && \
+		printf '  Dashboard: $(GREEN)OK$(RESET)\n' || \
+		printf '  Dashboard: $(RED)DOWN$(RESET)\n'
 
 # ============================================================
 # INSTALL
