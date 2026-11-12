@@ -354,9 +354,24 @@ class EnhancedBacktester:
         trade_id = 0
         pending_orders: list[dict[str, Any]] = []
 
-        for i, (_, row) in enumerate(df.iterrows()):
-            current_time = row["date"]
-            current_price = row["close"]
+        # Pre-extract columns as arrays for fast index-based access
+        # (avoids the per-row Series allocation overhead of df.iterrows())
+        dates = df["date"].to_numpy()
+        closes = df["close"].to_numpy()
+        enter_longs = df.get("enter_long", pd.Series([0] * len(df))).to_numpy()
+        enter_shorts = df.get("enter_short", pd.Series([0] * len(df))).to_numpy()
+        exit_longs = df.get("exit_long", pd.Series([0] * len(df))).to_numpy()
+        exit_shorts = df.get("exit_short", pd.Series([0] * len(df))).to_numpy()
+        stop_losses = df.get("stop_loss", pd.Series([None] * len(df))).to_numpy()
+        take_profits = df.get("take_profit", pd.Series([None] * len(df))).to_numpy()
+        enter_tags = df.get("enter_tag", pd.Series([""] * len(df))).to_numpy()
+        exit_tags = df.get("exit_tag", pd.Series([""] * len(df))).to_numpy()
+        market_regimes = df.get("market_regime", pd.Series([""] * len(df))).to_numpy()
+
+        n = len(dates)
+        for i in range(n):
+            current_time = dates[i]
+            current_price = closes[i]
 
             # Expire pending orders
             expired_orders = []
@@ -393,7 +408,14 @@ class EnhancedBacktester:
 
             # Exit checks
             if position is not None:
-                exit_reason = self._check_exit(position, row, df)
+                exit_reason = self._check_exit_array(
+                    position,
+                    current_price,
+                    enter_longs[i],
+                    enter_shorts[i],
+                    exit_longs[i],
+                    exit_shorts[i],
+                )
                 if exit_reason:
                     exit_price = current_price
                     exit_price *= (
@@ -421,7 +443,7 @@ class EnhancedBacktester:
                             side=position["side"],
                             exit_reason=exit_reason,
                             entry_tag=position.get("entry_tag", ""),
-                            exit_tag=row.get("exit_tag", ""),
+                            exit_tag=str(exit_tags[i]),
                             position_size_pct=position.get("position_size_pct", 0.0),
                             market_regime=position.get("market_regime", ""),
                             position_adjustments=position.get("position_adjustments", 0),
@@ -432,23 +454,40 @@ class EnhancedBacktester:
 
             # Entry checks
             if position is None:
-                if row.get("enter_long", 0) == 1:
-                    position = self._open_position(
-                        trade_id, symbol, "long", current_time, current_price, row
+                if enter_longs[i] == 1:
+                    position = self._open_position_array(
+                        trade_id,
+                        symbol,
+                        "long",
+                        current_time,
+                        current_price,
+                        str(enter_tags[i]),
+                        str(market_regimes[i]),
+                        stop_losses[i],
+                        take_profits[i],
                     )
                     position["entry_candle_index"] = i
                     trade_id += 1
-                elif row.get("enter_short", 0) == 1:
-                    position = self._open_position(
-                        trade_id, symbol, "short", current_time, current_price, row
+                elif enter_shorts[i] == 1:
+                    position = self._open_position_array(
+                        trade_id,
+                        symbol,
+                        "short",
+                        current_time,
+                        current_price,
+                        str(enter_tags[i]),
+                        str(market_regimes[i]),
+                        stop_losses[i],
+                        take_profits[i],
                     )
                     position["entry_candle_index"] = i
                     trade_id += 1
 
         # Close remaining position at end
         if position is not None:
-            last_row = df.iloc[-1]
-            exit_price = last_row["close"]
+            last_price = closes[-1]
+            last_time = dates[-1]
+            exit_price = last_price
             exit_price *= (
                 1 - self.slippage_pct / 100
                 if position["side"] == "long"
@@ -459,8 +498,8 @@ class EnhancedBacktester:
                 TradeMetrics(
                     pair=symbol,
                     entry_time=position["entry_time"],
-                    exit_time=last_row["date"],
-                    duration_seconds=(last_row["date"] - position["entry_time"]).total_seconds(),
+                    exit_time=last_time,
+                    duration_seconds=(last_time - position["entry_time"]).total_seconds(),
                     profit_abs=profit_abs,
                     profit_pct=profit_pct,
                     entry_price=position["entry_price"],
@@ -470,7 +509,7 @@ class EnhancedBacktester:
                     side=position["side"],
                     exit_reason=ExitReason.FORCE_EXIT,
                     entry_tag=position.get("entry_tag", ""),
-                    exit_tag=last_row.get("exit_tag", ""),
+                    exit_tag=str(exit_tags[-1]),
                     position_size_pct=position.get("position_size_pct", 0.0),
                     market_regime=position.get("market_regime", ""),
                     position_adjustments=position.get("position_adjustments", 0),
@@ -509,6 +548,40 @@ class EnhancedBacktester:
             "market_regime": row.get("market_regime", ""),
         }
 
+    def _open_position_array(
+        self,
+        trade_id: int,
+        symbol: str,
+        side: str,
+        entry_time: Any,
+        entry_price: float,
+        entry_tag: str,
+        market_regime: str,
+        stop_loss: Any,
+        take_profit: Any,
+    ) -> dict[str, Any]:
+        """Array-based position open — avoids row Series allocation."""
+        amount = self.initial_cash * 0.1
+        fee_abs = amount * self.commission_pct / 100
+        entry_price *= (
+            1 + self.slippage_pct / 100 if side == "long" else 1 - self.slippage_pct / 100
+        )
+        return {
+            "trade_id": trade_id,
+            "symbol": symbol,
+            "side": side,
+            "entry_time": entry_time,
+            "entry_price": entry_price,
+            "amount": amount,
+            "fee_abs": fee_abs,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "entry_tag": entry_tag,
+            "position_size_pct": 10.0,
+            "position_adjustments": 0,
+            "market_regime": market_regime,
+        }
+
     def _check_exit(
         self,
         position: dict[str, Any],
@@ -520,6 +593,37 @@ class EnhancedBacktester:
         if position["side"] == "long" and row.get("exit_long", 0) == 1:
             return ExitReason.EXIT_SIGNAL
         if position["side"] == "short" and row.get("exit_short", 0) == 1:
+            return ExitReason.EXIT_SIGNAL
+
+        stop_loss = position.get("stop_loss")
+        if stop_loss is not None:
+            if position["side"] == "long" and current_price <= stop_loss:
+                return ExitReason.STOP_LOSS
+            if position["side"] == "short" and current_price >= stop_loss:
+                return ExitReason.STOP_LOSS
+
+        take_profit = position.get("take_profit")
+        if take_profit is not None:
+            if position["side"] == "long" and current_price >= take_profit:
+                return ExitReason.ROI
+            if position["side"] == "short" and current_price <= take_profit:
+                return ExitReason.ROI
+
+        return None
+
+    def _check_exit_array(
+        self,
+        position: dict[str, Any],
+        current_price: float,
+        enter_long: Any,
+        enter_short: Any,
+        exit_long: Any,
+        exit_short: Any,
+    ) -> str | None:
+        """Array-based exit check — avoids row Series allocation."""
+        if position["side"] == "long" and exit_long == 1:
+            return ExitReason.EXIT_SIGNAL
+        if position["side"] == "short" and exit_short == 1:
             return ExitReason.EXIT_SIGNAL
 
         stop_loss = position.get("stop_loss")
