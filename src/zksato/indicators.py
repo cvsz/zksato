@@ -195,9 +195,7 @@ def rsi_series(values: list[float], period: int = 14) -> list[float]:
     for i in range(period, len(gains)):
         avg_gain = (avg_gain * (period - 1) + gains[i]) / period
         avg_loss = (avg_loss * (period - 1) + losses[i]) / period
-        result.append(
-            100.0 if avg_loss == 0 else 100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
-        )
+        result.append(100.0 if avg_loss == 0 else 100.0 - (100.0 / (1.0 + avg_gain / avg_loss)))
 
     return [float("nan")] * period + result
 
@@ -400,7 +398,7 @@ def t3(values: list[float], period: int = 10, v_factor: float = 0.7) -> float | 
     e4 = np.array(ema_series(e3.tolist(), period))
     e5 = np.array(ema_series(e4.tolist(), period))
     e6 = np.array(ema_series(e5.tolist(), period))
-    c1 = -v_factor**3
+    c1 = -(v_factor**3)
     c2 = 3 * v_factor**2 + 3 * v_factor**3
     c3 = -6 * v_factor**2 - 3 * v_factor - 3 * v_factor**3
     c4 = 1 + 3 * v_factor + 3 * v_factor**2 + 3 * v_factor**3
@@ -419,7 +417,7 @@ def t3_series(values: list[float], period: int = 10, v_factor: float = 0.7) -> l
     e4 = np.array(ema_series(e3.tolist(), period))
     e5 = np.array(ema_series(e4.tolist(), period))
     e6 = np.array(ema_series(e5.tolist(), period))
-    c1 = -v_factor**3
+    c1 = -(v_factor**3)
     c2 = 3 * v_factor**2 + 3 * v_factor**3
     c3 = -6 * v_factor**2 - 3 * v_factor - 3 * v_factor**3
     c4 = 1 + 3 * v_factor + 3 * v_factor**2 + 3 * v_factor**3
@@ -434,9 +432,7 @@ def vwap(candles: list[Candle], period: int | None = None) -> float | None:
     total_volume = sum(item.volume for item in window)
     if not window or total_volume <= 0:
         return None
-    typical = np.array(
-        [(c.high + c.low + c.close) / 3.0 for c in window], dtype=np.float64
-    )
+    typical = np.array([(c.high + c.low + c.close) / 3.0 for c in window], dtype=np.float64)
     vols = np.array([c.volume for c in window], dtype=np.float64)
     return float(np.sum(typical * vols) / np.sum(vols))
 
@@ -445,9 +441,7 @@ def vwap_series(candles: list[Candle], period: int | None = None) -> list[float]
     if not candles:
         return []
     window = candles[-period:] if period else candles
-    typicals = np.array(
-        [(c.high + c.low + c.close) / 3.0 for c in window], dtype=np.float64
-    )
+    typicals = np.array([(c.high + c.low + c.close) / 3.0 for c in window], dtype=np.float64)
     vols = np.array([c.volume for c in window], dtype=np.float64)
     cum_typical_vol = np.cumsum(typicals * vols)
     cum_vol = np.cumsum(vols)
@@ -491,9 +485,7 @@ def adx(candles: list[Candle], period: int = 14) -> float | None:
         plus_di = 100 * smooth_plus / smooth_tr
         minus_di = 100 * smooth_minus / smooth_tr
         denominator = plus_di + minus_di
-        dx_values.append(
-            0.0 if denominator == 0 else 100.0 * abs(plus_di - minus_di) / denominator
-        )
+        dx_values.append(0.0 if denominator == 0 else 100.0 * abs(plus_di - minus_di) / denominator)
 
     if len(dx_values) < period:
         return None
@@ -591,12 +583,8 @@ def mfi(candles: list[Candle], period: int = 14) -> float | None:
     _, highs, lows, closes, volumes = _ohlcv(candles)
     typical = (highs + lows + closes) / 3.0
     money_flow = typical * volumes
-    positive_flow = np.where(
-        closes[1:] > closes[:-1], money_flow[1:], 0.0
-    )
-    negative_flow = np.where(
-        closes[1:] < closes[:-1], money_flow[1:], 0.0
-    )
+    positive_flow = np.where(closes[1:] > closes[:-1], money_flow[1:], 0.0)
+    negative_flow = np.where(closes[1:] < closes[:-1], money_flow[1:], 0.0)
     if len(positive_flow) < period:
         return None
     pos_sum = np.sum(positive_flow[-period:])
