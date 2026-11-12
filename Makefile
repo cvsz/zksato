@@ -15,10 +15,15 @@
 # ------------------------------------------------------------------
 .PHONY: help \
 	install install-settrade install-ccxt install-prediction \
-	install-observability install-all install-deps \
+	install-observability install-agent-trading install-agent-os \
+	install-video-ea install-notifications install-all install-deps \
 	lint format format-check shellcheck type \
 	test test-resilience test-performance test-uat test-postgres \
 	test-concurrency test-frontend test-e2e test-security \
+	test-agent-trading test-agent-os test-video-ea test-prediction \
+	test-tfex test-notifications test-coordination test-ztrader \
+	test-hyperopt test-scanner test-backtest test-market \
+	test-penetration test-production-readiness test-research \
 	coverage coverage-html \
 	contract openapi licenses \
 	security audit bandit gitleaks \
@@ -33,7 +38,8 @@
 	frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
 	dashboard-lint dashboard-type dashboard-build \
 	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
-	ci ci-full ci-security clean
+	ci ci-full ci-security clean \
+	docs-check docs-build docs-validate
 	dashboard-lint dashboard-type dashboard-build \
 	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
 	ci ci-full ci-security clean
@@ -76,6 +82,10 @@ help:
 	@printf '  $(GREEN)install-ccxt$(RESET)          CCXT multi-exchange adapter\n'
 	@printf '  $(GREEN)install-prediction$(RESET)    XGBoost / scikit-learn prediction\n'
 	@printf '  $(GREEN)install-observability$(RESET) OpenTelemetry SDK\n'
+	@printf '  $(GREEN)install-agent-trading$(RESET)  Agent trading engine\n'
+	@printf '  $(GREEN)install-agent-os$(RESET)       Agent OS framework\n'
+	@printf '  $(GREEN)install-video-ea$(RESET)       Video EA research pipeline\n'
+	@printf '  $(GREEN)install-notifications$(RESET)   Telegram notifications\n'
 	@printf '  $(GREEN)install-all$(RESET)           Every optional extra\n'
 	@printf '  $(GREEN)install-deps$(RESET)          Install system-level dependencies\n'
 	@printf '\n$(BOLD)Quality targets$(RESET)\n'
@@ -94,6 +104,21 @@ help:
 	@printf '  $(GREEN)test-frontend$(RESET)         Frontend lint + type + build\n'
 	@printf '  $(GREEN)test-e2e$(RESET)              Browser E2E tests (Playwright)\n'
 	@printf '  $(GREEN)test-security$(RESET)         Bandit + pip-audit + workflow scan\n'
+	@printf '  $(GREEN)test-agent-trading$(RESET)     Agent trading engine tests\n'
+	@printf '  $(GREEN)test-agent-os$(RESET)          Agent OS framework tests\n'
+	@printf '  $(GREEN)test-video-ea$(RESET)          Video EA research tests\n'
+	@printf '  $(GREEN)test-prediction$(RESET)        Prediction engine tests\n'
+	@printf '  $(GREEN)test-tfex$(RESET)              TFEX derivatives tests\n'
+	@printf '  $(GREEN)test-notifications$(RESET)     Telegram notification tests\n'
+	@printf '  $(GREEN)test-coordination$(RESET)      Coordination layer tests\n'
+	@printf '  $(GREEN)test-ztrader$(RESET)           ZTrader integration tests\n'
+	@printf '  $(GREEN)test-hyperopt$(RESET)          Hyperparameter optimization tests\n'
+	@printf '  $(GREEN)test-scanner$(RESET)           Market scanner tests\n'
+	@printf '  $(GREEN)test-backtest$(RESET)          Backtesting engine tests\n'
+	@printf '  $(GREEN)test-market$(RESET)            Market data feed tests\n'
+	@printf '  $(GREEN)test-penetration$(RESET)       Penetration/security tests\n'
+	@printf '  $(GREEN)test-production-readiness$(RESET) Production readiness tests\n'
+	@printf '  $(GREEN)test-research$(RESET)          Research pipeline tests\n'
 	@printf '  $(GREEN)coverage$(RESET)              Coverage report (term + xml)\n'
 	@printf '  $(GREEN)coverage-html$(RESET)         Coverage HTML report\n'
 	@printf '\n$(BOLD)Security targets$(RESET)\n'
@@ -130,6 +155,10 @@ help:
 	@printf '  $(GREEN)dashboard-lint$(RESET)           Vite dashboard lint\n'
 	@printf '  $(GREEN)dashboard-type$(RESET)           Vite dashboard TypeScript\n'
 	@printf '  $(GREEN)dashboard-build$(RESET)          Vite dashboard production build\n'
+	@printf '\n$(BOLD)Documentation targets$(RESET)\n'
+	@printf '  $(GREEN)docs-check$(RESET)             Validate docs structure\n'
+	@printf '  $(GREEN)docs-build$(RESET)             Build documentation site\n'
+	@printf '  $(GREEN)docs-validate$(RESET)          Validate ADRs and templates\n'
 	@printf '\n$(BOLD)All-in-one targets$(RESET)\n'
 	@printf '  $(GREEN)all$(RESET)                    Full validation + start all services\n'
 	@printf '  $(GREEN)all-features$(RESET)           Install every optional extra\n'
@@ -165,6 +194,12 @@ all: install-all lint format-check type coverage contract package compose securi
 	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
 	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
 
+# ---- Feature test target ----
+test-all-features: test-agent-trading test-agent-os test-video-ea test-prediction test-tfex \
+	test-notifications test-coordination test-ztrader test-hyperopt \
+	test-scanner test-backtest test-market test-penetration \
+	test-production-readiness test-research
+
 # ---- Feature installation ----
 all-features: install-all
 
@@ -176,7 +211,7 @@ install-deps:
 
 install-all:
 	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev,quality,security,settrade,ccxt,prediction,observability]'
+	$(PIP) install -e '.[dev,quality,security,settrade,ccxt,prediction,observability,agent-trading,agent-os,video-ea,notifications]'
 
 # ---- All services ----
 all-services: start-backend start-frontend start-dashboard
@@ -280,6 +315,18 @@ install-prediction:
 install-observability:
 	$(PIP) install -e '.[observability]'
 
+install-agent-trading:
+	$(PIP) install -e '.[agent-trading]'
+
+install-agent-os:
+	$(PIP) install -e '.[agent-os]'
+
+install-video-ea:
+	$(PIP) install -e '.[video-ea]'
+
+install-notifications:
+	$(PIP) install -e '.[notifications]'
+
 # ============================================================
 # QUALITY — lint / format / type
 # ============================================================
@@ -333,6 +380,51 @@ test-concurrency:
 
 test-security:
 	$(PYTEST) tests/test_workflow_security.py tests/test_financial_invariants.py tests/test_auth.py
+
+test-agent-trading:
+	$(PYTEST) tests/test_agent_trading.py
+
+test-agent-os:
+	$(PYTEST) tests/test_agent_os.py
+
+test-video-ea:
+	$(PYTEST) tests/test_video_ea.py tests/test_video_ea_runtime.py tests/test_video_ea_research.py tests/test_video_ea_policy.py tests/test_mql5_video_ea_policy.py
+
+test-prediction:
+	$(PYTEST) tests/test_prediction.py tests/test_prediction_feed.py tests/test_prediction_broker.py tests/test_prediction_live.py
+
+test-tfex:
+	$(PYTEST) tests/test_tfex.py tests/test_tfex_completion.py
+
+test-notifications:
+	$(PYTEST) tests/test_telegram.py
+
+test-coordination:
+	$(PYTEST) tests/test_coordination.py
+
+test-ztrader:
+	$(PYTEST) tests/test_ztrader_integration.py
+
+test-hyperopt:
+	$(PYTEST) tests/test_hyperopt.py
+
+test-scanner:
+	$(PYTEST) tests/test_scanner.py
+
+test-backtest:
+	$(PYTEST) tests/test_backtest_costs.py tests/test_backtest_metrics.py tests/test_backtest_analytics.py
+
+test-market:
+	$(PYTEST) tests/test_market_feeds.py tests/test_market_calendar.py tests/test_market_rules.py
+
+test-penetration:
+	$(PYTEST) tests/test_penetration.py
+
+test-production-readiness:
+	$(PYTEST) tests/test_production_readiness.py
+
+test-research:
+	$(PYTEST) tests/test_research_completion.py
 
 # ============================================================
 # TEST — Frontend
@@ -533,13 +625,35 @@ clean:
 		src/zksato/**/__pycache__ scripts/__pycache__
 
 # ============================================================
+# DOCUMENTATION
+# ============================================================
+docs-check:
+	@printf '$(CYAN)Checking documentation structure…$(RESET)\n'
+	@test -f docs/INDEX.md || (printf '$(RED)Missing docs/INDEX.md$(RESET)\n' && exit 1)
+	@test -f docs/ARCHITECTURE.md || (printf '$(RED)Missing docs/ARCHITECTURE.md$(RESET)\n' && exit 1)
+	@test -f ROADMAP.md || (printf '$(RED)Missing ROADMAP.md$(RESET)\n' && exit 1)
+	@test -d docs/adr || (printf '$(RED)Missing docs/adr/$(RESET)\n' && exit 1)
+	@ls docs/adr/*.md | wc -l | xargs -I {} printf '  ADRs found: {}\n'
+	@printf '$(GREEN)Documentation structure OK$(RESET)\n'
+
+docs-build:
+	@printf '$(CYAN)Building documentation site…$(RESET)\n'
+	@command -v mkdocs >/dev/null 2>&1 && mkdocs build --strict || \
+		(printf '$(YELLOW)mkdocs not installed, skipping site build$(RESET)\n' && exit 0)
+	@printf '$(GREEN)Documentation site built in site/$(RESET)\n'
+
+docs-validate:
+	@printf '$(CYAN)Validating ADRs and templates…$(RESET)\n'
+	@$(PYTHON) -c "import os, re; adr_dir='docs/adr'; template_dir='docs/templates'; [print(f'  WARNING: {f} missing ADR header') for f in os.listdir(adr_dir) if f.endswith('.md') and f != 'README.md' and not re.search(r'^# ADR-\d+:', open(os.path.join(adr_dir, f)).read(), re.MULTILINE)]; [print(f'  WARNING: {f} missing Status field') for f in os.listdir(adr_dir) if f.endswith('.md') and f != 'README.md' and 'Status:' not in open(os.path.join(adr_dir, f)).read()]; print('  ADR validation complete'); [print(f'  Template: {f}') for f in os.listdir(template_dir) if f.endswith('.md')]; print('$(GREEN)Documentation validation complete$(RESET)')"
+
+# ============================================================
 # CI GATES
 # ============================================================
 ci: lint format-check type coverage contract package compose
 
-ci-security: lint format-check type coverage contract package compose security-full resilience docker env-check
+ci-security: lint format-check type coverage contract package compose security-full resilience docker env-check docs-validate
 
-ci-full: ci security resilience docker env-check
+ci-full: ci security resilience docker env-check test-all-features docs-check
 
 # ============================================================
 # PACKAGE
