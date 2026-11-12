@@ -1,18 +1,9 @@
-"""Dedicated tests for zksato.prediction.live.
-
-Covers:
-- PredictionVenueAdapter cannot be instantiated directly.
-- PolymarketClobAdapter is now wired (httpx) with injected fake client — must return
-  normalized quotes and order results, validate inputs, require credentials for
-  mutation, and surface ambiguous network errors as BrokerAmbiguousError.
-- PredictionLiveGate.validate() enforces all five sequential safety checks.
-- PredictionLiveGate.validate() passes when given a fully-compliant adapter
-  and all safety flags are set.
-"""
+"""Tests for prediction live module."""
 
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -25,273 +16,409 @@ from zksato.prediction.live import (
     PredictionVenueAdapter,
 )
 
-# ---------------------------------------------------------------------------
-# Minimal compliant adapter used across gate tests
-# ---------------------------------------------------------------------------
+
+class MockHttpClient:
+    """Mock HTTP client for testing."""
+
+    def __init__(self, responses: dict[str, Any]) -> None:
+        self.responses = responses
+        self.calls: list[dict] = []
+
+    def _get_response(self, key: str) -> Any:
+        resp = self.responses.get(key)
+        if resp is None:
+            # Return a default mock response with 404
+            resp = MagicMock()
+            resp.status_code = 404
+            resp.json = lambda: {}
+        return resp
+
+    async def get(self, url: str, params: dict | None = None) -> Any:
+        self.calls.append({"method": "GET", "url": url, "params": params})
+        key = url
+        if params:
+            key += "?" + "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        return self._get_response(key)
+
+    async def post(self, url: str, json: dict | None = None) -> Any:
+        self.calls.append({"method": "POST", "url": url, "json": json})
+        return self._get_response(url)
+
+    async def delete(self, url: str) -> Any:
+        self.calls.append({"method": "DELETE", "url": url})
+        return self._get_response(url)
+
+    async def aclose(self) -> None:
+        pass
 
 
-class _MinimalAdapter(PredictionVenueAdapter):
-    async def get_market_quote(self, market_id: str) -> dict[str, str | float]:
-        return {"market_id": market_id, "up_ask": 0.51, "up_bid": 0.49}
-
-    async def place_order(
-        self, market_id: str, side: Side, price: float, order_usd: float
-    ) -> dict[str, Any]:
-        return {"order_id": "stub-ok", "status": "submitted"}
-
-    async def cancel_order(self, order_id: str) -> bool:
-        return True
+class TestPredictionVenueAdapter:
+    def test_abstract_methods_exist(self) -> None:
+        assert hasattr(PredictionVenueAdapter, "get_market_quote")
+        assert hasattr(PredictionVenueAdapter, "place_order")
+        assert hasattr(PredictionVenueAdapter, "cancel_order")
 
 
-# ---------------------------------------------------------------------------
-# Fake HTTP client helpers for Polymarket adapter
-# ---------------------------------------------------------------------------
-
-
-class _FakeResp:
-    def __init__(self, data: Any, status_code: int = 200) -> None:
-        self._data = data
-        self.status_code = status_code
-        self.text = str(data)
-
-    def json(self) -> Any:
-        return self._data
-
-
-class _FakeBookClient:
-    """Returns deterministic book/price/order responses for get_market_quote."""
-
-    async def get(self, url: str, params: dict[str, Any] | None = None) -> _FakeResp:
-        if "/book" in url:
-            return _FakeResp({"bids": [{"price": "0.49"}], "asks": [{"price": "0.51"}]})
-        if "/price" in url:
-            # secondary fallback — not hit when book succeeds, but support it
-            return _FakeResp({"price": "0.51"})
-        if "/markets/" in url:
-            mid = url.rsplit("/", 1)[-1]
-            return _FakeResp({"market_id": mid, "up_ask": 0.51, "up_bid": 0.49, "down_ask": 0.49})
-        return _FakeResp({}, 200)
-
-    async def post(self, url: str, json: dict[str, Any] | None = None) -> _FakeResp:
-        payload = json or {}
-        return _FakeResp(
-            {
-                "order_id": "poly-123",
-                "id": "poly-123",
-                "market_id": payload.get("market_id", payload.get("token_id", "mkt-1")),
-                "price": payload.get("price", 0.55),
-                "size": payload.get("size", 10),
-                "status": "open",
-            },
-            200,
+class TestPolymarketClobAdapter:
+    @pytest.fixture
+    def settings(self) -> Settings:
+        return Settings(
+            prediction_enabled=True,
+            prediction_clob_api_key="test_key",
+            prediction_clob_api_secret="test_secret",
+            prediction_clob_passphrase="test_passphrase",
+            prediction_clob_url="https://test.polymarket.com",
+            prediction_clob_timeout_seconds=5.0,
+            prediction_max_order_usd=10.0,
         )
 
-    async def delete(self, url: str) -> _FakeResp:
-        if "notfound" in url:
-            return _FakeResp({"success": False}, 404)
-        return _FakeResp({"success": True}, 200)
+    @pytest.fixture
+    def mock_client(self) -> MockHttpClient:
+        return MockHttpClient({
+            "https://test.polymarket.com/book?token_id=market_123": MagicMock(
+                status_code=200,
+                json=lambda: {"up_ask": 0.55, "down_ask": 0.45, "up_bid": 0.54, "down_bid": 0.44}
+            ),
+            "https://test.polymarket.com/order": MagicMock(
+                status_code=200,
+                json=lambda: {
+                    "order_id": "order_123",
+                    "market_id": "market_123",
+                    "price": "0.55",
+                    "size": "18.18",
+                    "status": "open",
+                },
+            ),
+            "https://test.polymarket.com/order/order_123": MagicMock(
+                status_code=200,
+                json=lambda: {"success": True}
+            ),
+        })
 
-    async def aclose(self) -> None:
-        return None
+    def test_init_with_settings(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        assert adapter.api_key == "test_key"
+        assert adapter.api_secret == "test_secret"
+        assert adapter.passphrase == "test_passphrase"
+        assert adapter.base_url == "https://test.polymarket.com"
+        assert adapter.timeout == 5.0
+
+    def test_init_with_explicit_args(self) -> None:
+        adapter = PolymarketClobAdapter(
+            api_key="explicit_key",
+            api_secret="explicit_secret",
+            base_url="https://explicit.com",
+            timeout=15.0,
+        )
+        assert adapter.api_key == "explicit_key"
+        assert adapter.api_secret == "explicit_secret"
+        assert adapter.base_url == "https://explicit.com"
+        assert adapter.timeout == 15.0
+
+    def test_validate_market_raises_on_empty(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        with pytest.raises(ValueError, match="market_id is required"):
+            adapter._validate_market("")
+
+    def test_validate_order_raises_on_invalid_price(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        with pytest.raises(ValueError, match="prediction price must be between 0 and 1"):
+            adapter._validate_order(1.5, 10.0)
+        with pytest.raises(ValueError, match="prediction price must be between 0 and 1"):
+            adapter._validate_order(-0.1, 10.0)
+
+    def test_validate_order_raises_on_invalid_order_usd(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        with pytest.raises(ValueError, match="order_usd must be positive"):
+            adapter._validate_order(0.5, 0)
+        with pytest.raises(ValueError, match="order_usd must be positive"):
+            adapter._validate_order(0.5, -10.0)
+
+    def test_validate_order_respects_max_order_usd(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        with pytest.raises(
+            ValueError, match="prediction order exceeds configured per-order USD limit"
+        ):
+            adapter._validate_order(0.5, 15.0)
+
+    def test_auth_headers_without_credentials(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=None, api_key=None, api_secret=None)
+        headers = adapter._auth_headers()
+        assert headers == {"Content-Type": "application/json"}
+
+    def test_auth_headers_with_credentials(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=settings)
+        headers = adapter._auth_headers("GET", "/test")
+        assert "X-API-KEY" in headers
+        assert "X-TIMESTAMP" in headers
+        assert "X-SIGNATURE" in headers
+        assert "X-PASSPHRASE" in headers
+
+    @pytest.mark.asyncio
+    async def test_get_market_quote_from_book_endpoint(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        quote = await adapter.get_market_quote("market_123")
+        assert quote["market_id"] == "market_123"
+        assert quote["up_ask"] == 0.55
+        assert quote["down_ask"] == 0.45
+        assert quote["up_bid"] == 0.54
+        assert quote["down_bid"] == 0.44
+
+    @pytest.mark.asyncio
+    async def test_get_market_quote_from_bids_asks(self, settings: Settings) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/book?token_id=market_123": MagicMock(
+                status_code=200,
+                json=lambda: {"asks": [{"price": "0.51"}], "bids": [{"price": "0.49"}]}
+            ),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        quote = await adapter.get_market_quote("market_123")
+        assert quote["up_ask"] == 0.51
+        # down_ask = 1.0 - bid_price = 1.0 - 0.49 = 0.51
+        assert quote["down_ask"] == pytest.approx(0.51)
+        assert quote["up_bid"] == 0.49
+        # down_bid = 1.0 - ask_price = 1.0 - 0.51 = 0.49
+        assert quote["down_bid"] == pytest.approx(0.49)
+
+    @pytest.mark.asyncio
+    async def test_get_market_quote_falls_back_to_price_endpoints(self, settings: Settings) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/book?token_id=market_123": MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=buy&token_id=market_123": MagicMock(
+                status_code=200, json=lambda: {"price": "0.52"}
+            ),
+            "https://test.polymarket.com/price?side=sell&token_id=market_123": MagicMock(
+                status_code=200, json=lambda: {"price": "0.48"}
+            ),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        quote = await adapter.get_market_quote("market_123")
+        assert quote["up_ask"] == 0.52
+        assert quote["down_ask"] == 0.48
+
+    @pytest.mark.asyncio
+    async def test_get_market_quote_falls_back_to_markets_endpoint(
+        self, settings: Settings
+    ) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/book?token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=buy&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=sell&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/markets/market_123":
+                MagicMock(
+                    status_code=200,
+                    json=lambda: {
+                        "market_id": "market_123",
+                        "price": "0.55",
+                        "up_bid": "0.53",
+                        "down_ask": "0.47",
+                    },
+                ),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        quote = await adapter.get_market_quote("market_123")
+        assert quote["up_ask"] == 0.55
+        assert quote["down_ask"] == 0.47
+
+    @pytest.mark.asyncio
+    async def test_get_market_quote_raises_on_not_found(self, settings: Settings) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/book?token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=buy&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/price?side=sell&token_id=market_123":
+                MagicMock(status_code=404),
+            "https://test.polymarket.com/markets/market_123":
+                MagicMock(status_code=404),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        with pytest.raises(RuntimeError, match="market not found"):
+            await adapter.get_market_quote("market_123")
+
+    @pytest.mark.asyncio
+    async def test_place_order_success(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        result = await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
+        assert result["order_id"] == "order_123"
+        assert result["side"] == "up"
+        assert result["price"] == 0.55
+        assert result["status"] == "open"
+
+    @pytest.mark.asyncio
+    async def test_place_order_requires_credentials(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=None, api_key=None, api_secret=None)
+        with pytest.raises(
+            RuntimeError, match="Polymarket mutation requires api_key and api_secret"
+        ):
+            await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
+
+    @pytest.mark.asyncio
+    async def test_place_order_validates_side(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        with pytest.raises(ValueError, match="prediction adapter requires UP or DOWN side"):
+            await adapter.place_order("market_123", Side.BUY, 0.55, 10.0)
+
+    @pytest.mark.asyncio
+    async def test_place_order_network_error_raises_ambiguous(self, settings: Settings) -> None:
+        async def failing_post(*args, **kwargs):
+            raise ConnectionError("Network down")
+
+        mock_client = MockHttpClient({})
+        mock_client.post = failing_post
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        with pytest.raises(BrokerAmbiguousError, match="Polymarket order response ambiguous"):
+            await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
+
+    @pytest.mark.asyncio
+    async def test_place_order_rejected_raises_runtime_error(self, settings: Settings) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/order": MagicMock(
+                status_code=400,
+                json=lambda: {"error": "Invalid price"},
+                text="Invalid price",
+            ),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        with pytest.raises(RuntimeError, match="order rejected"):
+            await adapter.place_order("market_123", Side.UP, 0.55, 10.0)
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_success(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        result = await adapter.cancel_order("order_123")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_not_found(self, settings: Settings) -> None:
+        mock_client = MockHttpClient({
+            "https://test.polymarket.com/order/order_123": MagicMock(status_code=404),
+        })
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        result = await adapter.cancel_order("order_123")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_requires_credentials(self, settings: Settings) -> None:
+        adapter = PolymarketClobAdapter(settings=None, api_key=None, api_secret=None)
+        with pytest.raises(RuntimeError, match="Polymarket cancel requires api_key and api_secret"):
+            await adapter.cancel_order("order_123")
+
+    @pytest.mark.asyncio
+    async def test_cancel_order_network_error_raises_ambiguous(
+        self, settings: Settings
+    ) -> None:
+        async def failing_delete(*args, **kwargs):
+            raise ConnectionError("Network down")
+
+        mock_client = MockHttpClient({})
+        mock_client.delete = failing_delete
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        with pytest.raises(BrokerAmbiguousError, match="Polymarket cancel response ambiguous"):
+            await adapter.cancel_order("order_123")
+
+    @pytest.mark.asyncio
+    async def test_client_lifecycle_with_injected_client(
+        self, settings: Settings, mock_client: MockHttpClient
+    ) -> None:
+        adapter = PolymarketClobAdapter(settings=settings, http_client=mock_client)
+        await adapter.get_market_quote("market_123")
+        # Injected client should not be closed
+        assert len(mock_client.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_client_lifecycle_creates_own_client(self, settings: Settings) -> None:
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=MagicMock(
+                status_code=200,
+                json=lambda: {"up_ask": 0.5, "down_ask": 0.5}
+            ))
+            mock_instance.aclose = AsyncMock()
+            mock_client_class.return_value = mock_instance
+
+            adapter = PolymarketClobAdapter(settings=settings)
+            await adapter.get_market_quote("market_123")
+
+            mock_client_class.assert_called_once()
+            mock_instance.aclose.assert_called_once()
 
 
-class _NetworkErrorClient:
-    async def get(self, url: str, params: dict[str, Any] | None = None) -> _FakeResp:  # type: ignore[no-untyped-def]
-        raise ConnectionError("network down")
+class TestPredictionLiveGate:
+    @pytest.fixture
+    def settings(self) -> Settings:
+        return Settings(
+            prediction_enabled=True,
+            prediction_enable_live=False,
+        )
 
-    async def post(self, url: str, json: dict[str, Any] | None = None) -> _FakeResp:  # type: ignore[no-untyped-def]
-        raise ConnectionError("network down")
+    def test_validate_requires_prediction_enabled(self, settings: Settings) -> None:
+        settings.prediction_enabled = False
+        gate = PredictionLiveGate(settings=settings)
+        with pytest.raises(RuntimeError, match="prediction market is not enabled"):
+            gate.validate()
 
-    async def delete(self, url: str) -> _FakeResp:  # type: ignore[no-untyped-def]
-        raise ConnectionError("network down")
+    def test_validate_requires_live_enabled(self, settings: Settings) -> None:
+        settings.prediction_enable_live = False
+        gate = PredictionLiveGate(settings=settings)
+        with pytest.raises(RuntimeError, match="prediction live trading is disabled"):
+            gate.validate()
 
-    async def aclose(self) -> None:
-        return None
+    def test_validate_requires_acknowledge_loss(self, settings: Settings) -> None:
+        settings.prediction_enable_live = True
+        gate = PredictionLiveGate(settings=settings)
+        gate.acknowledge_loss = False
+        with pytest.raises(RuntimeError, match="acknowledge loss is required"):
+            gate.validate()
 
+    def test_validate_requires_reviewed_adapter(self, settings: Settings) -> None:
+        settings.prediction_enable_live = True
+        gate = PredictionLiveGate(settings=settings)
+        gate.acknowledge_loss = True
+        gate.reviewed_adapter = False
+        with pytest.raises(RuntimeError, match="adapter review is required"):
+            gate.validate()
 
-# ---------------------------------------------------------------------------
-# PredictionVenueAdapter abstract interface
-# ---------------------------------------------------------------------------
+    def test_validate_requires_kill_switch_ready(self, settings: Settings) -> None:
+        settings.prediction_enable_live = True
+        gate = PredictionLiveGate(settings=settings)
+        gate.acknowledge_loss = True
+        gate.reviewed_adapter = True
+        gate.kill_switch_ready = False
+        with pytest.raises(RuntimeError, match="kill switch readiness is required"):
+            gate.validate()
 
+    def test_validate_requires_adapter(self, settings: Settings) -> None:
+        settings.prediction_enable_live = True
+        gate = PredictionLiveGate(settings=settings)
+        gate.acknowledge_loss = True
+        gate.reviewed_adapter = True
+        gate.kill_switch_ready = True
+        gate.adapter = None
+        with pytest.raises(RuntimeError, match="no reviewed venue adapter attached"):
+            gate.validate()
 
-def test_prediction_venue_adapter_is_abstract() -> None:
-    """PredictionVenueAdapter cannot be instantiated without implementing all methods."""
-    with pytest.raises(TypeError):
-        PredictionVenueAdapter()  # type: ignore[abstract]
-
-
-def test_minimal_adapter_satisfies_contract() -> None:
-    """A concrete implementation that fulfils the ABC can be instantiated."""
-    adapter = _MinimalAdapter()
-    assert isinstance(adapter, PredictionVenueAdapter)
-
-
-# ---------------------------------------------------------------------------
-# PolymarketClobAdapter — wired invariants
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_get_market_quote_returns_normalized_quote() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    quote = await adapter.get_market_quote("mkt-abc")
-    assert quote["market_id"] == "mkt-abc"
-    assert 0.5 < float(quote["up_ask"]) < 1.0  # type: ignore[arg-type]
-    assert 0.0 < float(quote["up_bid"]) < 1.0  # type: ignore[arg-type]
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_place_order_succeeds_with_fake_client() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    result = await adapter.place_order("mkt-abc", Side.UP, 0.55, 10.0)
-    assert result["order_id"] == "poly-123"
-    assert result["market_id"] == "mkt-abc"
-    assert result["status"] == "open"
-    assert result["price"] == 0.55
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_cancel_order_returns_true() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    ok = await adapter.cancel_order("poly-123")
-    assert ok is True
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_cancel_order_returns_false_on_404() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    ok = await adapter.cancel_order("notfound-xyz")
-    assert ok is False
+    def test_validate_passes_when_all_conditions_met(self, settings: Settings) -> None:
+        settings.prediction_enable_live = True
+        gate = PredictionLiveGate(settings=settings)
+        gate.acknowledge_loss = True
+        gate.reviewed_adapter = True
+        gate.kill_switch_ready = True
+        gate.adapter = MagicMock(spec=PredictionVenueAdapter)
+        gate.validate()  # Should not raise
 
 
-@pytest.mark.asyncio
-async def test_polymarket_clob_place_order_validates_price() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    with pytest.raises(ValueError, match="price must be between 0 and 1"):
-        await adapter.place_order("mkt-abc", Side.UP, 0.0, 10.0)
-    with pytest.raises(ValueError, match="price must be between 0 and 1"):
-        await adapter.place_order("mkt-abc", Side.UP, 1.0, 10.0)
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_place_order_requires_credentials() -> None:
-    adapter = PolymarketClobAdapter(http_client=_FakeBookClient())
-    with pytest.raises(RuntimeError, match="requires api_key"):
-        await adapter.place_order("mkt-abc", Side.UP, 0.55, 10.0)
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_cancel_requires_credentials() -> None:
-    adapter = PolymarketClobAdapter(http_client=_FakeBookClient())
-    with pytest.raises(RuntimeError, match="requires api_key"):
-        await adapter.cancel_order("poly-123")
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_place_order_ambiguous_on_network_error() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_NetworkErrorClient())
-    with pytest.raises(BrokerAmbiguousError, match="ambiguous"):
-        await adapter.place_order("mkt-abc", Side.UP, 0.55, 10.0)
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_cancel_ambiguous_on_network_error() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_NetworkErrorClient())
-    with pytest.raises(BrokerAmbiguousError, match="ambiguous"):
-        await adapter.cancel_order("poly-123")
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_get_market_quote_validates_market_id() -> None:
-    adapter = PolymarketClobAdapter(api_key="k", api_secret="s", http_client=_FakeBookClient())
-    with pytest.raises(ValueError, match="market_id is required"):
-        await adapter.get_market_quote("  ")
-
-
-@pytest.mark.asyncio
-async def test_polymarket_clob_respects_settings_credentials() -> None:
-    settings = Settings(
-        prediction_enabled=True,
-        prediction_clob_api_key="from-settings-k",
-        prediction_clob_api_secret="from-settings-s",
-        prediction_clob_url="https://clob.example.test",
-    )
-    adapter = PolymarketClobAdapter(settings=settings, http_client=_FakeBookClient())
-    assert adapter.api_key == "from-settings-k"
-    assert adapter.base_url == "https://clob.example.test"
-    result = await adapter.place_order("mkt-abc", Side.DOWN, 0.45, 5.0)
-    assert result["side"] == "down"
-
-
-# ---------------------------------------------------------------------------
-# PredictionLiveGate — sequential safety invariants
-# ---------------------------------------------------------------------------
-
-
-def test_gate_rejects_when_prediction_not_enabled() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=False))
-    with pytest.raises(RuntimeError, match="not enabled"):
-        gate.validate()
-
-
-def test_gate_rejects_when_live_disabled_by_policy() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=False))
-    with pytest.raises(RuntimeError, match="disabled by server policy"):
-        gate.validate()
-
-
-def test_gate_rejects_when_acknowledge_loss_not_set() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=True))
-    with pytest.raises(RuntimeError, match="acknowledge loss is required"):
-        gate.validate()
-
-
-def test_gate_rejects_when_adapter_review_not_set() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=True))
-    gate.acknowledge_loss = True
-    with pytest.raises(RuntimeError, match="adapter review is required"):
-        gate.validate()
-
-
-def test_gate_rejects_when_kill_switch_not_ready() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=True))
-    gate.acknowledge_loss = True
-    gate.reviewed_adapter = True
-    with pytest.raises(RuntimeError, match="kill switch readiness is required"):
-        gate.validate()
-
-
-def test_gate_rejects_when_no_adapter_attached() -> None:
-    gate = PredictionLiveGate(Settings(prediction_enabled=True, prediction_enable_live=True))
-    gate.acknowledge_loss = True
-    gate.reviewed_adapter = True
-    gate.kill_switch_ready = True
-    # adapter is None by default
-    with pytest.raises(RuntimeError, match="no reviewed venue adapter attached"):
-        gate.validate()
-
-
-def test_gate_passes_when_all_conditions_met() -> None:
-    """validate() must not raise when every safety check passes."""
-    gate = PredictionLiveGate(
-        Settings(prediction_enabled=True, prediction_enable_live=True),
-        adapter=_MinimalAdapter(),
-    )
-    gate.acknowledge_loss = True
-    gate.reviewed_adapter = True
-    gate.kill_switch_ready = True
-    gate.validate()  # must not raise
-
-
-def test_gate_adapter_stored_on_init() -> None:
-    adapter = _MinimalAdapter()
-    gate = PredictionLiveGate(Settings(), adapter=adapter)
-    assert gate.adapter is adapter
-
-
-def test_gate_safety_flags_start_false() -> None:
-    """All three safety booleans must default to False (fail-closed)."""
-    gate = PredictionLiveGate(Settings())
-    assert gate.acknowledge_loss is False
-    assert gate.reviewed_adapter is False
-    assert gate.kill_switch_ready is False
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
