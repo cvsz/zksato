@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import tomllib
 from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, ValidationError
-
-from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
-from zksato_core.models import OrderIntent, RiskContext
+from pydantic import BaseModel, Field
 from zksato_core.config import BaseConfig
+from zksato_core.models import OrderIntent, RiskContext, Side
+from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
 
 
 class PolicyConfig(BaseModel):
@@ -228,10 +226,14 @@ class ConcentrationLimitPolicy(Policy):
         reasons: list[str] = []
 
         if context.symbol_exposure_pct > self._max_symbol_pct:
-            reasons.append(f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self._max_symbol_pct:.1f}%")
+            reasons.append(
+                f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self._max_symbol_pct:.1f}%"
+            )
 
         if context.sector_exposure_pct > self._max_sector_pct:
-            reasons.append(f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self._max_sector_pct:.1f}%")
+            reasons.append(
+                f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self._max_sector_pct:.1f}%"
+            )
 
         if reasons:
             return PolicyResult(decision=PolicyDecision.REJECT, reasons=reasons)
@@ -258,7 +260,9 @@ class SpreadLimitPolicy(Policy):
         if context.spread_pct is not None and context.spread_pct > self._max_spread_pct:
             return PolicyResult(
                 decision=PolicyDecision.REJECT,
-                reasons=[f"spread {context.spread_pct:.2f}% exceeds limit {self._max_spread_pct:.2f}%"],
+                reasons=[
+                    f"spread {context.spread_pct:.2f}% exceeds limit {self._max_spread_pct:.2f}%"
+                ],
             )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
@@ -280,10 +284,15 @@ class StalenessLimitPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        if context.quote_age_seconds is not None and context.quote_age_seconds > self._max_age_seconds:
+        if (
+            context.quote_age_seconds is not None
+            and context.quote_age_seconds > self._max_age_seconds
+        ):
             return PolicyResult(
                 decision=PolicyDecision.REJECT,
-                reasons=[f"quote age {context.quote_age_seconds:.1f}s exceeds limit {self._max_age_seconds:.1f}s"],
+                reasons=[
+                    f"quote age {context.quote_age_seconds:.1f}s exceeds limit {self._max_age_seconds:.1f}s"
+                ],
             )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)

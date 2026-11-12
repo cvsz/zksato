@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Union
+from decimal import ROUND_HALF_UP, Decimal
 
-Numeric = Union[int, float, Decimal]
+Numeric = int | float | Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +16,7 @@ class Money:
     currency: str = "THB"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.amount, Decimal):
-            object.__setattr__(self, "amount", Decimal(str(self.amount)))
+        object.__setattr__(self, "amount", Decimal(str(self.amount)))
         if self.currency != "THB":
             raise ValueError("Only THB currency is supported")
 
@@ -76,7 +74,10 @@ class Money:
 
     def quantize(self, exp: str = "0.01") -> Money:
         """Quantize to specified decimal places."""
-        return Money(self.amount.quantize(Decimal(exp), rounding=ROUND_HALF_UP), self.currency)
+        return Money(
+            self.amount.quantize(Decimal(exp), rounding=ROUND_HALF_UP),
+            self.currency,
+        )
 
     def to_float(self) -> float:
         return float(self.amount)

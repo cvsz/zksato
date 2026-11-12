@@ -6,8 +6,9 @@ import tomllib
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+import tomli_w
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
 class BaseConfig(BaseSettings):
@@ -25,7 +26,7 @@ class BaseConfig(BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[BaseSettings],
+        _settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,
         env_settings: PydanticBaseSettingsSource,
         dotenv_settings: PydanticBaseSettingsSource,
@@ -34,7 +35,7 @@ class BaseConfig(BaseSettings):
         return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     @classmethod
-    def load(cls, env: str | None = None, config_dir: Path | None = None) -> "BaseConfig":
+    def load(cls, env: str | None = None, config_dir: Path | None = None) -> BaseConfig:
         """Load config with environment-specific overrides."""
         config_files = [Path("config/settings.toml")]
         if config_dir:
@@ -61,7 +62,6 @@ class BaseConfig(BaseSettings):
 
     def to_toml(self) -> str:
         """Export config to TOML string."""
-        import tomli_w
         return tomli_w.dumps(self.model_dump())
 
     def save_local(self, path: Path | None = None) -> None:
@@ -94,7 +94,7 @@ class LoggingConfig(BaseConfig):
     """Logging configuration."""
 
     level: str = Field(default="INFO")
-    json: bool = True
+    json: bool = True  # type: ignore[assignment]  # overrides BaseModel.json method intentionally
     otel_endpoint: str | None = None
     otel_service_name: str = "zksato"
 
@@ -117,7 +117,7 @@ class AuthConfig(BaseConfig):
 
 class Settings(BaseConfig):
     """Main application settings."""
-    
+
     app_name: str = "zksato"
     environment: Literal["dev", "test", "uat", "prod"] = "dev"
     trading_mode: Literal["paper", "sandbox", "live"] = "paper"
