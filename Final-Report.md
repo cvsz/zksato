@@ -419,6 +419,63 @@ OpenAI-compatible API.
 - Deterministic output when temperature=0
 - All agentic actions route through RiskEngine before execution (no autonomous live execution)
 
+### Local LLM Server Management (`packages/zksato-api/src/zksato_api/llm_clients/`)
+
+Local LLM server management enables running and controlling locally-hosted LLM
+server processes (llama.cpp, vLLM, TGI) with full lifecycle management. All
+server processes run on-premise — critical for zksato's paper/sandbox trading
+environments.
+
+### LocalLLMServerManager (`local_llama_server.py`)
+
+| Component | Description |
+|-----------|-------------|
+| `LocalLLMServerManager` | Async server lifecycle management: start/stop, health checks, model discovery |
+| `LocalLLMServerConfig` | Configuration: backend, host, port, model_path, model_name, executable, server_args, timeouts |
+| `ServerInfo` | Server connection details, running status, model list |
+
+| Method | Description |
+|--------|-------------|
+| `start()` | Start the server process, wait for health, discover models |
+| `stop()` | Stop the server process (SIGTERM then SIGKILL fallback) |
+| `health_check()` | Check if server is running and responding |
+| `list_models()` | List available models from the server |
+
+| Property | Description |
+|----------|-------------|
+| `is_running` | Check if the server process is running |
+| `server_info` | Get current server information |
+
+### Configuration (`packages/zksato-core/src/zksato_core/config.py`)
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `local_llm_backend` | `"ollama"` | Backend: ollama, llamacpp, vllm, tgi, openai_compatible |
+| `local_llm_base_url` | `"http://localhost:11434"` | Backend API base URL |
+| `local_llm_model` | `"llama3.2:3b"` | Model name |
+| `local_llm_api_key` | `""` | Optional API key for backend auth |
+| `local_llm_temperature` | `0.7` | Sampling temperature |
+| `local_llm_max_input_tokens` | `4096` | Max input context tokens |
+| `local_llm_max_output_tokens` | `2048` | Max output tokens |
+| `local_llm_max_retries` | `3` | Max API retry attempts |
+| `local_llm_timeout_seconds` | `60.0` | Request timeout |
+
+| Property/Method | Description |
+|-----------------|-------------|
+| `local_llm_configured` | Check if local LLM base URL is set |
+| `local_llm_backend_enum()` | Get backend as LocalLLMBackend enum |
+
+### Safety & Security
+
+- All inference runs on-premise — no external API calls beyond the configured local backend
+- API keys (if any) remain server-side, never logged or rendered
+- Fail-closed: stub mode when backend is unreachable
+- Deterministic output when temperature=0
+- Server process cleanup on stop (SIGTERM then SIGKILL)
+- Model path validation before starting server
+- Short timeout for health checks (local server should respond quickly)
+- All agentic actions route through RiskEngine before execution (no autonomous live execution)
+
 ---
 
 ## Documentation Sync Status
