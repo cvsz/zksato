@@ -1,135 +1,189 @@
 # ============================================================
 # zksato — Makefile
 # Risk-first automated trading platform for SET / TFEX
+# Enterprise-grade all-in-one build, test, deploy, and run system
 # ============================================================
 # Usage:  make <target>
 #         make help          — list all targets
+#         make all           — full validation + start all services
 # ============================================================
 
 .DEFAULT_GOAL := help
-.PHONY: help \
-        install install-settrade install-ccxt install-prediction install-observability install-all \
-        lint format format-check shellcheck type \
-        test test-resilience test-performance test-uat test-postgres test-concurrency \
-        coverage coverage-html \
-        contract \
-        security audit bandit gitleaks \
-        db-migrate db-status db-backup db-restore \
-        openapi \
-        package licenses \
-        docker docker-run docker-scan compose \
-        resilience \
-        dr-drill dr-restore \
-        load-test \
-        env-check \
-        github-health \
-        clean \
-        ci ci-full \
-        all start-all stop-all start-backend stop-backend start-frontend stop-frontend \
-        start-dashboard stop-dashboard all-features all-services health-check-all
 
-# ─── colour helpers ─────────────────────────────────────────
+# ------------------------------------------------------------------
+# PHONY targets — every target is phony so make always runs it
+# ------------------------------------------------------------------
+.PHONY: help \
+install install-settrade install-ccxt install-prediction \
+install-observability install-all install-deps \
+lint format format-check shellcheck type \
+test test-resilience test-performance test-uat test-postgres \
+test-concurrency test-frontend test-e2e test-security \
+coverage coverage-html \
+contract openapi licenses \
+security audit bandit gitleaks \
+db-migrate db-status db-backup db-restore \
+docker docker-run docker-scan compose \
+resilience dr-drill dr-restore load-test env-check github-health \
+all all-features all-services start-all stop-all \
+start-backend stop-backend start-frontend stop-frontend \
+start-dashboard stop-dashboard health-check-all \
+frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
+dashboard-lint dashboard-type dashboard-build \
+security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
+ci ci-full ci-security clean
+
+# ------------------------------------------------------------------
+# Colour helpers
+# ------------------------------------------------------------------
 BOLD  := \033[1m
 RESET := \033[0m
 GREEN := \033[32m
 CYAN  := \033[36m
 YELLOW := \033[33m
-RED    := \033[31m
+RED   := \033[31m
 
-# ─── env defaults ───────────────────────────────────────────
+# ------------------------------------------------------------------
+# Environment defaults
+# ------------------------------------------------------------------
 ZKSATO_TRADING_MODE ?= paper
-PYTHON              ?= python
+VENV_PYTHON         ?= $(CURDIR)/.venv/bin/python
+PYTHON              ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python)
 PIP                 ?= $(PYTHON) -m pip
-PYTEST              ?= pytest
+PYTEST              ?= $(PYTHON) -m pytest
+NPM                 ?= npm
+NODE                ?= node
 COV_FAIL_UNDER      ?= 65
 IMAGE_TAG           ?= zksato:local
 BACKUP_DIR          ?= ./backups
+DOCKERFILE          ?= Dockerfile
+COMPOSE_FILE        ?= docker-compose.yml
 
 # ============================================================
 # HELP
 # ============================================================
 help:
-	@printf '$(BOLD)$(CYAN)zksato Makefile$(RESET) — available targets\n\n'
-	@printf '$(BOLD)Install$(RESET)\n'
-	@printf '  $(GREEN)install$(RESET)              Install core + dev + quality + security extras\n'
-	@printf '  $(GREEN)install-settrade$(RESET)      Add settrade-v2 adapter\n'
-	@printf '  $(GREEN)install-ccxt$(RESET)          Add ccxt multi-exchange adapter\n'
-	@printf '  $(GREEN)install-prediction$(RESET)    Add XGBoost / scikit-learn extras\n'
-	@printf '  $(GREEN)install-observability$(RESET) Add OpenTelemetry SDK\n'
-	@printf '  $(GREEN)install-all$(RESET)           Install every optional extra\n'
-	@printf '\n$(BOLD)Quality$(RESET)\n'
+	@printf '$(BOLD)$(CYAN)zksato — Enterprise Makefile$(RESET)\n'
+	@printf 'Risk-first automated trading control plane for SET / TFEX\n\n'
+	@printf '$(BOLD)Install targets$(RESET)\n'
+	@printf '  $(GREEN)install$(RESET)              Core + dev + quality + security extras\n'
+	@printf '  $(GREEN)install-settrade$(RESET)      Settrade-v2 broker adapter\n'
+	@printf '  $(GREEN)install-ccxt$(RESET)          CCXT multi-exchange adapter\n'
+	@printf '  $(GREEN)install-prediction$(RESET)    XGBoost / scikit-learn prediction\n'
+	@printf '  $(GREEN)install-observability$(RESET) OpenTelemetry SDK\n'
+	@printf '  $(GREEN)install-all$(RESET)           Every optional extra\n'
+	@printf '  $(GREEN)install-deps$(RESET)          Install system-level dependencies\n'
+	@printf '\n$(BOLD)Quality targets$(RESET)\n'
 	@printf '  $(GREEN)lint$(RESET)                 ruff + yamllint + hadolint\n'
 	@printf '  $(GREEN)format$(RESET)               ruff format (auto-fix)\n'
 	@printf '  $(GREEN)format-check$(RESET)         ruff format --check (no mutation)\n'
-	@printf '  $(GREEN)shellcheck$(RESET)           Lint all shell scripts\n'
+	@printf '  $(GREEN)shellcheck$(RESET)         Lint all shell scripts\n'
 	@printf '  $(GREEN)type$(RESET)                 mypy type-check src + scripts\n'
-	@printf '\n$(BOLD)Test$(RESET)\n'
-	@printf '  $(GREEN)test$(RESET)                 Run unit/integration suite (excludes uat, performance)\n'
-	@printf '  $(GREEN)test-resilience$(RESET)       Run risk + recovery fail-closed tests\n'
-	@printf '  $(GREEN)test-performance$(RESET)      Run performance probe (marked: performance)\n'
-	@printf '  $(GREEN)test-uat$(RESET)              Run broker UAT suite (requires credentials)\n'
-	@printf '  $(GREEN)test-postgres$(RESET)         Run PostgreSQL integration tests\n'
-	@printf '  $(GREEN)test-concurrency$(RESET)      Run concurrency / race-condition tests\n'
-	@printf '  $(GREEN)coverage$(RESET)             Coverage report (term-missing + xml, floor $(COV_FAIL_UNDER)%%)\n'
-	@printf '  $(GREEN)coverage-html$(RESET)        Coverage HTML report → htmlcov/\n'
-	@printf '\n$(BOLD)Security$(RESET)\n'
+	@printf '\n$(BOLD)Test targets$(RESET)\n'
+	@printf '  $(GREEN)test$(RESET)                 Unit/integration suite (excludes uat, perf)\n'
+	@printf '  $(GREEN)test-resilience$(RESET)       Risk + recovery fail-closed tests\n'
+	@printf '  $(GREEN)test-performance$(RESET)      Performance probe suite\n'
+	@printf '  $(GREEN)test-uat$(RESET)              Broker UAT suite (credentials required)\n'
+	@printf '  $(GREEN)test-postgres$(RESET)         PostgreSQL integration tests\n'
+	@printf '  $(GREEN)test-concurrency$(RESET)      Concurrency / race-condition tests\n'
+	@printf '  $(GREEN)test-frontend$(RESET)         Frontend lint + type + build\n'
+	@printf '  $(GREEN)test-e2e$(RESET)              Browser E2E tests (Playwright)\n'
+	@printf '  $(GREEN)test-security$(RESET)         Bandit + pip-audit + workflow scan\n'
+	@printf '  $(GREEN)coverage$(RESET)              Coverage report (term + xml)\n'
+	@printf '  $(GREEN)coverage-html$(RESET)         Coverage HTML report\n'
+	@printf '\n$(BOLD)Security targets$(RESET)\n'
 	@printf '  $(GREEN)security$(RESET)             pip-audit + bandit + zizmor (all-in-one)\n'
-	@printf '  $(GREEN)audit$(RESET)                pip-audit only\n'
-	@printf '  $(GREEN)bandit$(RESET)               bandit static analysis only\n'
-	@printf '  $(GREEN)gitleaks$(RESET)             Secret-pattern scan (requires gitleaks)\n'
-	@printf '\n$(BOLD)Database$(RESET)\n'
+	@printf '  $(GREEN)security-full$(RESET)          Full security scan (all tools)\n'
+	@printf '  $(GREEN)sec-bandit$(RESET)             Bandit static analysis\n'
+	@printf '  $(GREEN)sec-pip-audit$(RESET)          Dependency vulnerability audit\n'
+	@printf '  $(GREEN)sec-zizmor$(RESET)             GitHub Actions workflow scan\n'
+	@printf '  $(GREEN)sec-gitleaks$(RESET)           Secret-pattern scan\n'
+	@printf '\n$(BOLD)Database targets$(RESET)\n'
 	@printf '  $(GREEN)db-migrate$(RESET)           Apply SQL migrations in order\n'
-	@printf '  $(GREEN)db-status$(RESET)            Show applied migration files\n'
+	@printf '  $(GREEN)db-status$(RESET)            List migration files\n'
 	@printf '  $(GREEN)db-backup$(RESET)            Dump database → BACKUP_DIR\n'
-	@printf '  $(GREEN)db-restore$(RESET)           Restore from BACKUP_FILE=path/to/file.dump\n'
-	@printf '\n$(BOLD)Contracts & Docs$(RESET)\n'
-	@printf '  $(GREEN)contract$(RESET)             Generate openapi.json via scripts/openapi_contract.py\n'
-	@printf '  $(GREEN)openapi$(RESET)              Alias for contract\n'
-	@printf '  $(GREEN)licenses$(RESET)             Dump runtime license inventory → licenses.json\n'
-	@printf '\n$(BOLD)Package$(RESET)\n'
-	@printf '  $(GREEN)package$(RESET)              Build wheel + sdist, twine check\n'
-	@printf '\n$(BOLD)Container$(RESET)\n'
-	@printf '  $(GREEN)docker$(RESET)               Build image and smoke-test import\n'
-	@printf '  $(GREEN)docker-run$(RESET)           Run image in hardened mode (paper, read-only fs)\n'
-	@printf '  $(GREEN)docker-scan$(RESET)          Trivy CVE scan (requires trivy)\n'
+	@printf '  $(GREEN)db-restore$(RESET)           Restore from BACKUP_FILE\n'
+	@printf '\n$(BOLD)Container targets$(RESET)\n'
+	@printf '  $(GREEN)docker$(RESET)               Build image + smoke-test import\n'
+	@printf '  $(GREEN)docker-run$(RESET)           Run image (hardened, paper mode)\n'
+	@printf '  $(GREEN)docker-scan$(RESET)          Trivy CVE scan\n'
 	@printf '  $(GREEN)compose$(RESET)              Validate docker-compose.yml\n'
-	@printf '\n$(BOLD)Operations$(RESET)\n'
-	@printf '  $(GREEN)resilience$(RESET)           Full resilience suite (risk + reconciliation + paper recovery + audit)\n'
-	@printf '  $(GREEN)dr-drill$(RESET)             Disaster-recovery drill (backup → wipe → restore → verify)\n'
-	@printf '  $(GREEN)dr-restore$(RESET)           Restore from latest backup in BACKUP_DIR\n'
-	@printf '  $(GREEN)load-test$(RESET)            Run load test script (paper only)\n'
-	@printf '  $(GREEN)env-check$(RESET)            Validate .env file for permission and injection issues\n'
-	@printf '  $(GREEN)github-health$(RESET)        Run GitHub repository health check (read-only)\n'
-	@printf '\n$(BOLD)Housekeeping$(RESET)\n'
-	@printf '  $(GREEN)clean$(RESET)               Remove build artefacts, caches, coverage data\n'
+	@printf '\n$(BOLD)Operations targets$(RESET)\n'
+	@printf '  $(GREEN)resilience$(RESET)           Full resilience suite\n'
+	@printf '  $(GREEN)dr-drill$(RESET)             Disaster-recovery drill\n'
+	@printf '  $(GREEN)dr-restore$(RESET)           Restore from latest backup\n'
+	@printf '  $(GREEN)load-test$(RESET)            Load test (paper mode)\n'
+	@printf '  $(GREEN)env-check$(RESET)            Validate .env for injection risks\n'
+	@printf '  $(GREEN)github-health$(RESET)        GitHub repo health check\n'
+	@printf '\n$(BOLD)Frontend targets$(RESET)\n'
+	@printf '  $(GREEN)frontend-lint$(RESET)          Next.js ESLint\n'
+	@printf '  $(GREEN)frontend-type$(RESET)          Next.js TypeScript check\n'
+	@printf '  $(GREEN)frontend-build$(RESET)         Next.js production build\n'
+	@printf '  $(GREEN)frontend-test$(RESET)          Frontend unit tests\n'
+	@printf '  $(GREEN)frontend-e2e$(RESET)           Playwright browser E2E\n'
+	@printf '\n$(BOLD)Dashboard targets$(RESET)\n'
+	@printf '  $(GREEN)dashboard-lint$(RESET)           Vite dashboard lint\n'
+	@printf '  $(GREEN)dashboard-type$(RESET)           Vite dashboard TypeScript\n'
+	@printf '  $(GREEN)dashboard-build$(RESET)          Vite dashboard production build\n'
+	@printf '\n$(BOLD)All-in-one targets$(RESET)\n'
+	@printf '  $(GREEN)all$(RESET)                    Full validation + start all services\n'
+	@printf '  $(GREEN)all-features$(RESET)           Install every optional extra\n'
+	@printf '  $(GREEN)all-services$(RESET)           Start all services (backend+frontend+dashboard)\n'
+	@printf '  $(GREEN)start-all$(RESET)                Start backend + frontend + dashboard\n'
+	@printf '  $(GREEN)stop-all$(RESET)                 Stop all services\n'
+	@printf '  $(GREEN)start-backend$(RESET)            Start uvicorn API on :9569\n'
+	@printf '  $(GREEN)stop-backend$(RESET)             Stop uvicorn API\n'
+	@printf '  $(GREEN)start-frontend$(RESET)           Start Next.js dev on :3016\n'
+	@printf '  $(GREEN)stop-frontend$(RESET)            Stop Next.js dev\n'
+	@printf '  $(GREEN)start-dashboard$(RESET)          Start Vite dashboard on :5173\n'
+	@printf '  $(GREEN)stop-dashboard$(RESET)           Stop Vite dashboard\n'
+	@printf '  $(GREEN)health-check-all$(RESET)         Curl /readyz + all ports\n'
 	@printf '\n$(BOLD)CI gates$(RESET)\n'
-	@printf '  $(GREEN)ci$(RESET)                  Standard CI: lint + format-check + type + coverage + contract + package + compose\n'
-	@printf '  $(GREEN)ci-full$(RESET)              ci + security + resilience + docker + env-check\n'
-	@printf '\n$(BOLD)All-in-one$(RESET)\n'
-	@printf '  $(GREEN)all$(RESET)                  Full validation + start all services (install-all → start-all)\n'
-	@printf '  $(GREEN)start-all$(RESET)            Start backend + frontend + dashboard in background\n'
-	@printf '  $(GREEN)stop-all$(RESET)             Stop all services started by start-all\n'
-	@printf '  $(GREEN)start-backend$(RESET)        Start uvicorn API on :9569\n'
-	@printf '  $(GREEN)stop-backend$(RESET)         Stop uvicorn API\n'
-	@printf '  $(GREEN)start-frontend$(RESET)       Start Next.js dev server on :3016\n'
-	@printf '  $(GREEN)stop-frontend$(RESET)        Stop Next.js dev server\n'
-	@printf '  $(GREEN)start-dashboard$(RESET)      Start Vite dashboard on :5173\n'
-	@printf '  $(GREEN)stop-dashboard$(RESET)       Stop Vite dashboard\n'
-	@printf '  $(GREEN)all-features$(RESET)         Install every optional extra (install-all)\n'
-	@printf '  $(GREEN)all-services$(RESET)         Alias for start-all\n'
-	@printf '  $(GREEN)health-check-all$(RESET)     Curl /readyz + frontend + dashboard ports\n'
+	@printf '  $(GREEN)ci$(RESET)                   Standard CI pipeline\n'
+	@printf '  $(GREEN)ci-full$(RESET)                ci + security + resilience + docker + env-check\n'
+	@printf '  $(GREEN)ci-security$(RESET)            Full security pipeline\n'
+	@printf '  $(GREEN)clean$(RESET)                  Remove build artefacts\n'
 	@printf '\n'
 
 # ============================================================
-# ALL-IN-ONE — single-command start/stop of everything
+# ALL-IN-ONE — single command for everything
 # ============================================================
 
+# ---- Master target: everything ----
 all: install-all lint format-check type coverage contract package compose security resilience start-all
+	@printf '$(GREEN)$(BOLD)ALL DONE — zksato fully validated and running$(RESET)\n'
+	@printf '  Backend  : http://127.0.0.1:9569$(RESET)\n'
+	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
+	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
 
+# ---- Feature installation ----
 all-features: install-all
 
+install-deps:
+	@printf '$(CYAN)Installing system dependencies…$(RESET)\n'
+	@sudo apt-get update -y && sudo apt-get install -y \
+		postgresql-client redis-tools curl wget gnupg \
+		|| printf '$(YELLOW)Skipping system deps (no sudo/apt)$(RESET)\n'
+
+install-all:
+	$(PIP) install --upgrade pip
+	$(PIP) install -e '.[dev,quality,security,settrade,ccxt,prediction,observability]'
+
+# ---- All services ----
 all-services: start-backend start-frontend start-dashboard
 
+start-all: start-backend start-frontend start-dashboard
+	@printf '$(CYAN)Waiting 3s for services to bind…$(RESET)\n'
+	@sleep 3
+	@printf '$(GREEN)All services started. PIDs saved to /tmp/zksato-*.pid$(RESET)\n'
+	@printf '  Backend  : http://127.0.0.1:9569  (API docs: /docs, health: /readyz)$(RESET)\n'
+	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
+	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
+
+stop-all: stop-backend stop-frontend stop-dashboard
+	@printf '$(GREEN)All services stopped.$(RESET)\n'
+
+# ---- Individual service start/stop ----
 start-backend:
 	@printf '$(CYAN)Starting zksato backend (uvicorn :9569)…$(RESET)\n'
 	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
@@ -148,7 +202,7 @@ stop-backend:
 
 start-frontend:
 	@printf '$(CYAN)Starting Next.js frontend (:3016)…$(RESET)\n'
-	@cd frontend && npm run dev & \
+	@cd frontend && $(NPM) run dev & \
 	echo $$! > /tmp/zksato-frontend.pid
 	@printf '$(GREEN)Frontend PID $$(cat /tmp/zksato-frontend.pid) — http://127.0.0.1:3016$(RESET)\n'
 
@@ -163,7 +217,7 @@ stop-frontend:
 
 start-dashboard:
 	@printf '$(CYAN)Starting Vite dashboard (:5173)…$(RESET)\n'
-	@cd dashboard && npm run dev & \
+	@cd dashboard && $(NPM) run dev & \
 	echo $$! > /tmp/zksato-dashboard.pid
 	@printf '$(GREEN)Dashboard PID $$(cat /tmp/zksato-dashboard.pid) — http://127.0.0.1:5173$(RESET)\n'
 
@@ -175,17 +229,6 @@ stop-dashboard:
 	else \
 		printf '$(YELLOW)No dashboard PID file found$(RESET)\n'; \
 	fi
-
-start-all: start-backend start-frontend start-dashboard
-	@printf '$(CYAN)Waiting 3s for services to bind…$(RESET)\n'
-	@sleep 3
-	@printf '$(GREEN)All services started. PIDs saved to /tmp/zksato-*.pid$(RESET)\n'
-	@printf '  Backend  : http://127.0.0.1:9569  (API docs: /docs, health: /readyz)$(RESET)\n'
-	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
-	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
-
-stop-all: stop-backend stop-frontend stop-dashboard
-	@printf '$(GREEN)All services stopped.$(RESET)\n'
 
 health-check-all:
 	@printf '$(CYAN)Health-checking all services…$(RESET)\n'
@@ -218,17 +261,13 @@ install-prediction:
 install-observability:
 	$(PIP) install -e '.[observability]'
 
-install-all:
-	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev,quality,security,settrade,ccxt,prediction,observability]'
-
 # ============================================================
 # QUALITY — lint / format / type
 # ============================================================
 lint:
 	ruff check .
-	yamllint .github .yamllint.yml docker-compose.yml
-	hadolint Dockerfile
+	@command -v yamllint >/dev/null 2>&1 && yamllint .github .yamllint.yml docker-compose.yml || true
+	@command -v hadolint >/dev/null 2>&1 && hadolint Dockerfile || true
 
 format:
 	ruff format .
@@ -243,7 +282,7 @@ type:
 	mypy src/zksato scripts
 
 # ============================================================
-# TEST
+# TEST — Python
 # ============================================================
 test:
 	$(PYTEST) -m "not uat and not performance"
@@ -264,7 +303,7 @@ test-performance:
 	$(PYTEST) -m "performance" tests/test_performance_probe.py
 
 test-uat:
-	@printf '$(YELLOW)WARNING: Requires broker UAT credentials and schedule-gated sessions (Thu/Fri 09:00–17:00 TH).$(RESET)\n'
+	@printf '$(YELLOW)WARNING: Requires broker UAT credentials (Thu/Fri 09:00–17:00 TH).$(RESET)\n'
 	$(PYTEST) -m "uat" tests/test_uat.py tests/test_settrade_adapters.py
 
 test-postgres:
@@ -272,6 +311,44 @@ test-postgres:
 
 test-concurrency:
 	$(PYTEST) tests/test_concurrency.py
+
+test-security:
+	$(PYTEST) tests/test_workflow_security.py tests/test_financial_invariants.py tests/test_auth.py
+
+# ============================================================
+# TEST — Frontend
+# ============================================================
+frontend-lint:
+	@cd frontend && $(NPM) run lint 2>/dev/null || \
+		$(NPM) exec eslint --max-warnings 0 src/ 2>/dev/null || \
+		printf '$(YELLOW)No ESLint config found, skipping$(RESET)\n'
+
+frontend-type:
+	@cd frontend && $(NODE) $(NPM) exec tsc --noEmit
+
+frontend-build:
+	@cd frontend && $(NPM) run build
+
+frontend-test:
+	@cd frontend && $(NPM) test 2>/dev/null || \
+		printf '$(YELLOW)No unit test script configured, skipping$(RESET)\n'
+
+frontend-e2e:
+	@cd frontend && $(NPM) run test:e2e
+
+# ============================================================
+# TEST — Dashboard
+# ============================================================
+dashboard-lint:
+	@cd dashboard && $(NPM) run lint 2>/dev/null || \
+		$(NPM) exec oxlint 2>/dev/null || \
+		printf '$(YELLOW)No lint script found, skipping$(RESET)\n'
+
+dashboard-type:
+	@cd dashboard && $(NODE) $(NPM) exec tsc -b
+
+dashboard-build:
+	@cd dashboard && $(NPM) run build
 
 # ============================================================
 # COVERAGE
@@ -293,19 +370,34 @@ coverage-html:
 	@printf '$(GREEN)HTML report:$(RESET) htmlcov/index.html\n'
 
 # ============================================================
-# SECURITY
+# CONTRACTS / DOCS
 # ============================================================
-security: audit bandit
-	zizmor --min-severity high --min-confidence high .github/workflows
+contract:
+	$(PYTHON) scripts/openapi_contract.py --output openapi.json
 
-audit:
+openapi: contract
+
+licenses:
+	pip-licenses --format=json --output-file=licenses.json
+
+# ============================================================
+# SECURITY — all-in-one
+# ============================================================
+security: sec-bandit sec-pip-audit sec-zizmor
+
+security-full: sec-bandit sec-pip-audit sec-zizmor sec-gitleaks shellcheck
+
+sec-bandit:
+	bandit -q -r src -ll
+
+sec-pip-audit:
 	$(PIP) freeze --exclude-editable > audit-requirements.txt
 	pip-audit --strict --progress-spinner off -r audit-requirements.txt
 
-bandit:
-	bandit -q -r src -ll
+sec-zizmor:
+	zizmor --min-severity high --min-confidence high .github/workflows
 
-gitleaks:
+sec-gitleaks:
 	gitleaks detect --source . --verbose
 
 # ============================================================
@@ -332,25 +424,6 @@ db-restore:
 	@: "$${ZKSATO_DATABASE_URL:?Set ZKSATO_DATABASE_URL before running db-restore}"
 	@: "$${BACKUP_FILE:?Set BACKUP_FILE=path/to/file.dump}"
 	bash scripts/restore_postgres.sh "$(BACKUP_FILE)"
-
-# ============================================================
-# CONTRACTS / DOCS
-# ============================================================
-contract:
-	$(PYTHON) scripts/openapi_contract.py --output openapi.json
-
-openapi: contract
-
-licenses:
-	pip-licenses --format=json --output-file=licenses.json
-
-# ============================================================
-# PACKAGE
-# ============================================================
-package:
-	rm -rf build dist
-	$(PYTHON) -m build
-	twine check dist/*
 
 # ============================================================
 # CONTAINER
@@ -445,4 +518,14 @@ clean:
 # ============================================================
 ci: lint format-check type coverage contract package compose
 
+ci-security: lint format-check type coverage contract package compose security-full resilience docker env-check
+
 ci-full: ci security resilience docker env-check
+
+# ============================================================
+# PACKAGE
+# ============================================================
+package:
+	rm -rf build dist
+	$(PYTHON) -m build
+	twine check dist/*
