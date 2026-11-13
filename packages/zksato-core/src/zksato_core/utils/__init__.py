@@ -1,9 +1,9 @@
 """Utility modules."""
 
-from zksato_core.utils import collections, functional, async_utils
+from zksato_core.utils import async_utils, collections, functional
 
 __all__ = [
+    "async_utils",
     "collections",
     "functional",
-    "async_utils",
 ]

@@ -9,7 +9,6 @@ from typing import Any, Generic, TypeVar
 
 from zksato_core.models import OrderIntent, RiskContext, RiskDecision
 
-
 T = TypeVar("T")
 
 
@@ -72,10 +71,10 @@ class PolicyEngine:
 
         for policy in self.policies:
             result = policy.evaluate(intent, context)
-            if result.decision == PolicyDecision.REJECT:
-                approved = False
-                all_reasons.extend(result.reasons)
-            elif result.decision == PolicyDecision.REQUIRE_APPROVAL:
+            if (
+                result.decision == PolicyDecision.REJECT
+                or result.decision == PolicyDecision.REQUIRE_APPROVAL
+            ):
                 approved = False
                 all_reasons.extend(result.reasons)
 

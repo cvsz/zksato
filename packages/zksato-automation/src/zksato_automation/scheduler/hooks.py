@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 class HookType(str, Enum):
     """Types of trading hooks."""
+
     PRE_RISK_CHECK = "pre_risk_check"
     POST_RISK_CHECK = "post_risk_check"
     PRE_ORDER_PLACE = "pre_order_place"
@@ -26,22 +28,22 @@ class HookType(str, Enum):
 @dataclass
 class HookManager:
     """Manages trading lifecycle hooks."""
-    
+
     _hooks: dict[HookType, list[Callable]] = field(default_factory=dict)
-    
+
     def register(self, hook_type: HookType, fn: Callable) -> None:
         """Register a hook function."""
         if hook_type not in self._hooks:
             self._hooks[hook_type] = []
         self._hooks[hook_type].append(fn)
-    
+
     def unregister(self, hook_type: HookType, fn: Callable) -> bool:
         """Unregister a hook function."""
         if hook_type in self._hooks and fn in self._hooks[hook_type]:
             self._hooks[hook_type].remove(fn)
             return True
         return False
-    
+
     async def run(self, hook_type: HookType, *args, **kwargs) -> list[Any]:
         """Run all hooks of a given type."""
         results = []
@@ -53,7 +55,7 @@ class HookManager:
                 # Log error in production
                 results.append({"error": str(e)})
         return results
-    
+
     def list_hooks(self, hook_type: HookType | None = None) -> dict[str, list[str]]:
         """List registered hooks."""
         if hook_type:

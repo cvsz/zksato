@@ -21,7 +21,7 @@ class MarketPanel(Widget):
     DEFAULT_CSS = """
     MarketPanel {
         height: 1fr;
-        border: solid $primary;
+        border: solid cyan;
         padding: 1;
     }
     """

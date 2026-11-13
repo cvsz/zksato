@@ -25,7 +25,7 @@ class ToolPanel(Widget):
     DEFAULT_CSS = """
     ToolPanel {
         height: 1fr;
-        border: solid $primary;
+        border: solid cyan;
         padding: 1;
     }
     """
@@ -78,7 +78,7 @@ class ToolPanel(Widget):
             return Panel(
                 "No tool calls yet.",
                 title="Tool Execution",
-                border_style="primary",
+                border_style="cyan",
                 title_align="left",
             )
 
@@ -89,7 +89,7 @@ class ToolPanel(Widget):
         return Panel(
             Group(*renders),
             title="Tool Execution",
-            border_style="primary",
+            border_style="cyan",
             title_align="left",
         )
 
@@ -117,7 +117,7 @@ class ToolPanel(Widget):
 
             text = Text.assemble(
                 Text(f"{tool_emoji} ", style=""),
-                Text(tool_name, style=Style(color="primary", bold=True)),
+                Text(tool_name, style=Style(color="cyan", bold=True)),
                 Text(f" [{status}] ", style=Style(color=status_color, bold=True)),
                 "\n",
             )
@@ -129,7 +129,7 @@ class ToolPanel(Widget):
 
         elif self.tool_display == "minimal":
             text = Text.assemble(
-                Text(f"[{tool_name}] ", style=Style(color="primary", bold=True)),
+                Text(f"[{tool_name}] ", style=Style(color="cyan", bold=True)),
                 Text(f"{status} ", style=Style(color=status_color)),
             )
             if result:
@@ -138,7 +138,7 @@ class ToolPanel(Widget):
 
         else:  # grouped
             text = Text.assemble(
-                Text(f"▸ {tool_name}", style=Style(color="primary", bold=True)),
+                Text(f"▸ {tool_name}", style=Style(color="cyan", bold=True)),
                 Text(f" [{status}] ", style=Style(color=status_color, bold=True)),
                 "\n",
             )

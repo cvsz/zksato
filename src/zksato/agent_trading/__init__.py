@@ -26,8 +26,8 @@ from zksato.agent_trading.service import AgentService
 
 __all__ = [
     "Agent",
-    "AgentInfo",
     "AgentHeartbeatResponse",
+    "AgentInfo",
     "AgentLoginRequest",
     "AgentPasswordResetConfirm",
     "AgentPasswordResetRequest",

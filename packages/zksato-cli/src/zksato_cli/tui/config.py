@@ -7,6 +7,7 @@ configuration for the terminal UI.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 class ToolDisplayStyle(str):
@@ -44,9 +45,9 @@ class TUIConfig:
     api_key: str | None = None
 
     # Display settings
-    tool_display: ToolDisplayStyle = ToolDisplayStyle.GROUPED
-    input_style: InputStyle = InputStyle.BLOCK
-    loader_style: LoaderStyle = LoaderStyle.SPINNER
+    tool_display: ToolDisplayStyle = ToolDisplayStyle.GROUPED  # type: ignore[assignment]
+    input_style: InputStyle = InputStyle.BLOCK  # type: ignore[assignment]
+    loader_style: LoaderStyle = LoaderStyle.SPINNER  # type: ignore[assignment]
 
     # Banner
     show_banner: bool = True
@@ -66,14 +67,14 @@ class TUIConfig:
     enable_portfolio_display: bool = True
     enable_agent_chat: bool = True
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary for serialization."""
         return {
             "api_base_url": self.api_base_url,
             "api_timeout": self.api_timeout,
-            "tool_display": self.tool_display.value,
-            "input_style": self.input_style.value,
-            "loader_style": self.loader_style.value,
+            "tool_display": self.tool_display.value,  # type: ignore[attr-defined]
+            "input_style": self.input_style.value,  # type: ignore[attr-defined]
+            "loader_style": self.loader_style.value,  # type: ignore[attr-defined]
             "show_banner": self.show_banner,
             "banner_text": self.banner_text,
             "session_id": self.session_id,
@@ -87,7 +88,7 @@ class TUIConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> TUIConfig:
+    def from_dict(cls, data: dict[str, Any]) -> TUIConfig:
         """Create config from dictionary."""
         return cls(
             api_base_url=data.get("api_base_url", "http://localhost:9569"),

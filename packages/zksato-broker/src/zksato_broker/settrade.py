@@ -6,22 +6,23 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from zksato_core.types import Side, OrderType, OrderStatus
-from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot, Position
 from zksato_core.config import Settings
-from zksato_broker.base import BaseBroker, BrokerConfig, BrokerCapabilities, BrokerAmbiguousError
+from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot, Position
+from zksato_core.types import OrderStatus, OrderType, Side
+
+from zksato_broker.base import BaseBroker, BrokerAmbiguousError, BrokerCapabilities, BrokerConfig
 from zksato_broker.errors import classify_error
 
 
 class SettradeBroker(BaseBroker):
     """Settrade Open API v2 equity adapter with ambiguous-outcome normalization."""
-    
+
     def __init__(self, config: BrokerConfig, settings: Settings) -> None:
         super().__init__(config)
         self.settings = settings
         self._investor = None
         self._equity = None
-    
+
     @property
     def capabilities(self) -> set[BrokerCapabilities]:
         caps = {
@@ -35,19 +36,27 @@ class SettradeBroker(BaseBroker):
         if self.config.sandbox:
             caps.add(BrokerCapabilities.SANDBOX_MODE)
         return caps
-    
+
     async def _do_connect(self) -> None:
         if not self.settings.settrade_configured:
             raise RuntimeError("Settrade credentials are incomplete")
-        
+
         try:
             from settrade_v2 import Investor
         except ImportError as exc:
             raise RuntimeError("install zksato[settrade] to use Settrade mode") from exc
-        
-        broker_id = "SANDBOX" if self.settings.trading_mode == "sandbox" else self.settings.settrade_broker_id
-        app_code = "SANDBOX" if self.settings.trading_mode == "sandbox" else self.settings.settrade_app_code
-        
+
+        broker_id = (
+            "SANDBOX"
+            if self.settings.trading_mode == "sandbox"
+            else self.settings.settrade_broker_id
+        )
+        app_code = (
+            "SANDBOX"
+            if self.settings.trading_mode == "sandbox"
+            else self.settings.settrade_app_code
+        )
+
         try:
             self._investor = Investor(
                 app_id=self.settings.settrade_app_id,
@@ -58,20 +67,20 @@ class SettradeBroker(BaseBroker):
             )
         except Exception as exc:
             raise RuntimeError(f"Settrade login failed: {exc}") from exc
-        
+
         try:
             self._equity = self._investor.Equity(account_no=self.settings.settrade_account_no)
         except Exception as exc:
             raise RuntimeError(f"Settrade equity account initialization failed: {exc}") from exc
-    
+
     async def _do_disconnect(self) -> None:
         self._investor = None
         self._equity = None
-    
+
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         price_type = "Limit" if intent.order_type == OrderType.LIMIT else "MP-MKT"
         price = float(intent.price or 0)
-        
+
         try:
             payload = await asyncio.to_thread(
                 self._equity.place_order,
@@ -94,14 +103,14 @@ class SettradeBroker(BaseBroker):
             if classified.category in ("transient", "rate_limited"):
                 raise BrokerAmbiguousError(f"Settrade order ambiguous: {exc}") from exc
             raise
-        
+
         return self._map_order(payload, intent=intent)
-    
+
     async def cancel_order(self, order_id: str) -> OrderRecord:
         cancel = getattr(self._equity, "cancel_order", None)
         if cancel is None:
             raise RuntimeError("installed Settrade SDK does not expose cancel_order")
-        
+
         try:
             payload = await asyncio.to_thread(
                 cancel,
@@ -115,7 +124,7 @@ class SettradeBroker(BaseBroker):
             if classified.category in ("transient", "rate_limited"):
                 raise BrokerAmbiguousError(f"Settrade cancel ambiguous: {exc}") from exc
             raise
-        
+
         intent = OrderIntent(
             symbol=str(payload.get("symbol", "UNKNOWN")),
             side=Side.BUY if str(payload.get("side", "Buy")).lower() == "buy" else Side.SELL,
@@ -127,35 +136,36 @@ class SettradeBroker(BaseBroker):
         record = self._map_order(payload, intent=intent)
         record.status = OrderStatus.CANCELLED
         return record
-    
+
     async def list_orders(self, status: OrderStatus | None = None) -> list[OrderRecord]:
         rows = await asyncio.to_thread(self._equity.get_orders)
         orders = [self._map_order(row) for row in rows or []]
         if status:
             orders = [o for o in orders if o.status == status]
         return orders
-    
+
     async def get_positions(self) -> list[Position]:
         snap = await self.get_portfolio()
         return snap.positions
-    
+
     async def get_account(self) -> dict[str, Any]:
         return await asyncio.to_thread(self._equity.get_account_info)
-    
+
     async def get_portfolio(self) -> PortfolioSnapshot:
         account = await self.get_account()
         get_portfolios = getattr(self._equity, "get_portfolios", None)
         raw_rows = await asyncio.to_thread(get_portfolios) if get_portfolios else []
-        
+
         if isinstance(raw_rows, str):
             import json
+
             raw_rows = json.loads(raw_rows) if raw_rows.strip() else []
         rows = raw_rows if isinstance(raw_rows, list) else []
-        
+
         positions: list[Position] = []
         market_value = 0.0
         unrealized = 0.0
-        
+
         for row in rows or []:
             quantity = int(row.get("currentVolume", row.get("actualVolume", 0)) or 0)
             if quantity <= 0:
@@ -179,10 +189,10 @@ class SettradeBroker(BaseBroker):
                     unrealized_pnl_pct=(pnl / cost * 100) if cost else 0.0,
                 )
             )
-        
+
         cash = float(account.get("cashBalance", account.get("cash_balance", 0)) or 0)
         equity = float(account.get("equity", cash + market_value) or (cash + market_value))
-        
+
         return PortfolioSnapshot(
             cash=cash,
             market_value=market_value,
@@ -192,7 +202,7 @@ class SettradeBroker(BaseBroker):
             daily_pnl=0.0,
             positions=positions,
         )
-    
+
     def _map_order(
         self,
         payload: dict[str, Any],
@@ -231,7 +241,7 @@ class SettradeBroker(BaseBroker):
             created_at=now,
             updated_at=now,
         )
-    
+
     @staticmethod
     def _status(raw: str, quantity: int, matched: int) -> OrderStatus:
         if "cancel" in raw or raw in {"c", "e"}:

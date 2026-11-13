@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import AsyncGenerator, Callable, Generic, TypeVar
+from typing import Generic, TypeVar
+
+from zksato_core.models import Bar, Quote, Trade
 
 from zksato_market.types import FeedEvent, FeedStatus, MarketType
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.exceptions import MarketDataError
-
 
 T = TypeVar("T")
 

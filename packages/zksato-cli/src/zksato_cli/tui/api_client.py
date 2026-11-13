@@ -7,6 +7,8 @@ and TradingService boundaries.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 
 
@@ -37,21 +39,21 @@ class ZKSATOAPIClient:
             await self._client.aclose()
             self._client = None
 
-    async def health(self) -> dict:
+    async def health(self) -> dict[str, Any]:
         """Check API health."""
         client = await self._get_client()
         resp = await client.get("/health")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def version(self) -> dict:
+    async def version(self) -> dict[str, Any]:
         """Get API version."""
         client = await self._get_client()
         resp = await client.get("/version")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def get_market_quote(self, symbol: str) -> dict:
+    async def get_market_quote(self, symbol: str) -> dict[str, Any]:
         """Get a market quote for a symbol."""
         client = await self._get_client()
         resp = await client.post(
@@ -66,60 +68,60 @@ class ZKSATOAPIClient:
             },
         )
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def list_quotes(self) -> list[dict]:
+    async def list_quotes(self) -> list[dict[str, Any]]:
         """List all market quotes."""
         client = await self._get_client()
         resp = await client.get("/v1/market/quotes")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def get_portfolio(self) -> dict:
+    async def get_portfolio(self) -> dict[str, Any]:
         """Get portfolio snapshot."""
         client = await self._get_client()
         resp = await client.get("/v1/portfolio")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def get_orders(self) -> list[dict]:
+    async def get_orders(self) -> list[dict[str, Any]]:
         """List orders."""
         client = await self._get_client()
         resp = await client.get("/v1/orders")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def get_risk_evaluations(self) -> list[dict]:
+    async def get_risk_evaluations(self) -> list[dict[str, Any]]:
         """Get risk evaluations."""
         client = await self._get_client()
         resp = await client.get("/v1/risk/evaluations")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def submit_order(self, order_data: dict) -> dict:
+    async def submit_order(self, order_data: dict[str, Any]) -> dict[str, Any]:
         """Submit an order intent. Routes through RiskEngine."""
         client = await self._get_client()
         resp = await client.post("/v1/orders", json={"intent": order_data})
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def cancel_order(self, order_id: str) -> dict:
+    async def cancel_order(self, order_id: str) -> dict[str, Any]:
         """Cancel an order."""
         client = await self._get_client()
         resp = await client.delete(f"/v1/orders/{order_id}")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def get_agent_sessions(self) -> list[dict]:
+    async def get_agent_sessions(self) -> list[dict[str, Any]]:
         """List agent sessions."""
         client = await self._get_client()
         resp = await client.get("/v1/agent-sessions")
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]
 
-    async def create_agent_session(self, session_data: dict) -> dict:
+    async def create_agent_session(self, session_data: dict[str, Any]) -> dict[str, Any]:
         """Create an agent session."""
         client = await self._get_client()
         resp = await client.post("/v1/agent-sessions", json=session_data)
         resp.raise_for_status()
-        return resp.json()
+        return resp.json()  # type: ignore[no-any-return]

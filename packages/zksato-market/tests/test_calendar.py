@@ -1,11 +1,10 @@
 """Tests for zksato-market calendar."""
 
-import pytest
-from datetime import date, datetime, time
+from datetime import date, datetime
 
+from zksato_core.datetime import BANGKOK_TZ
 from zksato_market.calendar import TradingCalendar
 from zksato_market.types import MarketType
-from zksato_core.datetime import MarketSession, BANGKOK_TZ
 
 
 def test_trading_calendar_creation():

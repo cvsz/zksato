@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import Any, Callable
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from zksato_core.models import Signal
 from zksato_automation.service import TradingService
 
 
 @dataclass
 class ScheduledJob:
     """A scheduled trading job."""
+
     job_id: str
     name: str
     trigger: str  # "interval" or "cron"
@@ -29,12 +29,12 @@ class ScheduledJob:
 
 class TradingScheduler:
     """Manages scheduled trading jobs."""
-    
+
     def __init__(self, trading_service: TradingService) -> None:
         self.trading_service = trading_service
         self.scheduler = AsyncIOScheduler()
         self._jobs: dict[str, ScheduledJob] = {}
-    
+
     def add_interval_job(
         self,
         job_id: str,
@@ -54,7 +54,7 @@ class TradingScheduler:
             kwargs=kwargs,
         )
         self._jobs[job_id] = job
-        
+
         if self.scheduler.running:
             self.scheduler.add_job(
                 func,
@@ -63,7 +63,7 @@ class TradingScheduler:
                 args=args,
                 kwargs=kwargs,
             )
-    
+
     def add_cron_job(
         self,
         job_id: str,
@@ -83,7 +83,7 @@ class TradingScheduler:
             kwargs=kwargs,
         )
         self._jobs[job_id] = job
-        
+
         if self.scheduler.running:
             self.scheduler.add_job(
                 func,
@@ -92,7 +92,7 @@ class TradingScheduler:
                 args=args,
                 kwargs=kwargs,
             )
-    
+
     def remove_job(self, job_id: str) -> bool:
         """Remove a job."""
         if job_id in self._jobs:
@@ -101,15 +101,15 @@ class TradingScheduler:
                 self.scheduler.remove_job(job_id)
             return True
         return False
-    
+
     def get_job(self, job_id: str) -> ScheduledJob | None:
         """Get a job by ID."""
         return self._jobs.get(job_id)
-    
+
     def list_jobs(self) -> list[ScheduledJob]:
         """List all jobs."""
         return list(self._jobs.values())
-    
+
     def start(self) -> None:
         """Start the scheduler."""
         # Add all registered jobs
@@ -132,11 +132,11 @@ class TradingScheduler:
                         kwargs=job.kwargs,
                     )
         self.scheduler.start()
-    
+
     def shutdown(self) -> None:
         """Shutdown the scheduler."""
         self.scheduler.shutdown()
-    
+
     async def run_once(self, job_id: str) -> Any:
         """Run a job once manually."""
         job = self._jobs.get(job_id)

@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import Any
 
-from zksato_core.types import OrderType, OrderStatus, Side
-from zksato_core.models import OrderRecord, FillRecord
+from zksato_core.models import FillRecord, OrderRecord
+from zksato_core.types import OrderStatus, OrderType, Side
 
 
 @dataclass
 class OrderGenerator:
     """Generates test orders."""
-    
+
     @staticmethod
     def generate_order(
         symbol: str = "TEST",
@@ -35,7 +33,7 @@ class OrderGenerator:
             source="test",
             **kwargs,
         )
-    
+
     @staticmethod
     def generate_orders(
         count: int = 10,
@@ -49,7 +47,7 @@ class OrderGenerator:
 @dataclass
 class FillGenerator:
     """Generates test fills."""
-    
+
     @staticmethod
     def generate_fill(
         order_id: str,
@@ -69,7 +67,7 @@ class FillGenerator:
             source="test",
             **kwargs,
         )
-    
+
     @staticmethod
     def generate_fills(
         count: int = 10,

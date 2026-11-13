@@ -1,43 +1,40 @@
 """Tests for zksato-core models module."""
 
-import pytest
 from datetime import UTC, datetime
-from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
+import pytest
 from zksato_core.models import (
-    Quote,
-    Candle,
-    Bar,
-    OrderIntent,
-    RiskContext,
-    OrderSubmission,
-    RiskDecision,
-    OrderRecord,
-    OrderEvent,
-    FillRecord,
-    RiskEvaluation,
-    Position,
-    PortfolioSnapshot,
     AccountSnapshot,
-    StrategyConfig,
-    StrategyVersion,
-    StrategyRun,
-    Signal,
-    BotConfig,
-    BotStatus,
-    BacktestRequest,
-    BacktestTrade,
-    BacktestResult,
     AlertRule,
     AuditEvent,
-    OutboxMessage,
-    ReconciliationReport,
-    ScannerResult,
+    BacktestRequest,
+    BacktestResult,
+    BacktestTrade,
+    Bar,
+    BotConfig,
+    BotStatus,
+    Candle,
     DashboardSnapshot,
+    FillRecord,
+    OrderEvent,
+    OrderIntent,
+    OrderRecord,
+    OrderSubmission,
+    OutboxMessage,
+    PortfolioSnapshot,
+    Position,
+    Quote,
+    ReconciliationReport,
+    RiskContext,
+    RiskDecision,
+    ScannerResult,
+    Signal,
+    StrategyConfig,
+    StrategyVersion,
 )
-from zksato_core.types import Side, OrderType, OrderStatus, SignalAction, BotState
 from zksato_core.money import thb
+from zksato_core.types import BotState, OrderStatus, OrderType, Side, SignalAction
 
 
 def test_quote():

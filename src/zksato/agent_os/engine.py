@@ -1,15 +1,30 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from zksato.agent_os.skills import AgentSkillHub
 from zksato.agent_os.subaccount import AgentPermission, AgentSubAccountManager
 from zksato.config import Settings
-from zksato.domain import OrderIntent, OrderType, Side
-from zksato.service import TradingService
+from zksato.domain import OrderIntent, OrderSubmission, OrderType, Side
+from zksato.indicators import ema, rsi
+from zksato.service import RiskRejectedError, TradingService
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class GuardedOrderParams:
+    """Parameters for submitting a guarded order via Agent OS."""
+    sub_account_id: str
+    symbol: str
+    side: str
+    quantity: float
+    price: float | None = None
+    order_type: str = "limit"
+    stop_loss: float | None = None
+    take_profit: float | None = None
 
 
 class AgentExecutionEngine:
@@ -44,45 +59,42 @@ class AgentExecutionEngine:
             }
 
         async def submit_guarded_order(
-            sub_account_id: str,
-            symbol: str,
-            side: str,
-            quantity: float,
-            price: float | None = None,
-            order_type: str = "limit",
-            stop_loss: float | None = None,
-            take_profit: float | None = None,
+            **kwargs: Any,
         ) -> dict[str, Any]:
-            acc = self.subaccount_manager.get_subaccount(sub_account_id)
+            params = GuardedOrderParams(**kwargs)
+            acc = self.subaccount_manager.get_subaccount(params.sub_account_id)
             if not acc or not acc.can_perform(AgentPermission.SUBMIT_INTENT):
                 return {
                     "approved": False,
                     "reason": "Unauthorized agent sub-account or permission denied",
                 }
 
-            intent_side = Side.BUY if side.lower() == "buy" else Side.SELL
-            intent_type = OrderType.LIMIT if order_type.lower() == "limit" else OrderType.MARKET
-
-            from zksato.domain import OrderSubmission
-            from zksato.service import RiskRejectedError
+            intent_side = Side.BUY if params.side.lower() == "buy" else Side.SELL
+            intent_type = (
+                OrderType.LIMIT
+                if params.order_type.lower() == "limit"
+                else OrderType.MARKET
+            )
 
             # If buy order and stop_loss not explicitly supplied, calculate default safety stop
-            if intent_side == Side.BUY and stop_loss is None:
-                ref_p = price or 1.0
+            if intent_side == Side.BUY and params.stop_loss is None:
+                ref_p = params.price or 1.0
                 stop_loss = ref_p * (1.0 - self.settings.default_stop_loss_pct / 100.0)
+            else:
+                stop_loss = params.stop_loss
 
-            if side.lower() not in {"buy", "sell"}:
+            if params.side.lower() not in {"buy", "sell"}:
                 return {"approved": False, "reason": "side must be buy or sell"}
-            if float(quantity) <= 0:
+            if float(params.quantity) <= 0:
                 return {"approved": False, "reason": "quantity must be positive"}
             intent = OrderIntent(
-                symbol=symbol,
+                symbol=params.symbol,
                 side=intent_side,
-                quantity=float(quantity),
+                quantity=float(params.quantity),
                 order_type=intent_type,
-                price=price,
+                price=params.price,
                 stop_loss=stop_loss,
-                take_profit=take_profit,
+                take_profit=params.take_profit,
                 source=f"agent_os:{acc.agent_name}",
             )
             submission = OrderSubmission(intent=intent)
@@ -125,12 +137,8 @@ class AgentExecutionEngine:
             prices = self.trading_service.store.get_prices(symbol)
             ind_lower = indicator.lower()
             if ind_lower == "rsi":
-                from zksato.indicators import rsi
-
                 val = rsi(prices, period=period)
             elif ind_lower == "ema":
-                from zksato.indicators import ema
-
                 val = ema(prices, period=period)
             else:
                 return {"success": False, "error": f"Unsupported indicator: {indicator}"}
@@ -152,9 +160,10 @@ class AgentExecutionEngine:
                 return {"success": False, "error": "Permission denied"}
             try:
                 cancelled = await self.trading_service.cancel_order(order_id)
-                return {"success": True, "cancelled": cancelled}
             except Exception as exc:
                 return {"success": False, "error": str(exc)}
+            else:
+                return {"success": True, "cancelled": cancelled}
 
         self.skills.register(
             name="get_market_quote",

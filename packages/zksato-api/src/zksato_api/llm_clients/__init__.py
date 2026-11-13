@@ -8,7 +8,16 @@ from .gemini4_hydrogen import (
     LLMResponse,
 )
 from .local_llama_server import LocalLLMServerConfig, LocalLLMServerManager
-from .local_llm import LocalLLMBackend, LocalLLMClient, LocalLLMConfig, LocalLLMResponse
+from .local_llm import (
+    LocalLLMBackend,
+    LocalLLMClient,
+    LocalLLMConfig,
+    LocalLLMConnectionError,
+    LocalLLMContextError,
+    LocalLLMError,
+    LocalLLMModelError,
+    LocalLLMResponse,
+)
 from .orchestrator import (
     ModelOrchestrator,
     OrchestratorDecision,
@@ -26,6 +35,10 @@ __all__ = [
     "LocalLLMBackend",
     "LocalLLMClient",
     "LocalLLMConfig",
+    "LocalLLMConnectionError",
+    "LocalLLMContextError",
+    "LocalLLMError",
+    "LocalLLMModelError",
     "LocalLLMResponse",
     "LocalLLMServerConfig",
     "LocalLLMServerManager",

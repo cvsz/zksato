@@ -119,7 +119,7 @@ class CodeGenerationSkill:
 
     def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
         self.llm_client = llm_client
-    
+
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
         prompt = params.get("prompt")
         language = params.get("language", "python")

@@ -4,14 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
-from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from zksato_core.types import Side, OrderType, OrderStatus, SignalAction, BotState
-from zksato_core.money import Money, thb
 from zksato_core.ids import new_correlation_id
+from zksato_core.money import Money, thb
+from zksato_core.types import BotState, OrderStatus, OrderType, Side, SignalAction
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +32,9 @@ class Quote:
     def change_pct(self) -> float:
         if not self.previous_close or self.previous_close.amount == 0:
             return 0.0
-        return float((self.last.amount - self.previous_close.amount) / self.previous_close.amount * 100)
+        return float(
+            (self.last.amount - self.previous_close.amount) / self.previous_close.amount * 100
+        )
 
     @property
     def spread(self) -> Money | None:
@@ -545,14 +545,16 @@ class DashboardSnapshot:
     automation_enabled: bool = True
     kill_switch: bool = False
     bot: BotStatus = field(default_factory=BotStatus)
-    portfolio: PortfolioSnapshot = field(default_factory=lambda: PortfolioSnapshot(
-        cash=thb(0),
-        market_value=thb(0),
-        equity=thb(0),
-        realized_pnl=thb(0),
-        unrealized_pnl=thb(0),
-        daily_pnl=thb(0),
-    ))
+    portfolio: PortfolioSnapshot = field(
+        default_factory=lambda: PortfolioSnapshot(
+            cash=thb(0),
+            market_value=thb(0),
+            equity=thb(0),
+            realized_pnl=thb(0),
+            unrealized_pnl=thb(0),
+            daily_pnl=thb(0),
+        )
+    )
     quotes: list[Quote] = field(default_factory=list)
     orders: list[OrderRecord] = field(default_factory=list)
     signals: list[Signal] = field(default_factory=list)

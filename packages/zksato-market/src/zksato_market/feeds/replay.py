@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import AsyncIterator
+
+from zksato_core.models import Bar, Quote, Trade
 
 from zksato_market.feeds.base import MarketDataFeed
-from zksato_market.types import MarketType, FeedStatus
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.money import Money
+from zksato_market.types import FeedStatus, MarketType
 
 
 @dataclass

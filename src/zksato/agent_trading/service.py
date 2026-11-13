@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -276,34 +277,35 @@ class AgentService:
 
     # ── Points/Rewards ──────────────────────────────────────────────
 
-    def add_agent_points(
-        self,
-        agent_id: str,
-        points: int,
-        reason: str = "reward",
-        *,
-        source_type: str | None = None,
-        source_id: str | None = None,
-        metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    @dataclass(frozen=True)
+    class AddPointsParams:
+        """Parameters for adding agent points."""
+        agent_id: str
+        points: int
+        reason: str = "reward"
+        source_type: str | None = None
+        source_id: str | None = None
+        metadata: dict[str, Any] | None = None
+
+    def add_agent_points(self, params: AddPointsParams) -> dict[str, Any]:
         """Add points to an agent's account.
 
         Mirrors AI-Trader's reward ledger system.
         """
-        if points <= 0:
+        if params.points <= 0:
             return {"success": False, "skipped": True, "reason": "zero_amount"}
 
-        uid = UUID(agent_id)
+        uid = UUID(params.agent_id)
         self.store.add_agent_points(
             agent_id=uid,
-            points=points,
-            reason=reason,
-            source_type=source_type,
-            source_id=source_id,
-            metadata=metadata,
+            points=params.points,
+            reason=params.reason,
+            source_type=params.source_type,
+            source_id=params.source_id,
+            metadata=params.metadata,
         )
 
-        return {"success": True, "points": points, "reason": reason}
+        return {"success": True, "points": params.points, "reason": params.reason}
 
     def exchange_points_for_cash(self, agent_id: str, points_amount: int) -> dict[str, Any]:
         """Exchange points for cash (1 point = 1,000 USD).
@@ -364,9 +366,6 @@ class AgentService:
         Returns a session token and expiry time. The session is stored
         in StateStore with a TTL for automatic cleanup.
         """
-        import secrets
-        from datetime import UTC, datetime, timedelta
-
         uid = UUID(agent_id)
         agent = self.store.get_agent_by_id(uid)
         if agent is None:
@@ -397,8 +396,6 @@ class AgentService:
 
         Returns None if the session is expired or not found.
         """
-        from datetime import UTC, datetime
-
         session_data = self.store.get_runtime_state(f"agent_session:{session_token}")
         if session_data is None:
             return None

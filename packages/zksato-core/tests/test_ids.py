@@ -1,18 +1,17 @@
 """Tests for zksato-core IDs module."""
 
-import pytest
+from uuid import UUID
 
+from ulid import ULID
 from zksato_core.ids import (
+    new_correlation_id,
+    new_idempotency_key,
     new_ulid,
     new_uuid,
-    new_idempotency_key,
-    new_correlation_id,
     parse_ulid,
     ulid_to_str,
     uuid_to_str,
 )
-from ulid import ULID
-from uuid import UUID
 
 
 def test_new_ulid():

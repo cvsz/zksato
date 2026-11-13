@@ -30,7 +30,9 @@ class PositionSizeCheck(BaseRiskCheck):
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if intent.side == Side.BUY and not context.reduces_exposure:
             if context.position_pct_after_trade > self.max_position_pct:
-                return [f"position size exceeds maximum portfolio percentage ({self.max_position_pct}%)"]
+                return [
+                    f"position size exceeds maximum portfolio percentage ({self.max_position_pct}%)"
+                ]
         return []
 
 
@@ -45,9 +47,13 @@ class ConcentrationCheck(BaseRiskCheck):
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         reasons: list[str] = []
         if context.symbol_exposure_pct > self.max_symbol_pct:
-            reasons.append(f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self.max_symbol_pct:.1f}%")
+            reasons.append(
+                f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self.max_symbol_pct:.1f}%"
+            )
         if context.sector_exposure_pct > self.max_sector_pct:
-            reasons.append(f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self.max_sector_pct:.1f}%")
+            reasons.append(
+                f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self.max_sector_pct:.1f}%"
+            )
         return reasons
 
 
@@ -61,8 +67,13 @@ class ShortSellingCheck(BaseRiskCheck):
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if intent.side == Side.SELL:
             if not self.allow_short and not context.reduces_exposure:
-                if context.available_quantity is None or intent.quantity > context.available_quantity:
-                    return ["equity short selling is disabled: sell quantity exceeds available position"]
+                if (
+                    context.available_quantity is None
+                    or intent.quantity > context.available_quantity
+                ):
+                    return [
+                        "equity short selling is disabled: sell quantity exceeds available position"
+                    ]
         return []
 
 

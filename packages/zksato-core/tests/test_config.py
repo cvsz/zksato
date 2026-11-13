@@ -41,7 +41,7 @@ def test_redis_config() -> None:
 def test_logging_config() -> None:
     config = LoggingConfig()
     assert config.level == "INFO"
-    assert config.json is True
+    assert config.json_format is True
     assert config.otel_service_name == "zksato"
 
 

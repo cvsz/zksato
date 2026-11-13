@@ -27,7 +27,7 @@ def test_legacy_persisted_reconciliation_state_is_ignored(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'legacy.db'}"
     first = SqlStateStore(database_url)
     try:
-        first._upsert_payload(  # noqa: SLF001 - explicit legacy-state regression fixture
+        first._upsert_payload(
             runtime_state_table,
             runtime_state_table.c.key,
             "broker_reconciliation_ready",

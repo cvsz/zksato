@@ -73,7 +73,7 @@ class AgentRegisterRequest(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def normalize_email(cls, value: Any) -> str | None:
+    def normalize_email(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = str(value).strip().lower()

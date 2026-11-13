@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from zksato_core.config import Settings
 
 
@@ -15,7 +14,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="REST API for zksato automated trading platform",
         version="2.0.0-dev",
     )
-    
+
     # CORS
     if settings and settings.allowed_origins:
         app.add_middleware(
@@ -25,17 +24,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
-    
+
     # Health check
     @app.get("/health")
-    async def health():
+    async def health() -> dict[str, str]:
         return {"status": "healthy", "service": "zksato-api"}
-    
+
     # Version
     @app.get("/version")
-    async def version():
+    async def version() -> dict[str, str]:
         return {"version": "2.0.0-dev", "name": "zksato"}
-    
+
     return app
 
 

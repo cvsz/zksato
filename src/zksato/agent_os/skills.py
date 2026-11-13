@@ -3,7 +3,9 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
+
+SkillParams = TypeVar("SkillParams", bound=dict[str, Any])
 
 
 @dataclass(frozen=True)
@@ -47,7 +49,7 @@ class AgentSkillHub:
             for s in self._skills.values()
         ]
 
-    async def execute_skill(self, name: str, **kwargs: Any) -> dict[str, Any]:
+    async def execute_skill(self, name: str, **kwargs: dict[str, Any]) -> dict[str, Any]:
         skill = self._skills.get(name)
         if skill is None:
             return {"success": False, "error": f"Skill '{name}' not found"}
@@ -56,6 +58,7 @@ class AgentSkillHub:
                 result = await skill.handler(**kwargs)
             else:
                 result = skill.handler(**kwargs)
-            return {"success": True, "result": result}
         except Exception as exc:
             return {"success": False, "error": str(exc)}
+        else:
+            return {"success": True, "result": result}

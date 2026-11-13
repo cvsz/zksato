@@ -5,23 +5,24 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from zksato_core.types import Side, OrderType, OrderStatus
-from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot, Position
 from zksato_core.config import Settings
-from zksato_broker.base import BaseBroker, BrokerConfig, BrokerCapabilities, BrokerAmbiguousError
+from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot, Position
+from zksato_core.types import OrderStatus, OrderType, Side
+
+from zksato_broker.base import BaseBroker, BrokerAmbiguousError, BrokerCapabilities, BrokerConfig
 from zksato_broker.errors import classify_error
 
 
 class CCXTBroker(BaseBroker):
     """CCXT multi-exchange adapter with ambiguous-outcome normalization."""
-    
+
     def __init__(self, config: BrokerConfig, settings: Settings) -> None:
         super().__init__(config)
         self.settings = settings
         self._exchanges: dict[str, Any] = {}
         self._exchange_not_available = Exception
         self._network_error = Exception
-    
+
     @property
     def capabilities(self) -> set[BrokerCapabilities]:
         caps = {
@@ -39,19 +40,19 @@ class CCXTBroker(BaseBroker):
         if self.config.sandbox:
             caps.add(BrokerCapabilities.SANDBOX_MODE)
         return caps
-    
+
     async def _do_connect(self) -> None:
         if not self.settings.ccxt_configured:
             raise RuntimeError("CCXT is not configured")
-        
+
         try:
             import ccxt
         except ImportError as exc:
             raise RuntimeError("ccxt is required for CCXTBroker") from exc
-        
+
         self._exchange_not_available = getattr(ccxt, "ExchangeNotAvailable", Exception)
         self._network_error = getattr(ccxt, "NetworkError", Exception)
-        
+
         for exchange_id in self.settings.ccxt_exchange_list:
             cls = getattr(ccxt, exchange_id, None)
             if cls is None:
@@ -74,13 +75,13 @@ class CCXTBroker(BaseBroker):
                 self._exchanges[exchange_id] = instance
             else:
                 self._exchanges[exchange_id] = cls(config)
-    
+
     async def _do_disconnect(self) -> None:
         for exchange in self._exchanges.values():
             if hasattr(exchange, "close"):
                 await exchange.close()
         self._exchanges.clear()
-    
+
     async def place_order(self, intent: OrderIntent) -> OrderRecord:
         if intent.side not in {Side.BUY, Side.SELL}:
             raise ValueError(f"CCXTBroker requires BUY/SELL side, got {intent.side.value}")
@@ -105,15 +106,19 @@ class CCXTBroker(BaseBroker):
         except self._exchange_not_available as exc:
             raise RuntimeError(f"exchange unavailable: {exc}") from exc
         except self._network_error as exc:
-            raise BrokerAmbiguousError(f"CCXT {exchange_id} order response ambiguous: {exc}") from exc
+            raise BrokerAmbiguousError(
+                f"CCXT {exchange_id} order response ambiguous: {exc}"
+            ) from exc
         except Exception as exc:
             classified = classify_error(exc, f"ccxt.{exchange_id}")
             if classified.category in ("transient", "rate_limited"):
-                raise BrokerAmbiguousError(f"CCXT {exchange_id} order placement outcome ambiguous: {exc}") from exc
+                raise BrokerAmbiguousError(
+                    f"CCXT {exchange_id} order placement outcome ambiguous: {exc}"
+                ) from exc
             raise
-        
+
         return self._map_order(raw, intent=intent, exchange_id=exchange_id)
-    
+
     async def cancel_order(self, order_id: str) -> OrderRecord:
         exchange_id, native_order_id = self._parse_order_id(order_id)
         exchange = self._exchanges.get(exchange_id)
@@ -129,7 +134,7 @@ class CCXTBroker(BaseBroker):
                 raise BrokerAmbiguousError(f"ambiguous cancel for order {order_id}: {exc}") from exc
             raise RuntimeError(f"CCXT cancel failed for {order_id}: {exc}") from exc
         return self._map_order(raw, exchange_id=exchange_id)
-    
+
     async def list_orders(self, status: OrderStatus | None = None) -> list[OrderRecord]:
         records: list[OrderRecord] = []
         for exchange_id, exchange in self._exchanges.items():
@@ -142,11 +147,11 @@ class CCXTBroker(BaseBroker):
         if status:
             records = [r for r in records if r.status == status]
         return records
-    
+
     async def get_positions(self) -> list[Position]:
         snap = await self.get_portfolio()
         return snap.positions
-    
+
     async def get_account(self) -> dict[str, Any]:
         total_cash = 0.0
         for exchange in self._exchanges.values():
@@ -159,24 +164,24 @@ class CCXTBroker(BaseBroker):
             except (self._network_error, self._exchange_not_available):
                 continue
         return {"cash": total_cash}
-    
+
     async def get_portfolio(self) -> PortfolioSnapshot:
         total_cash = 0.0
         total_market_value = 0.0
         positions: list[Position] = []
-        
+
         for exchange_id, exchange in self._exchanges.items():
             try:
                 balance = exchange.fetch_balance()
                 tickers = exchange.fetch_tickers()
             except (self._network_error, self._exchange_not_available):
                 continue
-            
+
             currency_balances = balance.get("total", {}) if isinstance(balance, dict) else {}
             for currency, amount in currency_balances.items():
                 if currency in ("USDT", "BUSD", "USD", "USDC"):
                     total_cash += float(amount or 0)
-            
+
             for symbol, ticker in (tickers or {}).items():
                 if "/" not in symbol:
                     continue
@@ -199,7 +204,7 @@ class CCXTBroker(BaseBroker):
                         unrealized_pnl_pct=0.0,
                     )
                 )
-        
+
         equity = total_cash + total_market_value
         return PortfolioSnapshot(
             cash=total_cash,
@@ -210,7 +215,7 @@ class CCXTBroker(BaseBroker):
             daily_pnl=0.0,
             positions=positions,
         )
-    
+
     def _resolve_exchange(self, symbol: str) -> str:
         for exchange_id in self.settings.ccxt_exchange_list:
             try:
@@ -220,14 +225,14 @@ class CCXTBroker(BaseBroker):
             except (Exception, AttributeError):
                 continue
         return self.settings.ccxt_exchange_list[0]
-    
+
     @staticmethod
     def _parse_order_id(order_id: str) -> tuple[str, str]:
         if ":" in order_id:
             exchange_id, client_order_id = order_id.split(":", 1)
             return exchange_id, client_order_id
         return "binance", order_id
-    
+
     def _map_order(
         self,
         payload: dict[str, Any],
@@ -262,7 +267,7 @@ class CCXTBroker(BaseBroker):
             created_at=now,
             updated_at=now,
         )
-    
+
     @staticmethod
     def _status(raw: str, quantity: float, filled: float) -> OrderStatus:
         if "cancel" in raw or raw == "canceled":

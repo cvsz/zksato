@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
-from zksato_core.models import OrderIntent, RiskContext, RiskDecision, Side
 from zksato_core.config import BaseConfig
-from zksato_core.money import thb, Money
+from zksato_core.models import OrderIntent, RiskContext, RiskDecision, Side
+from zksato_core.money import thb
 
 
 @dataclass(frozen=True, slots=True)

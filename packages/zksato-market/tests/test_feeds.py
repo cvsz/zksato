@@ -1,19 +1,17 @@
 """Tests for zksato-market feeds."""
 
-import pytest
+from datetime import datetime
+
+from zksato_core.models import Quote
+from zksato_core.money import thb
 from zksato_market.feeds import (
-    MarketDataFeed,
-    FeedMetrics,
-    SettradeFeed,
     BinanceFeed,
-    MultiFeed,
-    ReplayFeed,
+    FeedMetrics,
     ReplayEvent,
+    ReplayFeed,
+    SettradeFeed,
 )
 from zksato_market.types import MarketType
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.money import thb
-from datetime import datetime
 
 
 def test_feed_metrics():

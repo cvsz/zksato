@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from zksato_market.feeds.base import MarketDataFeed, CompositeFeed
-from zksato_market.types import MarketType
-from zksato_core.models import Quote, Trade, Bar
 from zksato_core.datetime import now_utc
+from zksato_core.models import Bar, Quote, Trade
+
+from zksato_market.feeds.base import MarketDataFeed
+from zksato_market.types import MarketType
 
 
 class MultiFeed(MarketDataFeed):
@@ -102,6 +103,7 @@ class MultiFeed(MarketDataFeed):
         # Check if current feed is healthy
         if current.metrics.last_message_at:
             from zksato_core.datetime import now_utc
+
             age = (now_utc() - current.metrics.last_message_at).total_seconds()
             if age > self.health_check_interval * 2:
                 # Try to failover
@@ -127,7 +129,7 @@ class MultiFeed(MarketDataFeed):
 
 class FeedRouter:
     """Feed router with priority-based failover (alias for MultiFeed)."""
-    
+
     def __init__(
         self,
         feeds: list[MarketDataFeed],
@@ -137,35 +139,35 @@ class FeedRouter:
         name = f"router_{feeds[0].name}" if feeds else "router"
         market_type = feeds[0].market_type if feeds else MarketType.EQUITY
         self.multi_feed = MultiFeed(name, market_type, feeds)
-    
+
     @property
     def name(self) -> str:
         return self.multi_feed.name
-    
+
     @property
     def market_type(self) -> MarketType:
         return self.multi_feed.market_type
-    
+
     @property
     def status(self):
         return self.multi_feed.status
-    
+
     @property
     def metrics(self):
         return self.multi_feed.metrics
-    
+
     async def connect(self) -> None:
         await self.multi_feed.connect()
-    
+
     async def disconnect(self) -> None:
         await self.multi_feed.disconnect()
-    
+
     async def subscribe(self, symbols: list[str]) -> None:
         await self.multi_feed.subscribe(symbols)
-    
+
     async def unsubscribe(self, symbols: list[str]) -> None:
         await self.multi_feed.unsubscribe(symbols)
-    
+
     @property
     def active_feed(self) -> MarketDataFeed:
         return self.multi_feed.current_feed

@@ -9,7 +9,6 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from zksato_core.money import Money
-from zksato_core.datetime import MarketSession
 
 
 class MarketType(StrEnum):
@@ -48,7 +47,9 @@ class Quote:
     def change_pct(self) -> float:
         if not self.previous_close or self.previous_close.amount == 0:
             return 0.0
-        return float((self.last.amount - self.previous_close.amount) / self.previous_close.amount * 100)
+        return float(
+            (self.last.amount - self.previous_close.amount) / self.previous_close.amount * 100
+        )
 
     @property
     def spread(self) -> Money | None:

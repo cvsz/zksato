@@ -190,9 +190,7 @@ class ZKSATOTUI(App[None]):
                     f"Unknown command: {text}. Type /help for available commands."
                 )
         except Exception as exc:
-            self.query_one("#chat-panel", ChatPanel).add_system_message(
-                f"Error: {exc}"
-            )
+            self.query_one("#chat-panel", ChatPanel).add_system_message(f"Error: {exc}")
 
     async def _handle_quote(self, symbol: str) -> None:
         """Handle quote command."""
@@ -242,9 +240,7 @@ class ZKSATOTUI(App[None]):
             return
         try:
             portfolio = await self.api_client.get_portfolio()
-            self.query_one("#chat-panel", ChatPanel).add_agent_message(
-                f"Portfolio: {portfolio}"
-            )
+            self.query_one("#chat-panel", ChatPanel).add_agent_message(f"Portfolio: {portfolio}")
         except Exception as exc:
             self.query_one("#chat-panel", ChatPanel).add_system_message(
                 f"Failed to get portfolio: {exc}"
@@ -262,9 +258,7 @@ class ZKSATOTUI(App[None]):
             for eval_ in evaluations[:5]:
                 approved = eval_.get("approved", False)
                 reasons = eval_.get("reasons", [])
-                self.query_one("#chat-panel", ChatPanel).add_risk_decision(
-                    approved, reasons
-                )
+                self.query_one("#chat-panel", ChatPanel).add_risk_decision(approved, reasons)
         except Exception as exc:
             self.query_one("#chat-panel", ChatPanel).add_system_message(
                 f"Failed to get risk evaluations: {exc}"
@@ -341,10 +335,6 @@ Available commands:
                     risk_panel = self.query_one("#risk-panel", RiskPanel)
                     risk_panel.update_risk(latest)
 
-                self.query_one("#chat-panel", ChatPanel).add_system_message(
-                    "Data refreshed."
-                )
+                self.query_one("#chat-panel", ChatPanel).add_system_message("Data refreshed.")
         except Exception as exc:
-            self.query_one("#chat-panel", ChatPanel).add_system_message(
-                f"Refresh failed: {exc}"
-            )
+            self.query_one("#chat-panel", ChatPanel).add_system_message(f"Refresh failed: {exc}")

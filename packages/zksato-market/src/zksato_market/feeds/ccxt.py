@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from zksato_market.feeds.base import MarketDataFeed
 from zksato_market.types import MarketType
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.exceptions import MarketDataError
-from zksato_core.money import Money
 
 
 class CCXTFeed(MarketDataFeed):

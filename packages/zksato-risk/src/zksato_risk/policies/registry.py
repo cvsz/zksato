@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from zksato_risk.policies.base import Policy, PolicyRegistry, PolicyEngine
-
+from zksato_risk.policies.base import Policy, PolicyEngine, PolicyRegistry
 
 # Global registry instance
 _global_registry = PolicyRegistry()

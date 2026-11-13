@@ -90,8 +90,7 @@ class PortfolioRiskManager:
         same_count = sum(1 for s in portfolio_positions if s == symbol)
         if total > 0 and (same_count + 1) / total > self.max_correlation:
             reasons.append(
-                f"symbol {symbol} concentration proxy exceeds "
-                f"max {self.max_correlation:.2f}"
+                f"symbol {symbol} concentration proxy exceeds max {self.max_correlation:.2f}"
             )
         return reasons
 
@@ -173,8 +172,6 @@ class PortfolioRiskManager:
         """Run all portfolio checks and return combined reasons."""
         reasons: list[str] = []
         reasons.extend(self.check_concentration(symbol, portfolio_positions))
-        reasons.extend(
-            self.check_allocation(symbol, portfolio_positions, self.max_allocation_pct)
-        )
+        reasons.extend(self.check_allocation(symbol, portfolio_positions, self.max_allocation_pct))
         reasons.extend(self.check_conflict(strategy, active_strategies))
         return reasons

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import AsyncGenerator
 
-from zksato_market.adapters.base import MarketDataAdapter, RESTAdapter
-from zksato_market.types import MarketType, Instrument
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.money import Money
 from zksato_core.exceptions import MarketDataError
+from zksato_core.models import Bar, Quote
+
+from zksato_market.adapters.base import MarketDataAdapter
+from zksato_market.types import Instrument, MarketType
 
 
 class SettradeAdapter(MarketDataAdapter):
@@ -47,6 +46,7 @@ class SettradeAdapter(MarketDataAdapter):
             # Import and initialize settrade-v2 SDK
             try:
                 import settrade_v2
+
                 self._client = settrade_v2.Client(
                     app_id=self._app_id,
                     app_secret=self._app_secret,

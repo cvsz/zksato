@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from zksato_market.adapters.base import MarketDataAdapter
-from zksato_market.types import MarketType, Instrument
-from zksato_core.models import Quote, Bar
+from zksato_core.models import Bar, Quote
 from zksato_core.money import Money
-from zksato_core.exceptions import MarketDataError
+
+from zksato_market.adapters.base import MarketDataAdapter
+from zksato_market.types import Instrument, MarketType
 
 
 class CCXTAdapter(MarketDataAdapter):
@@ -103,10 +103,14 @@ class CCXTAdapter(MarketDataAdapter):
             high=Money(str(ticker.get("high", 0))) if ticker.get("high") else None,
             low=Money(str(ticker.get("low", 0))) if ticker.get("low") else None,
             open=Money(str(ticker.get("open", 0))) if ticker.get("open") else None,
-            previous_close=Money(str(ticker.get("previousClose", 0))) if ticker.get("previousClose") else None,
+            previous_close=Money(str(ticker.get("previousClose", 0)))
+            if ticker.get("previousClose")
+            else None,
             volume=int(ticker.get("baseVolume", 0)),
             value=Money(str(ticker.get("quoteVolume", 0))),
-            timestamp=datetime.fromtimestamp(ticker.get("timestamp", 0) / 1000) if ticker.get("timestamp") else datetime.now(),
+            timestamp=datetime.fromtimestamp(ticker.get("timestamp", 0) / 1000)
+            if ticker.get("timestamp")
+            else datetime.now(),
             source=self.name,
         )
 
@@ -131,17 +135,19 @@ class CCXTAdapter(MarketDataAdapter):
         """Convert CCXT OHLCV to Bar list."""
         bars = []
         for candle in ohlcv:
-            bars.append(Bar(
-                symbol=symbol,
-                timeframe=timeframe,
-                timestamp=datetime.fromtimestamp(candle[0] / 1000),
-                open=Money(str(candle[1])),
-                high=Money(str(candle[2])),
-                low=Money(str(candle[3])),
-                close=Money(str(candle[4])),
-                volume=int(candle[5]),
-                source=self.name,
-            ))
+            bars.append(
+                Bar(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    timestamp=datetime.fromtimestamp(candle[0] / 1000),
+                    open=Money(str(candle[1])),
+                    high=Money(str(candle[2])),
+                    low=Money(str(candle[3])),
+                    close=Money(str(candle[4])),
+                    volume=int(candle[5]),
+                    source=self.name,
+                )
+            )
         return bars
 
     async def get_latest_bar(self, symbol: str, timeframe: str) -> Bar | None:
@@ -158,14 +164,16 @@ class CCXTAdapter(MarketDataAdapter):
             if market_type and market.get("type") != market_type.value:
                 continue
 
-            instruments.append(Instrument(
-                symbol=symbol,
-                name=market.get("name", symbol),
-                market_type=MarketType.CRYPTO,
-                tick_size=Money(str(market.get("precision", {}).get("price", 0.01))),
-                board_lot=1,
-                sector="crypto",
-            ))
+            instruments.append(
+                Instrument(
+                    symbol=symbol,
+                    name=market.get("name", symbol),
+                    market_type=MarketType.CRYPTO,
+                    tick_size=Money(str(market.get("precision", {}).get("price", 0.01))),
+                    board_lot=1,
+                    sector="crypto",
+                )
+            )
 
         return instruments
 

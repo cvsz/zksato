@@ -16,7 +16,9 @@ def start_bot(
     dry_run: bool = typer.Option(True, "--dry-run/--live", help="Paper mode"),
 ):
     """Start a trading bot."""
-    console.print(f"[green]Starting bot:[/green] strategy={strategy}, symbol={symbol}, capital={capital}, dry_run={dry_run}")
+    console.print(
+        f"[green]Starting bot:[/green] strategy={strategy}, symbol={symbol}, capital={capital}, dry_run={dry_run}"
+    )
     console.print("[yellow]Not implemented yet[/yellow]")
 
 

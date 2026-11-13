@@ -1,14 +1,14 @@
 """Tests for zksato-core money module."""
 
-import pytest
 from decimal import Decimal
 
+import pytest
 from zksato_core.money import (
-    Money,
-    thb,
     BOARD_LOT,
-    round_to_board_lot,
+    Money,
     is_board_lot,
+    round_to_board_lot,
+    thb,
 )
 
 
