@@ -15,18 +15,18 @@
 # ------------------------------------------------------------------
 .PHONY: help \
 	install install-settrade install-ccxt install-prediction \
-	install-observability install-agent-trading install-agent-os \
-	install-video-ea install-notifications install-all install-deps \
+	install-observability install-agent-os install-cli install-all install-deps \
 	lint format format-check shellcheck type \
 	test test-resilience test-performance test-uat test-postgres \
 	test-concurrency test-frontend test-e2e test-security \
-	test-agent-trading test-agent-os test-video-ea test-prediction \
+	test-agent-trading test-agent-os test-agent-platform test-video-ea test-prediction \
 	test-tfex test-notifications test-coordination test-ztrader \
 	test-hyperopt test-scanner test-backtest test-market \
 	test-penetration test-production-readiness test-research \
 	coverage coverage-html \
-	contract openapi licenses \
-	security audit bandit gitleaks \
+	contract openapi licenses package \
+	security security-full audit bandit gitleaks \
+	sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
 	db-migrate db-status db-backup db-restore \
 	docker docker-run docker-scan compose \
 	resilience dr-drill dr-restore load-test env-check github-health \
@@ -37,12 +37,9 @@
 	health-check-all \
 	frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
 	dashboard-lint dashboard-type dashboard-build \
-	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
+	test-all-features \
 	ci ci-full ci-security clean \
 	docs-check docs-build docs-validate
-	dashboard-lint dashboard-type dashboard-build \
-	security-full sec-bandit sec-pip-audit sec-zizmor sec-gitleaks \
-	ci ci-full ci-security clean
 
 # ------------------------------------------------------------------
 # Colour helpers
@@ -70,6 +67,23 @@ BACKUP_DIR          ?= ./backups
 DOCKERFILE          ?= Dockerfile
 COMPOSE_FILE        ?= docker-compose.yml
 
+# Workspace packages, leaf-first (inter-package deps are bare names and
+# unpublished, so dependent packages must be installed after their deps).
+PKG_CORE        := packages/zksato-core
+PKG_RISK        := packages/zksato-risk
+PKG_MARKET      := packages/zksato-market
+PKG_STRATEGY    := packages/zksato-strategy
+PKG_PORTFOLIO   := packages/zksato-portfolio
+PKG_TESTUTILS   := packages/zksato-test-utils
+PKG_BROKER      := packages/zksato-broker
+PKG_AUTOMATION  := packages/zksato-automation
+PKG_API         := packages/zksato-api
+PKG_CLI         := packages/zksato-cli
+PKGS_LEAF       := $(PKG_CORE) $(PKG_RISK) $(PKG_MARKET) $(PKG_STRATEGY) $(PKG_PORTFOLIO) $(PKG_TESTUTILS)
+PKGS_MIDDLE     := $(PKG_BROKER) $(PKG_AUTOMATION)
+PKGS_TOP        := $(PKG_API) $(PKG_CLI)
+PKGS_ALL        := $(PKGS_LEAF) $(PKGS_MIDDLE) $(PKGS_TOP)
+
 # ============================================================
 # HELP
 # ============================================================
@@ -77,33 +91,30 @@ help:
 	@printf '$(BOLD)$(CYAN)zksato — Enterprise Makefile$(RESET)\n'
 	@printf 'Risk-first automated trading control plane for SET / TFEX\n\n'
 	@printf '$(BOLD)Install targets$(RESET)\n'
-	@printf '  $(GREEN)install$(RESET)              Core + dev + quality + security extras\n'
-	@printf '  $(GREEN)install-settrade$(RESET)      Settrade-v2 broker adapter\n'
-	@printf '  $(GREEN)install-ccxt$(RESET)          CCXT multi-exchange adapter\n'
-	@printf '  $(GREEN)install-prediction$(RESET)    XGBoost / scikit-learn prediction\n'
-	@printf '  $(GREEN)install-observability$(RESET) OpenTelemetry SDK\n'
-	@printf '  $(GREEN)install-agent-trading$(RESET)  Agent trading engine\n'
-	@printf '  $(GREEN)install-agent-os$(RESET)       Agent OS framework\n'
-	@printf '  $(GREEN)install-video-ea$(RESET)       Video EA research pipeline\n'
-	@printf '  $(GREEN)install-notifications$(RESET)   Telegram notifications\n'
-	@printf '  $(GREEN)install-all$(RESET)           Every optional extra\n'
+	@printf '  $(GREEN)install$(RESET)              Root package + dev/quality/security extras + all workspace packages\n'
+	@printf '  $(GREEN)install-settrade$(RESET)      Settrade-v2 broker adapter (root extra)\n'
+	@printf '  $(GREEN)install-ccxt$(RESET)          CCXT multi-exchange adapter (root extra)\n'
+	@printf '  $(GREEN)install-prediction$(RESET)    XGBoost / scikit-learn prediction (root extra)\n'
+	@printf '  $(GREEN)install-observability$(RESET) OpenTelemetry SDK (root extra)\n'
+	@printf '  $(GREEN)install-agent-os$(RESET)      zksato-automation package (agent OS framework)\n'
+	@printf '  $(GREEN)install-cli$(RESET)           zksato-cli package (coding-agent CLI)\n'
+	@printf '  $(GREEN)install-all$(RESET)           Every optional extra + workspace packages\n'
 	@printf '  $(GREEN)install-deps$(RESET)          Install system-level dependencies\n'
 	@printf '\n$(BOLD)Quality targets$(RESET)\n'
-	@printf '  $(GREEN)lint$(RESET)                 ruff + yamllint + hadolint\n'
+	@printf '  $(GREEN)lint$(RESET)                 ruff check . (+ yamllint/hadolint when installed)\n'
 	@printf '  $(GREEN)format$(RESET)               ruff format (auto-fix)\n'
 	@printf '  $(GREEN)format-check$(RESET)         ruff format --check (no mutation)\n'
 	@printf '  $(GREEN)shellcheck$(RESET)         Lint all shell scripts\n'
-	@printf '  $(GREEN)type$(RESET)                 mypy type-check src + scripts\n'
+	@printf '  $(GREEN)type$(RESET)                 mypy type-check src/zksato + scripts\n'
 	@printf '\n$(BOLD)Test targets$(RESET)\n'
-	@printf '  $(GREEN)test$(RESET)                 Unit/integration suite (excludes uat, perf)\n'
+	@printf '  $(GREEN)test$(RESET)                 Full suite (excludes uat, performance)\n'
+	@printf '  $(GREEN)test-agent-platform$(RESET)   Phase 4 agent platform suite (orchestrator/A2A/hooks/MCP/CRDT)\n'
 	@printf '  $(GREEN)test-resilience$(RESET)       Risk + recovery fail-closed tests\n'
 	@printf '  $(GREEN)test-performance$(RESET)      Performance probe suite\n'
 	@printf '  $(GREEN)test-uat$(RESET)              Broker UAT suite (credentials required)\n'
 	@printf '  $(GREEN)test-postgres$(RESET)         PostgreSQL integration tests\n'
 	@printf '  $(GREEN)test-concurrency$(RESET)      Concurrency / race-condition tests\n'
-	@printf '  $(GREEN)test-frontend$(RESET)         Frontend lint + type + build\n'
-	@printf '  $(GREEN)test-e2e$(RESET)              Browser E2E tests (Playwright)\n'
-	@printf '  $(GREEN)test-security$(RESET)         Bandit + pip-audit + workflow scan\n'
+	@printf '  $(GREEN)test-security$(RESET)         Auth + financial invariants + workflow security\n'
 	@printf '  $(GREEN)test-agent-trading$(RESET)     Agent trading engine tests\n'
 	@printf '  $(GREEN)test-agent-os$(RESET)          Agent OS framework tests\n'
 	@printf '  $(GREEN)test-video-ea$(RESET)          Video EA research tests\n'
@@ -119,12 +130,12 @@ help:
 	@printf '  $(GREEN)test-penetration$(RESET)       Penetration/security tests\n'
 	@printf '  $(GREEN)test-production-readiness$(RESET) Production readiness tests\n'
 	@printf '  $(GREEN)test-research$(RESET)          Research pipeline tests\n'
-	@printf '  $(GREEN)coverage$(RESET)              Coverage report (term + xml)\n'
+	@printf '  $(GREEN)coverage$(RESET)              Coverage report (term + xml, gate ≥ $(COV_FAIL_UNDER)%%)\n'
 	@printf '  $(GREEN)coverage-html$(RESET)         Coverage HTML report\n'
 	@printf '\n$(BOLD)Security targets$(RESET)\n'
 	@printf '  $(GREEN)security$(RESET)             pip-audit + bandit + zizmor (all-in-one)\n'
 	@printf '  $(GREEN)security-full$(RESET)          Full security scan (all tools)\n'
-	@printf '  $(GREEN)sec-bandit$(RESET)             Bandit static analysis\n'
+	@printf '  $(GREEN)sec-bandit$(RESET)             Bandit static analysis (src + packages)\n'
 	@printf '  $(GREEN)sec-pip-audit$(RESET)          Dependency vulnerability audit\n'
 	@printf '  $(GREEN)sec-zizmor$(RESET)             GitHub Actions workflow scan\n'
 	@printf '  $(GREEN)sec-gitleaks$(RESET)           Secret-pattern scan\n'
@@ -162,13 +173,11 @@ help:
 	@printf '\n$(BOLD)All-in-one targets$(RESET)\n'
 	@printf '  $(GREEN)all$(RESET)                    Full validation + start all services\n'
 	@printf '  $(GREEN)all-features$(RESET)           Install every optional extra\n'
+	@printf '  $(GREEN)test-all-features$(RESET)        Run every feature test suite\n'
 	@printf '  $(GREEN)all-services$(RESET)           Start all services (backend+frontend+dashboard)\n'
 	@printf '  $(GREEN)start-all$(RESET)                Start backend + frontend + dashboard\n'
 	@printf '  $(GREEN)stop-all$(RESET)                 Stop all services\n'
 	@printf '  $(GREEN)restart-all$(RESET)            Restart all services (stop + start)\n'
-	@printf '  $(GREEN)restart-backend$(RESET)          Restart uvicorn API\n'
-	@printf '  $(GREEN)restart-frontend$(RESET)         Restart Next.js dev server\n'
-	@printf '  $(GREEN)restart-dashboard$(RESET)        Restart Vite dashboard\n'
 	@printf '  $(GREEN)start-backend$(RESET)            Start uvicorn API on :9569\n'
 	@printf '  $(GREEN)stop-backend$(RESET)             Stop uvicorn API\n'
 	@printf '  $(GREEN)start-frontend$(RESET)           Start Next.js dev on :3016\n'
@@ -184,6 +193,48 @@ help:
 	@printf '\n'
 
 # ============================================================
+# INSTALL
+# ============================================================
+# Two-step editable install:
+#   1. root `zksato` package (legacy modules + tooling extras)
+#   2. workspace packages, leaf-first — inter-package deps are bare names
+#      and unpublished, so dependents must install after their deps.
+install:
+	$(PIP) install --upgrade pip
+	$(PIP) install -e '.[dev,quality,security]'
+	$(PIP) install -e $(PKGS_LEAF)
+	$(PIP) install -e $(PKGS_MIDDLE)
+	$(PIP) install -e $(PKGS_TOP)
+	@printf '$(GREEN)Workspace ready: zksato + 10 packages installed$(RESET)\n'
+
+install-settrade:
+	$(PIP) install -e '.[settrade]'
+
+install-ccxt:
+	$(PIP) install -e '.[ccxt]'
+
+install-prediction:
+	$(PIP) install -e '.[prediction]'
+
+install-observability:
+	$(PIP) install -e '.[observability]'
+
+install-agent-os:
+	$(PIP) install -e $(PKG_AUTOMATION)
+
+install-cli:
+	$(PIP) install -e $(PKG_CLI)
+
+install-all: install
+	$(PIP) install -e '.[settrade,ccxt,prediction,observability]'
+
+install-deps:
+	@printf '$(CYAN)Installing system dependencies…$(RESET)\n'
+	@sudo apt-get update -y && sudo apt-get install -y \
+		postgresql-client redis-tools curl wget gnupg \
+		|| printf '$(YELLOW)Skipping system deps (no sudo/apt)$(RESET)\n'
+
+# ============================================================
 # ALL-IN-ONE — single command for everything
 # ============================================================
 
@@ -195,23 +246,13 @@ all: install-all lint format-check type coverage contract package compose securi
 	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
 
 # ---- Feature test target ----
-test-all-features: test-agent-trading test-agent-os test-video-ea test-prediction test-tfex \
-	test-notifications test-coordination test-ztrader test-hyperopt \
-	test-scanner test-backtest test-market test-penetration \
+test-all-features: test-agent-trading test-agent-os test-agent-platform test-video-ea \
+	test-prediction test-tfex test-notifications test-coordination test-ztrader \
+	test-hyperopt test-scanner test-backtest test-market test-penetration \
 	test-production-readiness test-research
 
 # ---- Feature installation ----
 all-features: install-all
-
-install-deps:
-	@printf '$(CYAN)Installing system dependencies…$(RESET)\n'
-	@sudo apt-get update -y && sudo apt-get install -y \
-		postgresql-client redis-tools curl wget gnupg \
-		|| printf '$(YELLOW)Skipping system deps (no sudo/apt)$(RESET)\n'
-
-install-all:
-	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev,quality,security,settrade,ccxt,prediction,observability,agent-trading,agent-os,video-ea,notifications]'
 
 # ---- All services ----
 all-services: start-backend start-frontend start-dashboard
@@ -297,37 +338,6 @@ health-check-all:
 		printf '  Dashboard: $(RED)DOWN$(RESET)\n'
 
 # ============================================================
-# INSTALL
-# ============================================================
-install:
-	$(PIP) install --upgrade pip
-	$(PIP) install -e '.[dev,quality,security]'
-
-install-settrade:
-	$(PIP) install -e '.[settrade]'
-
-install-ccxt:
-	$(PIP) install -e '.[ccxt]'
-
-install-prediction:
-	$(PIP) install -e '.[prediction]'
-
-install-observability:
-	$(PIP) install -e '.[observability]'
-
-install-agent-trading:
-	$(PIP) install -e '.[agent-trading]'
-
-install-agent-os:
-	$(PIP) install -e '.[agent-os]'
-
-install-video-ea:
-	$(PIP) install -e '.[video-ea]'
-
-install-notifications:
-	$(PIP) install -e '.[notifications]'
-
-# ============================================================
 # QUALITY — lint / format / type
 # ============================================================
 lint:
@@ -352,6 +362,9 @@ type:
 # ============================================================
 test:
 	$(PYTEST) -m "not uat and not performance"
+
+test-agent-platform:
+	$(PYTEST) tests/test_agent_platform.py
 
 test-resilience:
 	$(PYTEST) -q \
@@ -498,8 +511,9 @@ security: sec-bandit sec-pip-audit sec-zizmor
 
 security-full: sec-bandit sec-pip-audit sec-zizmor sec-gitleaks shellcheck
 
+# Bandit scans the legacy tree AND all monorepo packages; -ll = medium+ severity
 sec-bandit:
-	bandit -q -r src -ll
+	bandit -q -r src packages -ll
 
 sec-pip-audit:
 	$(PIP) freeze --exclude-editable > audit-requirements.txt
@@ -510,6 +524,12 @@ sec-zizmor:
 
 sec-gitleaks:
 	gitleaks detect --source . --verbose
+
+audit: security
+
+bandit: sec-bandit
+
+gitleaks: sec-gitleaks
 
 # ============================================================
 # DATABASE
@@ -621,8 +641,10 @@ clean:
 	rm -rf build dist htmlcov .coverage coverage.xml audit-requirements.txt \
 		openapi.json licenses.json \
 		.mypy_cache .ruff_cache .pytest_cache \
+		.zksato bandit-report.json log.txt \
 		__pycache__ src/zksato/__pycache__ tests/__pycache__ \
-		src/zksato/**/__pycache__ scripts/__pycache__
+		src/zksato/**/__pycache__ scripts/__pycache__ \
+		packages/*/__pycache__ packages/*/src/**/__pycache__
 
 # ============================================================
 # DOCUMENTATION
@@ -647,6 +669,14 @@ docs-validate:
 	@$(PYTHON) -c "import os, re; adr_dir='docs/adr'; template_dir='docs/templates'; [print(f'  WARNING: {f} missing ADR header') for f in os.listdir(adr_dir) if f.endswith('.md') and f != 'README.md' and not re.search(r'^# ADR-\d+:', open(os.path.join(adr_dir, f)).read(), re.MULTILINE)]; [print(f'  WARNING: {f} missing Status field') for f in os.listdir(adr_dir) if f.endswith('.md') and f != 'README.md' and 'Status:' not in open(os.path.join(adr_dir, f)).read()]; print('  ADR validation complete'); [print(f'  Template: {f}') for f in os.listdir(template_dir) if f.endswith('.md')]; print('$(GREEN)Documentation validation complete$(RESET)')"
 
 # ============================================================
+# PACKAGE
+# ============================================================
+package:
+	rm -rf build dist
+	$(PYTHON) -m build
+	twine check dist/*
+
+# ============================================================
 # CI GATES
 # ============================================================
 ci: lint format-check type coverage contract package compose
@@ -654,11 +684,3 @@ ci: lint format-check type coverage contract package compose
 ci-security: lint format-check type coverage contract package compose security-full resilience docker env-check docs-validate
 
 ci-full: ci security resilience docker env-check test-all-features docs-check
-
-# ============================================================
-# PACKAGE
-# ============================================================
-package:
-	rm -rf build dist
-	$(PYTHON) -m build
-	twine check dist/*
