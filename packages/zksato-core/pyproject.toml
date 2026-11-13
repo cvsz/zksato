@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "zksato-core"
 version = "2.0.0-dev"
 description = "zksato core domain types and utilities"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.10,<3.0",
     "pydantic-settings>=2.7,<3.0",

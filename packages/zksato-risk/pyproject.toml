@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "zksato-risk"
 version = "2.0.0-dev"
 description = "zksato risk engine and policies"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "zksato-core",
     "pydantic>=2.10,<3.0",
