@@ -39,6 +39,17 @@ RUN groupadd --system zksato \
 
 COPY --from=builder /opt/venv /opt/venv
 
+# Runtime ships without pip: it is a build-time tool only, and its vendored
+# dependencies (urllib3/msgpack/setuptools) carry CVEs with no pip-side fix
+# (pip still vendors setuptools 70.3.0). Removing pip from the runtime image
+# removes the vulnerable vendored copies entirely.
+RUN rm -rf /usr/local/lib/python3.14/site-packages/pip \
+           /usr/local/lib/python3.14/site-packages/pip-*.dist-info \
+           /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* \
+           /opt/venv/lib/python3.14/site-packages/pip \
+           /opt/venv/lib/python3.14/site-packages/pip-*.dist-info \
+           /opt/venv/bin/pip /opt/venv/bin/pip3 /opt/venv/bin/pip3.*
+
 WORKDIR /app
 USER zksato
 EXPOSE 9569

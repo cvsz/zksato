@@ -49,7 +49,8 @@
 	dashboard-test \
 	test-all-features \
 	ci ci-full ci-security clean \
-	docs-check docs-build docs-validate
+	docs-check docs-build docs-validate \
+	tui-install tui-start tui-build tui
 
 # ------------------------------------------------------------------
 # Colour helpers
@@ -219,6 +220,11 @@ help:
 	@printf '  $(GREEN)start-worker$(RESET)           Start background worker\n'
 	@printf '  $(GREEN)stop-worker$(RESET)            Stop background worker\n'
 	@printf '  $(GREEN)restart-worker$(RESET)         Restart background worker\n'
+	@printf '\n$(BOLD)TUI targets$(RESET)\n'
+	@printf '  $(GREEN)tui-install$(RESET)            Install zksato-cli package (includes TUI)\n'
+	@printf '  $(GREEN)tui-start$(RESET)              Launch the zksato TUI (requires running API on :9569)\n'
+	@printf '  $(GREEN)tui-build$(RESET)              Build standalone TUI executable with PyInstaller\n'
+	@printf '  $(GREEN)tui$(RESET)                    Alias for tui-start\n'
 	@printf '\n$(BOLD)Documentation targets$(RESET)\n'
 	@printf '  $(GREEN)docs-check$(RESET)             Validate docs structure\n'
 	@printf '  $(GREEN)docs-build$(RESET)             Build documentation site\n'
@@ -409,6 +415,39 @@ restart-frontend: stop-frontend start-frontend
 restart-dashboard: stop-dashboard start-dashboard
 
 restart-worker: stop-worker start-worker
+
+# ============================================================
+# TUI — Terminal User Interface
+# ============================================================
+tui-install: install-cli
+	@printf '$(GREEN)zksato-cli installed (includes TUI)$(RESET)\n'
+
+tui-start:
+	@printf '$(CYAN)Launching zksato TUI…$(RESET)\n'
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	$(PYTHON) -m zksato_cli.main tui start --host localhost --port 9569
+
+tui-build:
+	@printf '$(CYAN)Building standalone TUI executable…$(RESET)\n'
+	@command -v pyinstaller >/dev/null 2>&1 || (printf '$(YELLOW)Installing pyinstaller…$(RESET)\n' && $(PIP) install pyinstaller)
+	@mkdir -p dist/tui
+	@pyinstaller --onefile --name zksato-tui \
+		--hidden-import=textual \
+		--hidden-import=rich \
+		--hidden-import=typer \
+		--hidden-import=pydantic \
+		--hidden-import=pydantic_settings \
+		--hidden-import=yaml \
+		--collect-all=textual \
+		--collect-all=rich \
+		--entry-point="zksato_cli.main:app" \
+		--distpath=dist/tui \
+		--workpath=build/tui \
+		--specpath=build/tui \
+		/home/cvsz/zksato/packages/zksato-cli/src/zksato_cli/main.py
+	@printf '$(GREEN)TUI executable built: dist/tui/zksato-tui$(RESET)\n'
+
+tui: tui-start
 
 restart-all: stop-all start-all
 
