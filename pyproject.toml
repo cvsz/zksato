@@ -7,7 +7,20 @@ name = "zksato-workspace"
 version = "2.0.0-dev"
 description = "zksato modular monorepo workspace"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "fastapi>=0.116,<1.0",
+  "httpx>=0.28,<1.0",
+  "numpy>=1.26,<3.0",
+  "pandas>=2.2,<3.0",
+  "optuna>=3.0,<4.0",
+  "prometheus-client>=0.22,<1.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pydantic>=2.10,<3.0",
+  "pydantic-settings>=2.7,<3.0",
+  "redis>=5.2,<9.0",
+  "sqlalchemy>=2.0,<3.0",
+  "uvicorn[standard]>=0.34,<1.0",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/zksato"]
