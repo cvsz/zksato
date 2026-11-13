@@ -45,6 +45,7 @@ def _uat_settings() -> Settings:
     return Settings(
         environment="uat",
         trading_mode="sandbox",
+        database_url=os.getenv("ZKSATO_DATABASE_URL", "sqlite:///:memory:"),
         settrade_app_id=os.getenv("ZKSATO_SETTRADE_APP_ID", ""),
         settrade_app_secret=os.getenv("ZKSATO_SETTRADE_APP_SECRET", ""),
         settrade_broker_id=os.getenv("ZKSATO_SETTRADE_BROKER_ID", "SANDBOX"),

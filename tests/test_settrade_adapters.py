@@ -54,6 +54,7 @@ async def test_settrade_equity_adapter_maps_sandbox_order_without_credentials() 
     broker = object.__new__(SettradeBroker)
     broker.settings = Settings(
         trading_mode="sandbox",
+        database_url="sqlite:///:memory:",
         settrade_pin="not-used-in-test",
     )
     broker._equity = FakeEquity()
@@ -78,7 +79,7 @@ async def test_settrade_equity_adapter_maps_sandbox_order_without_credentials() 
 @pytest.mark.asyncio
 async def test_settrade_equity_timeout_is_ambiguous_and_never_retried_here() -> None:
     broker = object.__new__(SettradeBroker)
-    broker.settings = Settings(trading_mode="sandbox")
+    broker.settings = Settings(trading_mode="sandbox", database_url="sqlite:///:memory:")
 
     class TimeoutEquity:
         def place_order(self, **_kwargs):
@@ -102,6 +103,7 @@ async def test_settrade_tfex_gateway_risk_context_and_uat_mutation_are_dedicated
     gateway = object.__new__(SettradeTfexGateway)
     gateway.settings = Settings(
         trading_mode="sandbox",
+        database_url="sqlite:///:memory:",
         max_tfex_contracts=10,
         settrade_pin="not-used-in-test",
     )

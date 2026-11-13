@@ -16,6 +16,7 @@
 .PHONY: help \
 	install install-settrade install-ccxt install-prediction \
 	install-observability install-agent-os install-cli install-all install-deps \
+	install-apps install-api install-worker \
 	lint format format-check shellcheck type \
 	test test-resilience test-performance test-uat test-postgres \
 	test-concurrency test-frontend test-e2e test-security \
@@ -23,6 +24,13 @@
 	test-tfex test-notifications test-coordination test-ztrader \
 	test-hyperopt test-scanner test-backtest test-market \
 	test-penetration test-production-readiness test-research \
+	test-api test-auth test-approvals test-audit test-broker \
+	test-concurrency-adv test-fill-deltas test-indicators test-monorepo \
+	test-news test-openapi test-outbox test-paper test-protections \
+	test-reconcile test-risk test-runtime test-server-risk test-session-reconcile \
+	test-strategy test-tradingview test-trailing-stop test-version \
+	test-env-admin test-env-req test-bot-enhancements test-equity-sell \
+	test-github-admin test-github-req test-mql5-policy \
 	coverage coverage-html \
 	contract openapi licenses package \
 	security security-full audit bandit gitleaks \
@@ -34,9 +42,11 @@
 	start-backend stop-backend restart-backend \
 	start-frontend stop-frontend restart-frontend \
 	start-dashboard stop-dashboard restart-dashboard \
+	start-worker stop-worker restart-worker \
 	health-check-all \
 	frontend-lint frontend-type frontend-build frontend-test frontend-e2e \
 	dashboard-lint dashboard-type dashboard-build \
+	dashboard-test \
 	test-all-features \
 	ci ci-full ci-security clean \
 	docs-check docs-build docs-validate
@@ -84,6 +94,12 @@ PKGS_MIDDLE     := $(PKG_BROKER) $(PKG_AUTOMATION)
 PKGS_TOP        := $(PKG_API) $(PKG_CLI)
 PKGS_ALL        := $(PKGS_LEAF) $(PKGS_MIDDLE) $(PKGS_TOP)
 
+# Apps (thin wrappers depending on workspace packages)
+APP_API     := apps/api
+APP_CLI     := apps/cli
+APP_WORKER  := apps/worker
+APPS_ALL    := $(APP_API) $(APP_CLI) $(APP_WORKER)
+
 # ============================================================
 # HELP
 # ============================================================
@@ -92,13 +108,14 @@ help:
 	@printf 'Risk-first automated trading control plane for SET / TFEX\n\n'
 	@printf '$(BOLD)Install targets$(RESET)\n'
 	@printf '  $(GREEN)install$(RESET)              Root package + dev/quality/security extras + all workspace packages\n'
+	@printf '  $(GREEN)install-apps$(RESET)          Install API, CLI, and Worker apps\n'
 	@printf '  $(GREEN)install-settrade$(RESET)      Settrade-v2 broker adapter (root extra)\n'
 	@printf '  $(GREEN)install-ccxt$(RESET)          CCXT multi-exchange adapter (root extra)\n'
 	@printf '  $(GREEN)install-prediction$(RESET)    XGBoost / scikit-learn prediction (root extra)\n'
 	@printf '  $(GREEN)install-observability$(RESET) OpenTelemetry SDK (root extra)\n'
 	@printf '  $(GREEN)install-agent-os$(RESET)      zksato-automation package (agent OS framework)\n'
 	@printf '  $(GREEN)install-cli$(RESET)           zksato-cli package (coding-agent CLI)\n'
-	@printf '  $(GREEN)install-all$(RESET)           Every optional extra + workspace packages\n'
+	@printf '  $(GREEN)install-all$(RESET)           Every optional extra + workspace packages + apps\n'
 	@printf '  $(GREEN)install-deps$(RESET)          Install system-level dependencies\n'
 	@printf '\n$(BOLD)Quality targets$(RESET)\n'
 	@printf '  $(GREEN)lint$(RESET)                 ruff check . (+ yamllint/hadolint when installed)\n'
@@ -106,8 +123,39 @@ help:
 	@printf '  $(GREEN)format-check$(RESET)         ruff format --check (no mutation)\n'
 	@printf '  $(GREEN)shellcheck$(RESET)         Lint all shell scripts\n'
 	@printf '  $(GREEN)type$(RESET)                 mypy type-check src/zksato + scripts\n'
-	@printf '\n$(BOLD)Test targets$(RESET)\n'
+	@printf '\n$(BOLD)Test targets — Core$(RESET)\n'
 	@printf '  $(GREEN)test$(RESET)                 Full suite (excludes uat, performance)\n'
+	@printf '  $(GREEN)test-api$(RESET)              API endpoint tests\n'
+	@printf '  $(GREEN)test-auth$(RESET)             Authentication/authorization tests\n'
+	@printf '  $(GREEN)test-approvals$(RESET)        Order approval workflow tests\n'
+	@printf '  $(GREEN)test-audit$(RESET)            Audit integrity tests\n'
+	@printf '  $(GREEN)test-broker$(RESET)           Broker adapter tests (paper, CCXT, Settrade)\n'
+	@printf '  $(GREEN)test-concurrency-adv$(RESET)  Advanced concurrency tests\n'
+	@printf '  $(GREEN)test-fill-deltas$(RESET)      Fill delta calculation tests\n'
+	@printf '  $(GREEN)test-indicators$(RESET)       Technical indicator tests\n'
+	@printf '  $(GREEN)test-monorepo$(RESET)         Monorepo package structure tests\n'
+	@printf '  $(GREEN)test-news$(RESET)             News/sentiment integration tests\n'
+	@printf '  $(GREEN)test-openapi$(RESET)          OpenAPI contract tests\n'
+	@printf '  $(GREEN)test-outbox$(RESET)           Outbox delivery pattern tests\n'
+	@printf '  $(GREEN)test-paper$(RESET)            Paper broker full cycle tests\n'
+	@printf '  $(GREEN)test-protections$(RESET)      Position protection tests\n'
+	@printf '  $(GREEN)test-reconcile$(RESET)        Reconciliation logic tests\n'
+	@printf '  $(GREEN)test-risk$(RESET)             Risk engine tests\n'
+	@printf '  $(GREEN)test-runtime$(RESET)          Runtime state tests\n'
+	@printf '  $(GREEN)test-server-risk$(RESET)      Server risk context tests\n'
+	@printf '  $(GREEN)test-session-reconcile$(RESET) Session reconciliation tests\n'
+	@printf '  $(GREEN)test-strategy$(RESET)         Strategy engine tests\n'
+	@printf '  $(GREEN)test-tradingview$(RESET)      TradingView webhook tests\n'
+	@printf '  $(GREEN)test-trailing-stop$(RESET)    Trailing stop logic tests\n'
+	@printf '  $(GREEN)test-version$(RESET)          Version/immutability tests\n'
+	@printf '  $(GREEN)test-env-admin$(RESET)        Admin environment control tests\n'
+	@printf '  $(GREEN)test-env-req$(RESET)          Environment requirement tests\n'
+	@printf '  $(GREEN)test-bot-enhancements$(RESET) Bot enhancement tests\n'
+	@printf '  $(GREEN)test-equity-sell$(RESET)      Equity sell limit tests\n'
+	@printf '  $(GREEN)test-github-admin$(RESET)     GitHub admin environment tests\n'
+	@printf '  $(GREEN)test-github-req$(RESET)       GitHub environment requirement tests\n'
+	@printf '  $(GREEN)test-mql5-policy$(RESET)      MQL5 video EA policy tests\n'
+	@printf '\n$(BOLD)Test targets — Feature Suites$(RESET)\n'
 	@printf '  $(GREEN)test-agent-platform$(RESET)   Phase 4 agent platform suite (orchestrator/A2A/hooks/MCP/CRDT)\n'
 	@printf '  $(GREEN)test-resilience$(RESET)       Risk + recovery fail-closed tests\n'
 	@printf '  $(GREEN)test-performance$(RESET)      Performance probe suite\n'
@@ -166,6 +214,11 @@ help:
 	@printf '  $(GREEN)dashboard-lint$(RESET)           Vite dashboard lint\n'
 	@printf '  $(GREEN)dashboard-type$(RESET)           Vite dashboard TypeScript\n'
 	@printf '  $(GREEN)dashboard-build$(RESET)          Vite dashboard production build\n'
+	@printf '  $(GREEN)dashboard-test$(RESET)           Dashboard unit tests\n'
+	@printf '\n$(BOLD)Worker targets$(RESET)\n'
+	@printf '  $(GREEN)start-worker$(RESET)           Start background worker\n'
+	@printf '  $(GREEN)stop-worker$(RESET)            Stop background worker\n'
+	@printf '  $(GREEN)restart-worker$(RESET)         Restart background worker\n'
 	@printf '\n$(BOLD)Documentation targets$(RESET)\n'
 	@printf '  $(GREEN)docs-check$(RESET)             Validate docs structure\n'
 	@printf '  $(GREEN)docs-build$(RESET)             Build documentation site\n'
@@ -174,8 +227,8 @@ help:
 	@printf '  $(GREEN)all$(RESET)                    Full validation + start all services\n'
 	@printf '  $(GREEN)all-features$(RESET)           Install every optional extra\n'
 	@printf '  $(GREEN)test-all-features$(RESET)        Run every feature test suite\n'
-	@printf '  $(GREEN)all-services$(RESET)           Start all services (backend+frontend+dashboard)\n'
-	@printf '  $(GREEN)start-all$(RESET)                Start backend + frontend + dashboard\n'
+	@printf '  $(GREEN)all-services$(RESET)           Start all services (backend+frontend+dashboard+worker)\n'
+	@printf '  $(GREEN)start-all$(RESET)                Start backend + frontend + dashboard + worker\n'
 	@printf '  $(GREEN)stop-all$(RESET)                 Stop all services\n'
 	@printf '  $(GREEN)restart-all$(RESET)            Restart all services (stop + start)\n'
 	@printf '  $(GREEN)start-backend$(RESET)            Start uvicorn API on :9569\n'
@@ -184,6 +237,8 @@ help:
 	@printf '  $(GREEN)stop-frontend$(RESET)            Stop Next.js dev\n'
 	@printf '  $(GREEN)start-dashboard$(RESET)          Start Vite dashboard on :5173\n'
 	@printf '  $(GREEN)stop-dashboard$(RESET)           Stop Vite dashboard\n'
+	@printf '  $(GREEN)start-worker$(RESET)             Start background worker\n'
+	@printf '  $(GREEN)stop-worker$(RESET)              Stop background worker\n'
 	@printf '  $(GREEN)health-check-all$(RESET)         Curl /readyz + all ports\n'
 	@printf '\n$(BOLD)CI gates$(RESET)\n'
 	@printf '  $(GREEN)ci$(RESET)                   Standard CI pipeline\n'
@@ -199,6 +254,7 @@ help:
 #   1. root `zksato` package (legacy modules + tooling extras)
 #   2. workspace packages, leaf-first — inter-package deps are bare names
 #      and unpublished, so dependents must install after their deps.
+#   3. apps (thin wrappers)
 install:
 	$(PIP) install --upgrade pip
 	$(PIP) install -e '.[dev,quality,security]'
@@ -206,6 +262,12 @@ install:
 	$(PIP) install -e $(PKGS_MIDDLE)
 	$(PIP) install -e $(PKGS_TOP)
 	@printf '$(GREEN)Workspace ready: zksato + 10 packages installed$(RESET)\n'
+
+install-apps:
+	$(PIP) install -e $(APP_API)
+	$(PIP) install -e $(APP_CLI)
+	$(PIP) install -e $(APP_WORKER)
+	@printf '$(GREEN)Apps ready: api, cli, worker installed$(RESET)\n'
 
 install-settrade:
 	$(PIP) install -e '.[settrade]'
@@ -225,7 +287,7 @@ install-agent-os:
 install-cli:
 	$(PIP) install -e $(PKG_CLI)
 
-install-all: install
+install-all: install install-apps
 	$(PIP) install -e '.[settrade,ccxt,prediction,observability]'
 
 install-deps:
@@ -249,23 +311,31 @@ all: install-all lint format-check type coverage contract package compose securi
 test-all-features: test-agent-trading test-agent-os test-agent-platform test-video-ea \
 	test-prediction test-tfex test-notifications test-coordination test-ztrader \
 	test-hyperopt test-scanner test-backtest test-market test-penetration \
-	test-production-readiness test-research
+	test-production-readiness test-research \
+	test-api test-auth test-approvals test-audit test-broker \
+	test-concurrency-adv test-fill-deltas test-indicators test-monorepo \
+	test-news test-openapi test-outbox test-paper test-protections \
+	test-reconcile test-risk test-runtime test-server-risk test-session-reconcile \
+	test-strategy test-tradingview test-trailing-stop test-version \
+	test-env-admin test-env-req test-bot-enhancements test-equity-sell \
+	test-github-admin test-github-req test-mql5-policy
 
 # ---- Feature installation ----
 all-features: install-all
 
 # ---- All services ----
-all-services: start-backend start-frontend start-dashboard
+all-services: start-backend start-frontend start-dashboard start-worker
 
-start-all: start-backend start-frontend start-dashboard
+start-all: start-backend start-frontend start-dashboard start-worker
 	@printf '$(CYAN)Waiting 3s for services to bind…$(RESET)\n'
 	@sleep 3
 	@printf '$(GREEN)All services started. PIDs saved to /tmp/zksato-*.pid$(RESET)\n'
 	@printf '  Backend  : http://127.0.0.1:9569  (API docs: /docs, health: /readyz)$(RESET)\n'
 	@printf '  Frontend : http://127.0.0.1:3016$(RESET)\n'
 	@printf '  Dashboard: http://127.0.0.1:5173$(RESET)\n'
+	@printf '  Worker   : background$(RESET)\n'
 
-stop-all: stop-backend stop-frontend stop-dashboard
+stop-all: stop-backend stop-frontend stop-dashboard stop-worker
 	@printf '$(GREEN)All services stopped.$(RESET)\n'
 
 # ---- Individual service start/stop ----
@@ -315,12 +385,30 @@ stop-dashboard:
 		printf '$(YELLOW)No dashboard PID file found$(RESET)\n'; \
 	fi
 
+start-worker:
+	@printf '$(CYAN)Starting zksato background worker…$(RESET)\n'
+	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	ZKSATO_TRADING_MODE=paper $(PYTHON) -m zksato_worker & \
+	echo $$! > /tmp/zksato-worker.pid
+	@printf '$(GREEN)Worker PID $$(cat /tmp/zksato-worker.pid)$(RESET)\n'
+
+stop-worker:
+	@if [ -f /tmp/zksato-worker.pid ]; then \
+		kill $$(cat /tmp/zksato-worker.pid) 2>/dev/null && \
+		rm -f /tmp/zksato-worker.pid && \
+		printf '$(GREEN)Worker stopped$(RESET)\n'; \
+	else \
+		printf '$(YELLOW)No worker PID file found$(RESET)\n'; \
+	fi
+
 # ---- Restart targets ----
 restart-backend: stop-backend start-backend
 
 restart-frontend: stop-frontend start-frontend
 
 restart-dashboard: stop-dashboard start-dashboard
+
+restart-worker: stop-worker start-worker
 
 restart-all: stop-all start-all
 
@@ -336,6 +424,11 @@ health-check-all:
 	@curl -fsS http://127.0.0.1:5173 > /dev/null 2>&1 && \
 		printf '  Dashboard: $(GREEN)OK$(RESET)\n' || \
 		printf '  Dashboard: $(RED)DOWN$(RESET)\n'
+	@if [ -f /tmp/zksato-worker.pid ] && kill -0 $$(cat /tmp/zksato-worker.pid) 2>/dev/null; then \
+		printf '  Worker   : $(GREEN)OK$(RESET)\n'; \
+	else \
+		printf '  Worker   : $(RED)DOWN$(RESET)\n'; \
+	fi
 
 # ============================================================
 # QUALITY — lint / format / type
@@ -358,11 +451,104 @@ type:
 	mypy src/zksato scripts
 
 # ============================================================
-# TEST — Python
+# TEST — Python Core
 # ============================================================
 test:
 	$(PYTEST) -m "not uat and not performance"
 
+test-api:
+	$(PYTEST) tests/test_api.py tests/test_api_extended.py
+
+test-auth:
+	$(PYTEST) tests/test_auth.py tests/test_secure_sessions.py
+
+test-approvals:
+	$(PYTEST) tests/test_approvals.py
+
+test-audit:
+	$(PYTEST) tests/test_audit_integrity.py
+
+test-broker:
+	$(PYTEST) tests/test_paper_broker_full.py tests/test_paper_matching.py tests/test_broker_ccxt.py tests/test_settrade_adapters.py
+
+test-concurrency-adv:
+	$(PYTEST) tests/test_concurrency.py tests/test_runtime_state.py
+
+test-fill-deltas:
+	$(PYTEST) tests/test_fill_deltas.py
+
+test-indicators:
+	$(PYTEST) tests/test_indicators_full.py tests/test_indicators_advanced.py
+
+test-monorepo:
+	$(PYTEST) tests/test_monorepo_packages.py
+
+test-news:
+	$(PYTEST) tests/test_news.py
+
+test-openapi:
+	$(PYTEST) tests/test_openapi_contract.py tests/test_openapi_contract_edges.py
+
+test-outbox:
+	$(PYTEST) tests/test_outbox_delivery.py
+
+test-paper:
+	$(PYTEST) tests/test_paper_broker_full.py tests/test_paper_matching.py tests/test_paper_recovery.py
+
+test-protections:
+	$(PYTEST) tests/test_protections.py
+
+test-reconcile:
+	$(PYTEST) tests/test_reconcile.py tests/test_session_reconciliation.py
+
+test-risk:
+	$(PYTEST) tests/test_risk.py tests/test_risk_advanced.py tests/test_risk_properties.py tests/test_risk_sell.py tests/test_equity_sell_limits.py tests/test_server_risk_context.py tests/test_financial_invariants.py
+
+test-runtime:
+	$(PYTEST) tests/test_runtime_state.py
+
+test-server-risk:
+	$(PYTEST) tests/test_server_risk_context.py
+
+test-session-reconcile:
+	$(PYTEST) tests/test_session_reconciliation.py
+
+test-strategy:
+	$(PYTEST) tests/test_strategy.py tests/test_strategies_enhanced.py tests/test_strategy_expanded.py tests/test_strategy_version_immutability.py
+
+test-tradingview:
+	$(PYTEST) tests/test_tradingview.py
+
+test-trailing-stop:
+	$(PYTEST) tests/test_trailing_stop.py
+
+test-version:
+	$(PYTEST) tests/test_version.py
+
+test-env-admin:
+	$(PYTEST) tests/test_admin_env.py tests/test_github_environment_admin.py
+
+test-env-req:
+	$(PYTEST) tests/test_environment_controls.py tests/test_github_environment_requirements.py
+
+test-bot-enhancements:
+	$(PYTEST) tests/test_bot_enhancements.py
+
+test-equity-sell:
+	$(PYTEST) tests/test_equity_sell_limits.py
+
+test-github-admin:
+	$(PYTEST) tests/test_github_environment_admin.py
+
+test-github-req:
+	$(PYTEST) tests/test_github_environment_requirements.py
+
+test-mql5-policy:
+	$(PYTEST) tests/test_mql5_video_ea_policy.py
+
+# ============================================================
+# TEST — Feature Suites
+# ============================================================
 test-agent-platform:
 	$(PYTEST) tests/test_agent_platform.py
 
@@ -473,6 +659,10 @@ dashboard-type:
 
 dashboard-build:
 	@cd dashboard && $(NPM) run build
+
+dashboard-test:
+	@cd dashboard && $(NPM) test 2>/dev/null || \
+		printf '$(YELLOW)No test script found, skipping$(RESET)\n'
 
 # ============================================================
 # COVERAGE
@@ -644,7 +834,8 @@ clean:
 		.zksato bandit-report.json log.txt \
 		__pycache__ src/zksato/__pycache__ tests/__pycache__ \
 		src/zksato/**/__pycache__ scripts/__pycache__ \
-		packages/*/__pycache__ packages/*/src/**/__pycache__
+		packages/*/__pycache__ packages/*/src/**/__pycache__ \
+		apps/*/__pycache__ apps/*/src/**/__pycache__
 
 # ============================================================
 # DOCUMENTATION
