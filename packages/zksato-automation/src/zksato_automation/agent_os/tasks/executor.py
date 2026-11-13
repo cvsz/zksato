@@ -52,7 +52,7 @@ class TaskExecutor:
 
     async def stop(self) -> None:
         """Stop the executor and cancel all running tasks."""
-        for task_id, task in self._running.items():
+        for task in self._running.values():
             task.cancel()
         if self._running:
             await asyncio.gather(*self._running.values(), return_exceptions=True)

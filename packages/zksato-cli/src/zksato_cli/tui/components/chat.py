@@ -46,7 +46,7 @@ class ChatPanel(Widget):
 
     messages: reactive[list[ChatMessage]] = reactive([])
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._messages: list[ChatMessage] = []
 

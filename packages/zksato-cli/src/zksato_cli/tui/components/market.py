@@ -28,7 +28,7 @@ class MarketPanel(Widget):
 
     quotes: reactive[list[dict[str, Any]]] = reactive([])
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._quotes: list[dict[str, Any]] = []
 
@@ -69,7 +69,7 @@ class MarketPanel(Widget):
 
     def render(self) -> Panel:
         """Render the market panel."""
-        table = Table(show_header=True, header_style="bold primary", box=None)
+        table = Table(show_header=True, header_style="bold cyan", box=None)
         table.add_column("Symbol", style="cyan", width=10)
         table.add_column("Price", style="white", width=12)
         table.add_column("Change %", style="green", width=10)
@@ -95,6 +95,6 @@ class MarketPanel(Widget):
         return Panel(
             table,
             title="Market Data",
-            border_style="primary",
+            border_style="cyan",
             title_align="left",
         )

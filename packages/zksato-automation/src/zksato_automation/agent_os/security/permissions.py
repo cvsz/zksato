@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -158,9 +159,7 @@ class PermissionManager:
         if auth is not None:
             if not auth.granted:
                 return False
-            if auth.expires_at and auth.expires_at < datetime.now(UTC):
-                return False
-            return True
+            return not (auth.expires_at and auth.expires_at < datetime.now(UTC))
 
         # Check default permissions
         schema = self._tool_schemas.get(tool_id)
@@ -422,7 +421,7 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
     async def read_file_handler(data: dict[str, Any]) -> dict[str, Any]:
         path = data["path"]
         encoding = data.get("encoding", "utf-8")
-        with open(path, encoding=encoding) as f:
+        with Path(path).open(encoding=encoding) as f:
             content = f.read()
         return {"content": content, "size": len(content)}
 
@@ -430,7 +429,7 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
         path = data["path"]
         content = data["content"]
         encoding = data.get("encoding", "utf-8")
-        with open(path, "w", encoding=encoding) as f:
+        with Path(path).open("w", encoding=encoding) as f:
             f.write(content)
         return {"success": True, "bytes_written": len(content.encode(encoding))}
 
@@ -460,7 +459,7 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
         args = data.get("args", [])
         repo_path = data.get("repo_path", ".")
 
-        cmd = ["git", operation] + args
+        cmd = ["git", operation, *args]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=repo_path,

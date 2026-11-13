@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -166,7 +167,7 @@ class ContextManager:
         if repository_files:
             for file_path in repository_files:
                 try:
-                    with open(file_path) as f:
+                    with Path(file_path).open(encoding="utf-8") as f:
                         content = f.read()
                     ctx.add_entry(
                         ContextEntry(

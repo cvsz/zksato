@@ -42,6 +42,7 @@ class TaskType(str, Enum):
 
     DISCOVER = "discover"
     ANALYZE = "analyze"
+    ANALYZE_CODE = "analyze_code"
     PLAN = "plan"
     IMPLEMENT = "implement"
     REVIEW = "review"
@@ -284,9 +285,11 @@ class TaskPlan:
     def get_ready_tasks(self, completed_tasks: set[UUID]) -> list[Task]:
         """Get tasks that are ready to run."""
         ready = []
-        for task in self.tasks:
-            if task.state == TaskState.READY and task.is_ready(completed_tasks):
-                ready.append(task)
+        ready = [
+            task
+            for task in self.tasks
+            if task.state == TaskState.READY and task.is_ready(completed_tasks)
+        ]
         # Sort by priority (highest first)
         ready.sort(key=lambda t: t.priority.value, reverse=True)
         return ready

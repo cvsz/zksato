@@ -32,7 +32,7 @@ class ToolPanel(Widget):
 
     tool_calls: reactive[list[dict[str, Any]]] = reactive([])
 
-    def __init__(self, tool_display: str = "grouped", **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, tool_display: str = "grouped", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._tool_calls: list[dict[str, Any]] = []
         self.tool_display = tool_display

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -91,10 +93,9 @@ class AgentRegistry:
         # Call handlers
         handlers = self._message_handlers.get(message.message_type.value, [])
         for handler in handlers:
-            try:
+            # Errors are swallowed here; production wires real logging/audit
+            with contextlib.suppress(Exception):
                 await handler(message, target)
-            except Exception:
-                pass  # Log in production
 
         return None  # Would return response in real implementation
 

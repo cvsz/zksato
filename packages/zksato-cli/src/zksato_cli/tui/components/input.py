@@ -38,7 +38,7 @@ class InputPanel(Widget):
 
     input_style: reactive[str] = reactive("block")
 
-    def __init__(self, input_style: str = "block", **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, input_style: str = "block", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.input_style = input_style
         self._input: Input | None = None

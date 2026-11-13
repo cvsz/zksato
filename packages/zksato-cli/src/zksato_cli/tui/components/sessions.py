@@ -26,7 +26,7 @@ class SessionsPanel(Widget):
 
     sessions: reactive[list[dict[str, Any]]] = reactive([])
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._sessions: list[dict[str, Any]] = []
 

@@ -125,14 +125,21 @@ class OrchestrationMonitor:
 
     def register_task(self, plan_id: str, task: Task) -> None:
         """Register a task for monitoring."""
+        # Handle both Task (automation) and PlanTask (CLI planning)
+        task_state = getattr(task, "state", getattr(task, "status", None))
+        task_type = getattr(task, "task_type", None)
+        task_priority = getattr(task, "priority", 0)
+        if hasattr(task_priority, "value"):
+            task_priority = task_priority.value
+
         monitor_data = TaskMonitorData(
             task_id=task.task_id,
             plan_id=UUID(plan_id),
             title=task.title,
-            task_type=task.task_type,
-            state=task.state,
-            priority=task.priority.value,
-            assigned_agent=task.assigned_agent_id,
+            task_type=task_type,
+            state=task_state,
+            priority=task_priority,
+            assigned_agent=getattr(task, "assigned_agent_id", None),
         )
         self.tasks[str(task.task_id)] = monitor_data
         self._notify("task_registered", str(task.task_id))
@@ -144,8 +151,9 @@ class OrchestrationMonitor:
             return
 
         monitor_data = self.tasks[task_id]
-        monitor_data.state = task.state
-        monitor_data.assigned_agent = task.assigned_agent_id
+        task_state = getattr(task, "state", getattr(task, "status", None))
+        monitor_data.state = task_state
+        monitor_data.assigned_agent = getattr(task, "assigned_agent_id", None)
 
         # Calculate progress based on state
         state_progress = {
@@ -162,8 +170,12 @@ class OrchestrationMonitor:
             TaskState.FAILED: 0.0,
             TaskState.CANCELLED: 0.0,
         }
-        monitor_data.progress = state_progress.get(task.state, 0.0)
-        monitor_data.retry_count = task.retry_count
+        # Handle both TaskState (automation) and TaskStatus (CLI planning)
+        if task_state is not None:
+            state_key = task_state.value if hasattr(task_state, "value") else task_state
+            monitor_data.progress = state_progress.get(state_key, 0.0)
+
+        monitor_data.retry_count = getattr(task, "retry_count", 0)
 
         if task.state == TaskState.RUNNING and not monitor_data.started_at:
             monitor_data.started_at = task.started_at

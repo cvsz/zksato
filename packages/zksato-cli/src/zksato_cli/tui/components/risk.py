@@ -28,7 +28,7 @@ class RiskPanel(Widget):
 
     risk_data: reactive[dict[str, Any]] = reactive({})
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._risk_data: dict[str, Any] = {}
 
