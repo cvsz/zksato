@@ -66,6 +66,7 @@ VALID_TRANSITIONS: dict[TaskState, set[TaskState]] = {
         TaskState.BLOCKED,
         TaskState.FAILED,
         TaskState.CANCELLED,
+        TaskState.COMPLETED,
     },
     TaskState.REVIEWING: {
         TaskState.TESTING,
