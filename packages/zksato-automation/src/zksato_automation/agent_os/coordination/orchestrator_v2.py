@@ -334,26 +334,36 @@ class OrchestratorV2:
 
     async def _task_dispatcher(self) -> None:
         """Dispatch tasks to available agents."""
+        # Cache agent registry for faster lookups
+        registry = self.agent_registry
+        
         while self._running:
             try:
-                task_id = await asyncio.wait_for(self.task_queue.get(), timeout=1.0)
+                task_id = await asyncio.wait_for(self.task_queue.get(), timeout=0.5)
                 task = self.tasks.get(task_id)
 
                 if not task or task.status != "pending":
                     continue
 
-                # Check dependencies
-                if not self._dependencies_met(task):
-                    # Re-queue with delay
-                    await asyncio.sleep(1)
-                    await self.task_queue.put(task_id)
-                    continue
+                # Check dependencies - fast path
+                if task.dependencies:
+                    all_completed = True
+                    for dep_id in task.dependencies:
+                        dep_task = self.tasks.get(dep_id)
+                        if not dep_task or dep_task.status != "completed":
+                            all_completed = False
+                            break
+                    if not all_completed:
+                        # Re-queue with minimal delay
+                        await asyncio.sleep(0.2)
+                        await self.task_queue.put(task_id)
+                        continue
 
-                # Find suitable agent
-                agent_id = await self._find_suitable_agent(task)
+                # Find suitable agent with capability pre-filtering
+                agent_id = await self._find_suitable_agent_v2(task)
                 if not agent_id:
-                    # No agent available, re-queue
-                    await asyncio.sleep(5)
+                    # No agent available, brief retry
+                    await asyncio.sleep(0.5)
                     await self.task_queue.put(task_id)
                     continue
 
@@ -364,6 +374,31 @@ class OrchestratorV2:
                 continue
             except Exception as exc:
                 logger.error("Task dispatcher error: %s", exc)
+
+    async def _find_suitable_agent_v2(self, task: OrchestratorTask) -> str | None:
+        """Optimized agent selection with capability caching."""
+        required_caps = task.required_capabilities or set()
+        
+        if not required_caps:
+            # No specific capabilities required, get any available agent
+            candidates = list(self.agents.keys())
+        else:
+            # Pre-filter by first capability for speed
+            first_cap = next(iter(required_caps))
+            candidates = self.agent_registry.find_available_agents(first_cap)
+            
+            # Quick filter by all required capabilities
+            candidates = [
+                a for a in candidates 
+                if all(a.can_handle(c) for c in required_caps)
+            ]
+        
+        if not candidates:
+            return None
+        
+        # Select best candidate (lowest load)
+        best = min(candidates, key=lambda a: a.load_factor)
+        return best.agent_id
 
     def _dependencies_met(self, task: OrchestratorTask) -> bool:
         """Check if all task dependencies are completed."""

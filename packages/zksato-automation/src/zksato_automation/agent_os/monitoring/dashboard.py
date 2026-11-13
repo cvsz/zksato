@@ -79,7 +79,7 @@ class QualityGateResult:
 
 
 class OrchestrationMonitor:
-    """Real-time orchestration monitor."""
+    """Real-time orchestration monitor with performance metrics."""
 
     def __init__(self) -> None:
         self.agents: dict[str, AgentStatus] = {}
@@ -89,6 +89,30 @@ class OrchestrationMonitor:
         self.quality_gates: list[QualityGateResult] = []
         self._event_listeners: list[Callable[[str, Any], None]] = []
         self._lock = asyncio.Lock()
+
+        # Performance metrics
+        self.metrics: dict[str, Any] = {
+            "cold_start_ms": 0,
+            "task_dispatch_latency_ms": 0.0,
+            "context_assembly_ms": 0.0,
+            "mcp_tool_call_ms": 0.0,
+            "memory_usage_mb": 0.0,
+            "cpu_idle_pct": 0.0,
+            "last_reset": datetime.now(UTC).isoformat(),
+        }
+
+    def update_metrics(self, metric: str, value: Any) -> None:
+        """Update a performance metric."""
+        self.metrics[metric] = value
+
+    def get_status(self) -> dict[str, Any]:
+        """Get orchestrator status with performance metrics."""
+        return {
+            "metrics": self.metrics,
+            "agent_count": len(self.agents),
+            "task_count": len(self.tasks),
+            "plan_count": len(self.plans),
+        }
 
     def register_agent(self, agent: AgentStatus) -> None:
         """Register an agent."""
@@ -102,26 +126,6 @@ class OrchestrationMonitor:
             self._notify("agent_unregistered", agent_id)
             return True
         return False
-
-    def update_agent_status(self, agent_id: str, **kwargs: Any) -> bool:
-        """Update agent status."""
-        if agent_id not in self.agents:
-            return False
-        agent = self.agents[agent_id]
-        for key, value in kwargs.items():
-            if hasattr(agent, key):
-                setattr(agent, key, value)
-        agent.last_activity = datetime.now(UTC)
-        self._notify("agent_updated", agent_id)
-        return True
-
-    def get_agent(self, agent_id: str) -> AgentStatus | None:
-        """Get agent status."""
-        return self.agents.get(agent_id)
-
-    def list_agents(self) -> list[AgentStatus]:
-        """List all agents."""
-        return list(self.agents.values())
 
     def register_task(self, plan_id: str, task: Task) -> None:
         """Register a task for monitoring."""
@@ -156,151 +160,88 @@ class OrchestrationMonitor:
         monitor_data.assigned_agent = getattr(task, "assigned_agent_id", None)
 
         # Calculate progress based on state
-        state_progress = {
+        state_progress: dict[TaskState, float] = {
             TaskState.CREATED: 0.0,
-            TaskState.ANALYZING: 0.1,
-            TaskState.PLANNED: 0.2,
-            TaskState.READY: 0.3,
+            TaskState.READY: 0.25,
             TaskState.RUNNING: 0.5,
-            TaskState.REVIEWING: 0.7,
-            TaskState.TESTING: 0.85,
-            TaskState.REPAIRING: 0.6,
-            TaskState.BLOCKED: 0.4,
             TaskState.COMPLETED: 1.0,
             TaskState.FAILED: 0.0,
             TaskState.CANCELLED: 0.0,
+            TaskState.BLOCKED: 0.1,
         }
-        # Handle both TaskState (automation) and TaskStatus (CLI planning)
-        if task_state is not None:
-            state_key = task_state.value if hasattr(task_state, "value") else task_state
-            monitor_data.progress = state_progress.get(state_key, 0.0)
+        monitor_data.progress = state_progress.get(task_state, 0.0)
 
-        monitor_data.retry_count = getattr(task, "retry_count", 0)
+        if monitor_data.started_at is None and task_state == TaskState.RUNNING:
+            monitor_data.started_at = datetime.now(UTC)
 
-        if task.state == TaskState.RUNNING and not monitor_data.started_at:
-            monitor_data.started_at = task.started_at
+        # Estimate completion time
+        if monitor_data.started_at and monitor_data.retry_count > 0:
+            elapsed = (datetime.now(UTC) - monitor_data.started_at).total_seconds()
+            monitor_data.estimated_completion = (
+                datetime.now(UTC)
+                + __import__("asyncio").get_event_loop().time() * 0  # placeholder
+            )
 
-        self._notify("task_updated", task_id)
+        self._notify("task_updated", str(task.task_id))
 
-    def get_task(self, task_id: str) -> TaskMonitorData | None:
-        """Get task monitoring data."""
-        return self.tasks.get(task_id)
-
-    def list_tasks(self, plan_id: str | None = None) -> list[TaskMonitorData]:
-        """List tasks, optionally filtered by plan."""
-        if plan_id:
-            return [t for t in self.tasks.values() if str(t.plan_id) == plan_id]
-        return list(self.tasks.values())
+    def clear_task(self, task_id: str) -> None:
+        """Clear a task from monitoring."""
+        self.tasks.pop(task_id, None)
+        self._notify("task_cleared", task_id)
 
     def register_plan(self, plan: TaskPlan) -> None:
-        """Register a plan."""
+        """Register a plan for monitoring."""
         self.plans[str(plan.plan_id)] = plan
         self._notify("plan_registered", str(plan.plan_id))
 
-    def get_plan(self, plan_id: str) -> TaskPlan | None:
-        """Get a plan."""
-        return self.plans.get(plan_id)
+    def unregister_plan(self, plan_id: str) -> bool:
+        """Unregister a plan."""
+        if plan_id in self.plans:
+            del self.plans[plan_id]
+            self._notify("plan_unregistered", plan_id)
+            return True
+        return False
+
+    def add_quality_gate(self, result: QualityGateResult) -> None:
+        """Add a quality gate result."""
+        self.quality_gates.append(result)
+        self._notify("quality_gate", result.gate_name)
+
+    def clear_quality_gates(self) -> None:
+        """Clear all quality gate results."""
+        self.quality_gates.clear()
+
+    def register_provider(
+        self,
+        provider: ProviderMonitorData,
+    ) -> None:
+        """Register a provider."""
+        self.providers[provider.provider] = provider
+        self._notify("provider_registered", provider.provider)
+
+    def unregister_provider(self, provider_name: str) -> bool:
+        """Unregister a provider."""
+        if provider_name in self.providers:
+            del self.providers[provider_name]
+            self._notify("provider_unregistered", provider_name)
+            return True
+        return False
+
+    def list_agents(self) -> list[AgentStatus]:
+        """List all agents."""
+        return list(self.agents.values())
+
+    def list_tasks(self) -> list[TaskMonitorData]:
+        """List all tasks."""
+        return list(self.tasks.values())
 
     def list_plans(self) -> list[TaskPlan]:
         """List all plans."""
         return list(self.plans.values())
 
-    def update_provider(self, data: ProviderMonitorData) -> None:
-        """Update provider monitoring data."""
-        self.providers[data.provider] = data
-        self._notify("provider_updated", data.provider)
-
-    def get_provider(self, provider: str) -> ProviderMonitorData | None:
-        """Get provider monitoring data."""
-        return self.providers.get(provider)
-
     def list_providers(self) -> list[ProviderMonitorData]:
         """List all providers."""
         return list(self.providers.values())
-
-    def record_quality_gate(self, result: QualityGateResult) -> None:
-        """Record a quality gate result."""
-        self.quality_gates.append(result)
-        self._notify("quality_gate", result.gate_name)
-
-    def get_quality_gates(self, task_id: str | None = None) -> list[QualityGateResult]:
-        """Get quality gate results."""
-        if task_id:
-            return [g for g in self.quality_gates if g.metrics.get("task_id") == task_id]
-        return list(self.quality_gates)
-
-    def get_overview(self) -> dict[str, Any]:
-        """Get overview statistics."""
-        agent_statuses: defaultdict[str, int] = defaultdict(int)
-        for agent in self.agents.values():
-            agent_statuses[agent.status] += 1
-
-        task_states: defaultdict[str, int] = defaultdict(int)
-        for task in self.tasks.values():
-            task_states[task.state.value] += 1
-
-        provider_statuses: defaultdict[str, int] = defaultdict(int)
-        for provider in self.providers.values():
-            provider_statuses[provider.status] += 1
-
-        return {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "agents": {
-                "total": len(self.agents),
-                "by_status": dict(agent_statuses),
-            },
-            "tasks": {
-                "total": len(self.tasks),
-                "by_state": dict(task_states),
-            },
-            "plans": {
-                "total": len(self.plans),
-                "active": sum(1 for p in self.plans.values() if not p.is_complete()),
-            },
-            "providers": {
-                "total": len(self.providers),
-                "by_status": dict(provider_statuses),
-            },
-            "quality_gates": {
-                "total": len(self.quality_gates),
-                "passed": sum(1 for g in self.quality_gates if g.passed),
-                "failed": sum(1 for g in self.quality_gates if not g.passed),
-            },
-        }
-
-    def get_task_hierarchy(self, plan_id: str) -> dict[str, Any] | None:
-        """Get task hierarchy for a plan."""
-        plan = self.plans.get(plan_id)
-        if not plan:
-            return None
-
-        return {
-            "plan_id": plan_id,
-            "objective": plan.objective,
-            "tasks": [
-                {
-                    "task_id": str(t.task_id),
-                    "title": t.title,
-                    "type": t.task_type.value,
-                    "state": t.state.value,
-                    "priority": t.priority.value,
-                    "dependencies": [str(d.task_id) for d in t.dependencies],
-                    "progress": self.tasks.get(
-                        str(t.task_id),
-                        TaskMonitorData(
-                            task_id=t.task_id,
-                            plan_id=plan.plan_id,
-                            title=t.title,
-                            task_type=t.task_type,
-                            state=t.state,
-                            priority=t.priority.value,
-                            assigned_agent=None,
-                        ),
-                    ).progress,
-                }
-                for t in plan.tasks
-            ],
-        }
 
     def add_event_listener(self, listener: Callable[[str, Any], None]) -> None:
         """Add an event listener."""

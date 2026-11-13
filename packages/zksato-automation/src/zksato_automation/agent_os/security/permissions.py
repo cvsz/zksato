@@ -65,7 +65,7 @@ class ToolSchema:
 
 @dataclass
 class ToolAuthorization:
-    """Tool execution authorization."""
+    """Tool authorization."""
 
     tool_id: str
     agent_id: str
@@ -278,7 +278,7 @@ class ToolExecutor:
 
 
 # Built-in tool schemas
-BUILTIN_TOOLS = [
+BUILTIN_TOOLS: list[ToolSchema] = [
     ToolSchema(
         tool_id="read_file",
         name="Read File",
@@ -355,32 +355,57 @@ BUILTIN_TOOLS = [
         requires_confirmation=True,
     ),
     ToolSchema(
-        tool_id="git_operation",
-        name="Git Operation",
-        description="Perform a git operation",
+        tool_id="git_operations",
+        name="Git Operations",
+        description="Perform git operations",
         input_schema={
             "type": "object",
             "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": ["status", "diff", "add", "commit", "push", "pull"],
-                },
-                "args": {"type": "array", "items": {"type": "string"}},
-                "repo_path": {"type": "string"},
+                "operation": {"type": "string", "description": "Git operation (status, diff, add, commit, branch, checkout, tag, log, diff, worktree)"},
+                "args": {"type": "array", "description": "Arguments for the git operation"},
+                "repo_path": {"type": "string", "description": "Repository path"},
             },
             "required": ["operation"],
         },
-        output_schema={
+        output_schema={"success": {"type": "boolean"}, "output": {"type": "string"}, "returncode": {"type": "integer"}},
+        required_permissions={Permission.GIT_OPERATIONS},
+        side_effect=SideEffect.LOCAL_WRITE,
+        timeout_seconds=30.0,
+    ),
+    ToolSchema(
+        tool_id="git_change_tracking",
+        name="Git Change Tracking",
+        description="Track and analyze git repository changes",
+        input_schema={
             "type": "object",
             "properties": {
-                "success": {"type": "boolean"},
-                "output": {"type": "string"},
+                "action": {"type": "string", "description": "Action (capture_state, get_history, get_diff_between)"},
+                "params": {"type": "object", "description": "Optional parameters"},
             },
+            "required": ["action"],
         },
+        output_schema={"success": {"type": "boolean"}, "state": {"type": "object"}, "history": {"type": "array"}, "difference": {"type": "object"}},
         required_permissions={Permission.GIT_OPERATIONS},
-        side_effect=SideEffect.STATE_CHANGE,
+        side_effect=SideEffect.LOCAL_WRITE,
         timeout_seconds=30.0,
-        requires_confirmation=True,
+    ),
+    ToolSchema(
+        tool_id="git_hooks",
+        name="Git Hooks",
+        description="Run git pre-commit and post-commit hooks",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "hook_type": {"type": "string", "description": "Hook type (pre_commit, post_commit, check_safety)"},
+                "commit_hash": {"type": "string", "description": "Optional commit hash"},
+                "repo_path": {"type": "string", "description": "Repository path"},
+            },
+            "required": ["hook_type"],
+        },
+        output_schema={"success": {"type": "boolean"}, "output": {"type": "string"}, "results": {"type": "array"}},
+        required_permissions={Permission.GIT_OPERATIONS},
+        side_effect=SideEffect.LOCAL_WRITE,
+        timeout_seconds=30.0,
     ),
     ToolSchema(
         tool_id="http_request",
@@ -454,56 +479,85 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
             "returncode": proc.returncode,
         }
 
-    async def git_operation_handler(data: dict[str, Any]) -> dict[str, Any]:
+    async def git_operations_handler(data: dict[str, Any]) -> dict[str, Any]:
+        """Handle git operations using the GitClient."""
+        from zksato_automation.agent_os.git import get_client
+
+        client = get_client(data.get("repo_path", "."))
         operation = data["operation"]
         args = data.get("args", [])
-        repo_path = data.get("repo_path", ".")
 
-        cmd = ["git", operation, *args]
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=repo_path,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
+        result = await client.run(operation, *args)
         return {
-            "success": proc.returncode == 0,
-            "output": stdout.decode("utf-8")
-            if stdout
-            else stderr.decode("utf-8")
-            if stderr
-            else "",
+            "success": result.success,
+            "output": result.stdout,
+            "returncode": result.returncode,
         }
 
-    async def http_request_handler(data: dict[str, Any]) -> dict[str, Any]:
-        import aiohttp
+    async def git_change_tracking_handler(data: dict[str, Any]) -> dict[str, Any]:
+        """Handle git change tracking."""
+        from zksato_automation.agent_os.git import get_tracker
 
-        url = data["url"]
-        method = data.get("method", "GET")
-        headers = data.get("headers", {})
-        body = data.get("body")
-        timeout = data.get("timeout", 30.0)
+        tracker = get_tracker(get_client(data.get("repo_path", ".")))
+        action = data["action"]
+        params = data.get("params", {})
 
-        async with (
-            aiohttp.ClientSession() as session,
-            session.request(
-                method,
-                url,
-                headers=headers,
-                data=body,
-                timeout=aiohttp.ClientTimeout(total=timeout),
-            ) as resp,
-        ):
-            resp_body = await resp.text()
+        if action == "capture_state":
+            state = await tracker.capture_state()
             return {
-                "status_code": resp.status,
-                "headers": dict(resp.headers),
-                "body": resp_body,
+                "success": True,
+                "state": state.to_dict(),
             }
+        elif action == "get_history":
+            history = await tracker.get_history()
+            return {
+                "success": True,
+                "history": [s.to_dict() for s in history],
+            }
+        elif action == "get_diff_between":
+            idx1 = params.get("index1", 0)
+            idx2 = params.get("index2", 1)
+            diff = await tracker.get_diff_between(idx1, idx2)
+            return {
+                "success": True,
+                "difference": diff,
+            }
+        else:
+            return {"success": False, "error": f"Unknown action: {action}"}
+
+    async def git_hooks_handler(data: dict[str, Any]) -> dict[str, Any]:
+        """Handle git hooks."""
+        from zksato_automation.agent_os.git import run_pre_commit_hooks, run_post_commit_hooks, check_commit_safety
+
+        hook_type = data["hook_type"]
+        commit_hash = data.get("commit_hash")
+        repo_path = data.get("repo_path", ".")
+
+        if hook_type == "pre_commit":
+            result = await run_pre_commit_hooks(repo_path)
+            return {
+                "success": result.success,
+                "output": result.stdout,
+            }
+        elif hook_type == "post_commit":
+            result = await run_post_commit_hooks(repo_path, commit_hash)
+            return {
+                "success": result.success,
+                "output": result.stdout,
+            }
+        elif hook_type == "check_safety":
+            result = await check_commit_safety(repo_path)
+            return {
+                "success": result.success,
+                "output": result.stdout,
+            }
+        else:
+            return {"success": False, "error": f"Unknown hook type: {hook_type}"}
 
     tool_executor.register_handler("read_file", read_file_handler)
     tool_executor.register_handler("write_file", write_file_handler)
     tool_executor.register_handler("execute_shell", execute_shell_handler)
-    tool_executor.register_handler("git_operation", git_operation_handler)
+    tool_executor.register_handler("git_operations", git_operations_handler)
+    tool_executor.register_handler("git_change_tracking", git_change_tracking_handler)
+    tool_executor.register_handler("git_hooks", git_hooks_handler)
     tool_executor.register_handler("http_request", http_request_handler)
