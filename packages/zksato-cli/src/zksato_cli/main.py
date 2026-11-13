@@ -3,7 +3,7 @@
 import typer
 from rich.console import Console
 
-from zksato_cli.commands import bot, strategy, risk, broker, portfolio, agent, config
+from zksato_cli.commands import bot, strategy, risk, broker, portfolio, agent, config, tui
 
 app = typer.Typer(
     name="zksato",
@@ -20,6 +20,7 @@ app.add_typer(broker.app, name="broker", help="Broker commands")
 app.add_typer(portfolio.app, name="portfolio", help="Portfolio commands")
 app.add_typer(agent.app, name="agent", help="Agent commands")
 app.add_typer(config.app, name="config", help="Configuration commands")
+app.add_typer(tui.app, name="tui", help="Terminal UI for agent management")
 
 
 @app.callback()
