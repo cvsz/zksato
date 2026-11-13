@@ -29,6 +29,8 @@ class SessionsPanel(Widget):
     def __init__(self, **kwargs: Any) -> None:  # noqa: ANN401
         super().__init__(**kwargs)
         self._sessions: list[dict[str, Any]] = []
+
+    def add_session(self, session_data: dict[str, Any]) -> None:
         """Add or update a session."""
         session_id = session_data.get("session_id", "unknown")
         for i, s in enumerate(self._sessions):

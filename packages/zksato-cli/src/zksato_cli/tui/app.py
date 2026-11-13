@@ -28,7 +28,7 @@ from .components.tools import ToolPanel
 from .config import TUIConfig
 
 
-class ZKSATOTUI(App):
+class ZKSATOTUI(App[None]):
     """Main zksato TUI application."""
 
     CSS = """
@@ -79,7 +79,7 @@ class ZKSATOTUI(App):
     }
     """
 
-    BINDINGS: ClassVar[list[Binding]] = [
+    BINDINGS: ClassVar[list[Binding | tuple[str, str] | tuple[str, str, str]]] = [
         Binding("q", "quit", "Quit"),
         Binding("c", "clear_chat", "Clear Chat"),
         Binding("r", "refresh_data", "Refresh Data"),
@@ -90,7 +90,7 @@ class ZKSATOTUI(App):
         super().__init__()
         self.config = config or TUIConfig()
         self.api_client: ZKSATOAPIClient | None = None
-        self._update_task: asyncio.Task | None = None
+        self._update_task: asyncio.Task[None] | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the TUI layout."""
@@ -121,8 +121,10 @@ class ZKSATOTUI(App):
         )
 
         # Try to connect to API
+        client = self.api_client
+        assert client is not None
         try:
-            health = await self.api_client.health()
+            health = await client.health()
             self.query_one("#chat-panel", ChatPanel).add_system_message(
                 f"Connected to zksato API: {health.get('status', 'unknown')}"
             )
@@ -141,7 +143,7 @@ class ZKSATOTUI(App):
         """Clean up on unmount."""
         if self._update_task:
             self._update_task.cancel()
-        if self.api_client:
+        if self.api_client is not None:
             await self.api_client.close()
 
     async def on_input_submitted(self, message: InputSubmitted) -> None:
@@ -194,6 +196,8 @@ class ZKSATOTUI(App):
 
     async def _handle_quote(self, symbol: str) -> None:
         """Handle quote command."""
+        if self.api_client is None:
+            return
         try:
             quote = await self.api_client.get_market_quote(symbol)
             price = quote.get("last", 0)
@@ -212,6 +216,8 @@ class ZKSATOTUI(App):
 
     async def _handle_orders(self) -> None:
         """Handle orders command."""
+        if self.api_client is None:
+            return
         try:
             orders = await self.api_client.get_orders()
             self.query_one("#chat-panel", ChatPanel).add_agent_message(
@@ -232,6 +238,8 @@ class ZKSATOTUI(App):
 
     async def _handle_portfolio(self) -> None:
         """Handle portfolio command."""
+        if self.api_client is None:
+            return
         try:
             portfolio = await self.api_client.get_portfolio()
             self.query_one("#chat-panel", ChatPanel).add_agent_message(
@@ -244,6 +252,8 @@ class ZKSATOTUI(App):
 
     async def _handle_risk(self) -> None:
         """Handle risk command."""
+        if self.api_client is None:
+            return
         try:
             evaluations = await self.api_client.get_risk_evaluations()
             self.query_one("#chat-panel", ChatPanel).add_agent_message(
@@ -262,6 +272,8 @@ class ZKSATOTUI(App):
 
     async def _handle_sessions(self) -> None:
         """Handle sessions command."""
+        if self.api_client is None:
+            return
         try:
             sessions = await self.api_client.get_agent_sessions()
             sessions_panel = self.query_one("#sessions-panel", SessionsPanel)
