@@ -67,14 +67,19 @@ class PolicyEngine:
         estimated_risk_pct: float | None = None
 
         if context.reference_price:
-            estimated_notional = float(context.reference_price * intent.quantity)
+            # Handle both Money and float types
+            ref_price = context.reference_price
+            if hasattr(ref_price, 'to_float'):
+                estimated_notional = ref_price.to_float() * intent.quantity
+            else:
+                estimated_notional = float(ref_price * intent.quantity)
 
         for policy in self.policies:
             result = policy.evaluate(intent, context)
-            if (
-                result.decision == PolicyDecision.REJECT
-                or result.decision == PolicyDecision.REQUIRE_APPROVAL
-            ):
+            if result.decision in {
+                PolicyDecision.REJECT,
+                PolicyDecision.REQUIRE_APPROVAL,
+            }:
                 approved = False
                 all_reasons.extend(result.reasons)
 

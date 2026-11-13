@@ -1,0 +1,184 @@
+# zksato Development Environment Configuration
+# This file is loaded when ZKSATO_ENVIRONMENT=dev
+
+[app]
+app_name = "zksato"
+environment = "dev"
+trading_mode = "paper"
+live_trading_enabled = false
+live_requires_confirmation = true
+require_distinct_approver = true
+automation_enabled = true
+dashboard_enabled = true
+poll_interval_seconds = 2.0
+initial_cash = 500000.0
+paper_match_resting_limits = true
+paper_max_fill_quantity_per_quote = 0
+paper_price_improvement = true
+
+[database]
+# database_url = "sqlite+aiosqlite:///./zksato.db"
+# database_url = "postgresql+psycopg://zksato:zksato_dev_only@localhost:5432/zksato"
+
+[redis]
+# redis_url = "redis://localhost:6379/0"
+
+[coordination]
+coordination_lock_ttl_seconds = 30
+reconciliation_enabled = true
+reconciliation_interval_seconds = 15.0
+metrics_enabled = true
+
+[auth]
+auth_required = false
+api_keys = ""
+# session_secret = "dev-secret-change-in-production"
+session_cookie_name = "zksato_session"
+session_ttl_seconds = 1800
+csrf_required = true
+rate_limit_per_minute = 600
+allowed_origins = "http://localhost:3000,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5174"
+allowed_hosts = "localhost,127.0.0.1"
+account_allow_list = ""
+secret_dir = "/run/secrets"
+
+[market]
+market_data_stale_seconds = 10.0
+market_timezone = "Asia/Bangkok"
+equity_sessions = "09:30-12:30,14:00-16:30"
+equity_holidays = ""
+equity_special_sessions_json = ""
+enforce_market_sessions = false
+instrument_metadata_json = ""
+strict_reference_data = false
+
+[risk]
+max_positions = 5
+max_position_pct = 10.0
+max_risk_per_trade_pct = 0.5
+max_daily_loss_pct = 2.0
+max_drawdown_pct = 5.0
+max_orders_per_day = 50
+max_open_orders = 20
+max_notional_per_order = 100000.0
+max_price_deviation_pct = 10.0
+max_gross_exposure_pct = 80.0
+max_net_exposure_pct = 80.0
+max_symbol_exposure_pct = 20.0
+max_sector_exposure_pct = 35.0
+max_spread_pct = 3.0
+max_consecutive_broker_errors = 5
+require_stop_loss = true
+allow_equity_short_selling = false
+kill_switch = false
+max_tfex_contracts = 20
+max_tfex_margin_usage_pct = 50.0
+tfex_expiry_restriction_days = 2
+tfex_contract_metadata_json = ""
+strict_tfex_reference_data = false
+
+[strategy]
+default_strategy = "ema_cross"
+default_order_size = 100
+default_stop_loss_pct = 2.0
+default_take_profit_pct = 4.0
+default_watchlist = "AOT,PTT,CPALL,KBANK,ADVAN"
+
+[settrade]
+# settrade_app_id = ""
+# settrade_app_secret = ""
+# settrade_broker_id = ""
+# settrade_app_code = ""
+# settrade_account_no = ""
+# settrade_pin = ""
+# settrade_derivatives_account_no = ""
+
+[notifications]
+notification_webhook_url = ""
+notification_dispatch_interval_seconds = 2.0
+notification_timeout_seconds = 5.0
+notification_batch_size = 50
+notification_retry_base_seconds = 5.0
+notification_retry_max_seconds = 300.0
+notification_max_attempts = 5
+
+[tradingview]
+# tradingview_webhook_secret = ""
+
+[telegram]
+# telegram_bot_token = ""
+# telegram_chat_id = ""
+telegram_enabled = false
+telegram_notify_orders = true
+telegram_notify_fills = true
+telegram_notify_kill_switch = true
+telegram_notify_risk_rejections = true
+telegram_notify_pnl = true
+telegram_notify_var = true
+telegram_notify_tradingview = true
+telegram_notify_reconciliation = true
+
+[risk_free]
+risk_free_rate = 0.02
+
+[logging]
+log_level = "DEBUG"
+log_json = true
+otel_endpoint = ""
+otel_service_name = "zksato"
+slo_feed_freshness_seconds = 5.0
+slo_reconciliation_backlog_max = 0
+slo_api_p95_ms = 500.0
+
+[research]
+research_min_trades = 20
+research_max_drawdown_pct = 20.0
+research_min_oos_return_pct = -100.0
+
+[ccxt]
+ccxt_enabled = false
+ccxt_exchanges = ""
+ccxt_sandbox = true
+# ccxt_binance_api_key = ""
+# ccxt_binance_secret = ""
+# ccxt_binanceth_api_key = ""
+# ccxt_binanceth_secret = ""
+# ccxt_kucoin_api_key = ""
+# ccxt_kucoin_secret = ""
+# ccxt_kucoin_passphrase = ""
+# ccxt_okx_api_key = ""
+# ccxt_okx_secret = ""
+# ccxt_okx_passphrase = ""
+# ccxt_bybit_api_key = ""
+# ccxt_bybit_secret = ""
+
+[prediction]
+prediction_enabled = false
+prediction_venue = "polymarket"
+prediction_max_order_usd = 10.0
+prediction_enable_live = false
+prediction_clob_url = "https://clob.polymarket.com"
+# prediction_clob_api_key = ""
+# prediction_clob_api_secret = ""
+# prediction_clob_passphrase = ""
+prediction_clob_timeout_seconds = 10.0
+max_directional_residual = 100.0
+max_complete_set_cost = 1.0
+min_prediction_edge = 0.03
+
+[local_llm]
+local_llm_backend = "llamacpp"
+local_llm_base_url = "http://localhost:8080"
+local_llm_model = "my-model"
+local_llm_model_path = "/zdata/models/"
+local_llm_api_key = ""
+local_llm_temperature = 0.7
+local_llm_max_input_tokens = 4096
+local_llm_max_output_tokens = 2048
+local_llm_max_retries = 3
+local_llm_timeout_seconds = 60.0
+
+[gemini]
+# gemini_api_key = ""
+gemini_model = "gemini-4-hydrogen"
+gemini_thinking_level = "high"

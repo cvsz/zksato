@@ -150,6 +150,19 @@ class Settings(BaseConfig):
     paper_max_fill_quantity_per_quote: int = Field(default=0, ge=0, le=10_000_000)
     paper_price_improvement: bool = True
 
+    # Auth settings
+    auth_required: bool = False
+    api_keys: str = ""
+    session_secret: str | None = None
+    session_cookie_name: str = "zksato_session"
+    session_ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    csrf_required: bool = True
+    rate_limit_per_minute: int = Field(default=600, ge=10, le=100000)
+    allowed_origins: str = ""
+    allowed_hosts: str = ""
+    account_allow_list: str = ""
+    secret_dir: str = "/run/secrets"
+
     database_url: str | None = None
     redis_url: str | None = None
     coordination_lock_ttl_seconds: int = Field(default=30, ge=5, le=600)

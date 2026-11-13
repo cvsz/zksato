@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+from zksato_core.config import BaseConfig
 from zksato_core.models import OrderIntent, RiskContext, Side
 from zksato_risk.policies.base import Policy, PolicyDecision, PolicyResult
 
 
 class KillSwitchPolicy(Policy):
     """Policy to check global kill switch."""
+
+    def __init__(self, kill_switch: bool = False) -> None:
+        self._kill_switch = kill_switch
 
     @property
     def name(self) -> str:
@@ -20,7 +22,11 @@ class KillSwitchPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        # Kill switch is checked at the engine level with settings
+        if self._kill_switch:
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=["global kill switch is active"],
+            )
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
 
@@ -132,24 +138,11 @@ class TickSizePolicy(Policy):
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
 
-class ShortSellingPolicy(Policy):
-    """Policy to control short selling."""
-
-    @property
-    def name(self) -> str:
-        return "short_selling"
-
-    @property
-    def version(self) -> str:
-        return "1.0"
-
-    def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        # This would be configured via settings
-        return PolicyResult(decision=PolicyDecision.APPROVE)
-
-
 class BoardLotPolicy(Policy):
     """Policy to enforce SET board lot (100 shares)."""
+
+    def __init__(self, strict_reference_data: bool = False) -> None:
+        self._strict_reference_data = strict_reference_data
 
     @property
     def name(self) -> str:
@@ -161,6 +154,82 @@ class BoardLotPolicy(Policy):
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         # Only for SET stocks (no "/" in symbol) and when strict reference data is on
+        if self._strict_reference_data and "/" not in intent.symbol:
+            if float(intent.quantity) != int(intent.quantity):
+                return PolicyResult(
+                    decision=PolicyDecision.REJECT,
+                    reasons=["SET quantity must be integer"],
+                )
+            elif int(intent.quantity) % 100 != 0:
+                return PolicyResult(
+                    decision=PolicyDecision.REJECT,
+                    reasons=["SET quantity must be multiple of 100 (board lot)"],
+                )
+        return PolicyResult(decision=PolicyDecision.APPROVE)
+
+
+class ShortSellingPolicy(Policy):
+    """Policy to control short selling."""
+
+    def __init__(self, allow_short_selling: bool = False) -> None:
+        self._allow_short_selling = allow_short_selling
+
+    @property
+    def name(self) -> str:
+        return "short_selling"
+
+    @property
+    def version(self) -> str:
+        return "1.0"
+
+    def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
+        if not self._allow_short_selling and intent.side == Side.SELL:
+            if not context.reduces_exposure:
+                if (
+                    context.available_quantity is None
+                    or intent.quantity > context.available_quantity
+                ):
+                    return PolicyResult(
+                        decision=PolicyDecision.REJECT,
+                        reasons=["sell quantity exceeds available position"],
+                    )
+            elif (
+                context.available_quantity is not None
+                and intent.quantity > context.available_quantity
+            ):
+                return PolicyResult(
+                    decision=PolicyDecision.REJECT,
+                    reasons=["sell quantity exceeds available position"],
+                )
+
+        return PolicyResult(decision=PolicyDecision.APPROVE)
+
+
+class PositionLimitPolicy(Policy):
+    """Policy to limit number of positions."""
+
+    def __init__(self, max_positions: int = 5) -> None:
+        self._max_positions = max_positions
+
+    @property
+    def name(self) -> str:
+        return "position_limit"
+
+    @property
+    def version(self) -> str:
+        return "1.0"
+
+    def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
+        if (
+            intent.side == Side.BUY
+            and context.opens_new_position
+            and context.current_positions >= self._max_positions
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=[f"maximum number of positions ({self._max_positions}) reached"],
+            )
+
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
 
@@ -238,22 +307,26 @@ class ExposureLimitPolicy(Policy):
 
         if context.gross_exposure_pct > self._max_gross_pct:
             reasons.append(
-                f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self._max_gross_pct:.1f}%"
+                f"gross exposure {context.gross_exposure_pct:.1f}% exceeds "
+                f"limit {self._max_gross_pct:.1f}%"
             )
 
         if abs(context.net_exposure_pct) > self._max_net_pct:
             reasons.append(
-                f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self._max_net_pct:.1f}%"
+                f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds "
+                f"limit {self._max_net_pct:.1f}%"
             )
 
         if context.symbol_exposure_pct > self._max_symbol_pct:
             reasons.append(
-                f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds limit {self._max_symbol_pct:.1f}%"
+                f"symbol exposure {context.symbol_exposure_pct:.1f}% exceeds "
+                f"limit {self._max_symbol_pct:.1f}%"
             )
 
         if context.sector_exposure_pct > self._max_sector_pct:
             reasons.append(
-                f"sector exposure {context.sector_exposure_pct:.1f}% exceeds limit {self._max_sector_pct:.1f}%"
+                f"sector exposure {context.sector_exposure_pct:.1f}% exceeds "
+                f"limit {self._max_sector_pct:.1f}%"
             )
 
         if reasons:
@@ -283,7 +356,11 @@ class NotionalLimitPolicy(Policy):
                 reasons=["reference price is required for risk estimation"],
             )
 
-        notional = float(context.reference_price * intent.quantity)
+        ref_price = context.reference_price
+        if hasattr(ref_price, 'to_float'):
+            notional = ref_price.to_float() * intent.quantity
+        else:
+            notional = float(ref_price * intent.quantity)
         if notional > self._max_notional:
             return PolicyResult(
                 decision=PolicyDecision.REJECT,
@@ -339,12 +416,16 @@ class TakeProfitPolicy(Policy):
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
 
-        if opening_risk and intent.take_profit is not None:
-            if intent.price and intent.take_profit <= intent.price:
-                return PolicyResult(
-                    decision=PolicyDecision.REJECT,
-                    reasons=["buy take profit must be above entry price"],
-                )
+        if (
+            opening_risk
+            and intent.take_profit is not None
+            and intent.price
+            and intent.take_profit <= intent.price
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=["buy take profit must be above entry price"],
+            )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
@@ -360,12 +441,19 @@ class LineAvailabilityPolicy(Policy):
     def version(self) -> str:
         return "1.0"
 
+    def _to_float(self, value: float | object) -> float:
+        if hasattr(value, 'to_float'):
+            return value.to_float()
+        return float(value)
+
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
 
         if opening_risk and context.line_available is not None and context.reference_price:
-            notional = float(context.reference_price * intent.quantity)
-            if notional > float(context.line_available):
+            ref_price = self._to_float(context.reference_price)
+            line_available = self._to_float(context.line_available)
+            notional = ref_price * intent.quantity
+            if notional > line_available:
                 return PolicyResult(
                     decision=PolicyDecision.REJECT,
                     reasons=["estimated notional exceeds available line"],
@@ -388,14 +476,22 @@ class PriceDeviationPolicy(Policy):
     def version(self) -> str:
         return "1.0"
 
+    def _to_float(self, value: float | object) -> float:
+        if hasattr(value, 'to_float'):
+            return value.to_float()
+        return float(value)
+
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         if context.reference_price and intent.price:
-            deviation = abs(intent.price - context.reference_price) / context.reference_price * 100
+            ref_price = self._to_float(context.reference_price)
+            order_price = self._to_float(intent.price)
+            deviation = abs(order_price - ref_price) / ref_price * 100
             if deviation > self._max_deviation_pct:
                 return PolicyResult(
                     decision=PolicyDecision.REJECT,
                     reasons=[
-                        f"limit price deviates {deviation:.2f}% from reference (max {self._max_deviation_pct:.2f}%)"
+                        f"limit price deviates {deviation:.2f}% from reference "
+                        f"(max {self._max_deviation_pct:.2f}%)"
                     ],
                 )
 
@@ -416,6 +512,11 @@ class PerTradeRiskPolicy(Policy):
     def version(self) -> str:
         return "1.0"
 
+    def _to_float(self, value: float | object) -> float:
+        if hasattr(value, 'to_float'):
+            return value.to_float()
+        return float(value)
+
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
 
@@ -425,34 +526,70 @@ class PerTradeRiskPolicy(Policy):
             and context.reference_price
             and context.portfolio_value
         ):
-            per_share_risk = max(0.0, float(context.reference_price) - float(intent.stop_loss))
+            ref_price = self._to_float(context.reference_price)
+            stop_loss = self._to_float(intent.stop_loss)
+            portfolio_value = self._to_float(context.portfolio_value)
+            per_share_risk = max(0.0, ref_price - stop_loss)
             risk_value = per_share_risk * intent.quantity
-            estimated_risk_pct = risk_value / float(context.portfolio_value) * 100
+            estimated_risk_pct = risk_value / portfolio_value * 100
 
             if estimated_risk_pct > self._max_risk_per_trade_pct:
                 return PolicyResult(
                     decision=PolicyDecision.REJECT,
                     reasons=[
-                        f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self._max_risk_per_trade_pct:.2f}%"
+                        f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds "
+                        f"per-trade budget {self._max_risk_per_trade_pct:.2f}%"
                     ],
                 )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
 
+class StalenessLimitPolicy(Policy):
+    """Policy to limit quote staleness."""
+
+    def __init__(self, max_age_seconds: float = 10.0) -> None:
+        self._max_age_seconds = max_age_seconds
+
+    @property
+    def name(self) -> str:
+        return "staleness_limit"
+
+    @property
+    def version(self) -> str:
+        return "1.0"
+
+    def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
+        if (
+            context.quote_age_seconds is not None
+            and context.quote_age_seconds > self._max_age_seconds
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=[
+                    f"market quote is stale ({context.quote_age_seconds:.1f}s > "
+                    f"{self._max_age_seconds:.1f}s)"
+                ],
+            )
+
+        return PolicyResult(decision=PolicyDecision.APPROVE)
+
+
 # Policy factory for easy creation
-def create_default_policies(settings: Any) -> list[Policy]:
+def create_default_policies(settings: BaseConfig) -> list[Policy]:
     """Create default policies from settings."""
     return [
-        KillSwitchPolicy(),
+        KillSwitchPolicy(settings.kill_switch),
         AccountAllowListPolicy(),
         MarketDataAvailabilityPolicy(),
         MarketSessionPolicy(),
         PriceBandPolicy(),
         TickSizePolicy(),
-        BoardLotPolicy(),
+        BoardLotPolicy(settings.strict_reference_data),
+        ShortSellingPolicy(settings.allow_equity_short_selling),
         OrderCountLimitPolicy(settings.max_orders_per_day),
         OpenOrderLimitPolicy(settings.max_open_orders),
+        PositionLimitPolicy(settings.max_positions),
         ExposureLimitPolicy(
             settings.max_gross_exposure_pct,
             settings.max_net_exposure_pct,
@@ -465,4 +602,5 @@ def create_default_policies(settings: Any) -> list[Policy]:
         LineAvailabilityPolicy(),
         PriceDeviationPolicy(settings.max_price_deviation_pct),
         PerTradeRiskPolicy(settings.max_risk_per_trade_pct),
+        StalenessLimitPolicy(settings.market_data_stale_seconds),
     ]
