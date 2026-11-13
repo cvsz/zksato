@@ -129,7 +129,7 @@ class ResearchEngine:
         import random
 
         base_result = self.backtest_engine.run(candles, config)
-        base_sharpe = base_sharpe_ratio = base_result.sharpe_ratio or 0.0
+        base_sharpe = base_result.sharpe_ratio or 0.0
 
         variations = []
 

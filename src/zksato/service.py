@@ -495,9 +495,7 @@ class TradingService:
             if item.status in CANCELLABLE_ORDER_STATUSES
             and (normalized is None or item.symbol == normalized)
         ]
-        cancelled: list[OrderRecord] = []
-        for target in targets:
-            cancelled.append(await self.cancel_order(str(target.id)))
+        cancelled = [await self.cancel_order(str(target.id)) for target in targets]
         return cancelled
 
     async def list_orders(

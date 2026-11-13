@@ -259,7 +259,7 @@ def atr_series(candles: list[Candle], period: int = 14) -> list[float]:
     result = np.convolve(tr, kernel, mode="valid")
     padded = np.full(len(tr), np.nan)
     padded[period - 1 :] = result
-    return [float("nan")] + padded.tolist()
+    return [float("nan"), *padded.tolist()]
 
 
 # ── Bollinger Bands ──────────────────────────────────────────────────────
@@ -321,7 +321,7 @@ def dema_series(values: list[float], period: int) -> list[float]:
     ema1 = np.array(ema_series(arr.tolist(), period), dtype=np.float64)
     ema2 = np.array(ema_series(ema1.tolist(), period), dtype=np.float64)
     result = 2 * ema1 - ema2
-    return result.astype(np.float64).tolist()
+    return [float(x) for x in result]
 
 
 def tema(values: list[float], period: int) -> float | None:
@@ -345,7 +345,7 @@ def tema_series(values: list[float], period: int) -> list[float]:
     ema2 = np.array(ema_series(ema1.tolist(), period), dtype=np.float64)
     ema3 = np.array(ema_series(ema2.tolist(), period), dtype=np.float64)
     result = 3 * ema1 - 3 * ema2 + ema3
-    return result.astype(np.float64).tolist()
+    return [float(x) for x in result]
 
 
 def kama(values: list[float], period: int = 10) -> float | None:
@@ -424,7 +424,7 @@ def t3_series(values: list[float], period: int = 10, v_factor: float = 0.7) -> l
     c3 = -6 * v_factor**2 - 3 * v_factor - 3 * v_factor**3
     c4 = 1 + 3 * v_factor + 3 * v_factor**2 + 3 * v_factor**3
     result = c1 * e6 + c2 * e5 + c3 * e4 + c4 * e3
-    return result.astype(np.float64).tolist()
+    return [float(x) for x in result]
 
 
 # ── VWAP ───────────────────────────────────────────────────────────────────
@@ -449,7 +449,7 @@ def vwap_series(candles: list[Candle], period: int | None = None) -> list[float]
     cum_typical_vol = np.cumsum(typicals * vols)
     cum_vol = np.cumsum(vols)
     result = cum_typical_vol / cum_vol
-    return result.astype(np.float64).tolist()
+    return [float(x) for x in result]
 
 
 # ── ADX ──────────────────────────────────────────────────────────────────
@@ -539,7 +539,7 @@ def max_drawdown_series(equity_curve: list[float]) -> list[float]:
     arr = _arr(equity_curve)
     running_max = np.maximum.accumulate(arr)
     drawdown = (running_max - arr) / np.where(running_max > 0, running_max, 1.0) * 100.0
-    return drawdown.astype(np.float64).tolist()
+    return [float(x) for x in drawdown]
 
 
 # ── Momentum Oscillators ───────────────────────────────────────────────────
@@ -563,7 +563,7 @@ def apo_series(values: list[float], fast_period: int = 12, slow_period: int = 26
     fast_ema = np.array(ema_series(arr.tolist(), fast_period), dtype=np.float64)
     slow_ema = np.array(ema_series(arr.tolist(), slow_period), dtype=np.float64)
     result = fast_ema - slow_ema
-    return result.astype(np.float64).tolist()
+    return [float(x) for x in result]
 
 
 def cci(candles: list[Candle], period: int = 14) -> float | None:
@@ -662,13 +662,13 @@ def obv_series(candles: list[Candle]) -> list[float]:
     """On-Balance Volume — full series."""
     if not candles:
         return []
-    _, highs, lows, closes, volumes = _ohlcv(candles)
+    _, _highs, _lows, closes, volumes = _ohlcv(candles)
     if len(closes) < 2:
         return [float(volumes[0])] if len(volumes) > 0 else []
     direction = np.where(closes[1:] > closes[:-1], volumes[1:], 0.0)
     direction = np.where(closes[1:] < closes[:-1], -volumes[1:], direction)
     obv_vals = np.concatenate([[volumes[0]], np.cumsum(direction)])
-    return obv_vals.astype(np.float64).tolist()
+    return [float(x) for x in obv_vals]
 
 
 # ── Volatility Indicators ──────────────────────────────────────────────────

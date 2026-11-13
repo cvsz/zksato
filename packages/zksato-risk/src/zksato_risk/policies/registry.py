@@ -31,7 +31,7 @@ def discover_policies(module_name: str) -> list[Policy]:
     module = importlib.import_module(module_name)
     policies = []
 
-    for name, obj in inspect.getmembers(module):
+    for _name, obj in inspect.getmembers(module):
         if inspect.isclass(obj) and issubclass(obj, Policy) and obj is not Policy:
             try:
                 policy = obj()

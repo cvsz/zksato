@@ -88,16 +88,15 @@ class SessionReconciliation:
                 discrepancies.append(
                     {"type": "orphan_broker", "symbol": symbol, "quantity": broker_pos.quantity}
                 )
-            elif local_pos and broker_pos:
-                if local_pos.quantity != broker_pos.quantity:
-                    discrepancies.append(
-                        {
-                            "type": "quantity_mismatch",
-                            "symbol": symbol,
-                            "local": local_pos.quantity,
-                            "broker": broker_pos.quantity,
-                        }
-                    )
+            elif local_pos and broker_pos and local_pos.quantity != broker_pos.quantity:
+                discrepancies.append(
+                    {
+                        "type": "quantity_mismatch",
+                        "symbol": symbol,
+                        "local": local_pos.quantity,
+                        "broker": broker_pos.quantity,
+                    }
+                )
 
         return {
             "matched": len(discrepancies) == 0,

@@ -115,15 +115,14 @@ class CcxtBroker:
                 orders = exchange.fetch_open_orders()
             except (self._network_error, self._exchange_not_available):
                 continue
-            for raw in orders or []:
-                records.append(self._map_order(raw, exchange_id=exchange_id))
+            records.extend(self._map_order(raw, exchange_id=exchange_id) for raw in orders or [])
         return records
 
     async def portfolio(self) -> PortfolioSnapshot:
         total_cash = 0.0
         total_market_value = 0.0
         positions: list[Position] = []
-        for _exchange_id, exchange in self._exchanges.items():
+        for exchange in self._exchanges.values():
             try:
                 balance = exchange.fetch_balance()
                 tickers = exchange.fetch_tickers()

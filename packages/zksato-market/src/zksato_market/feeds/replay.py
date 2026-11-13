@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -66,10 +67,8 @@ class ReplayFeed(MarketDataFeed):
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         self._status = FeedStatus.DISCONNECTED
 
     async def subscribe(self, symbols: list[str]) -> None:

@@ -31,7 +31,7 @@ class LLMClientFactory:
     zksato's paper/sandbox trading environments.
     """
 
-    def create_client(self, provider: str, **kwargs: Any) -> Any:  # noqa: ANN401
+    def create_client(self, provider: str, **kwargs: Any) -> Any:
         """Create an LLM client for the given provider.
 
         Args:

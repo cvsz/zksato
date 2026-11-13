@@ -376,12 +376,12 @@ def test_cpmm_liquidity_pool_dynamic_slippage() -> None:
     assert pool.spot_down_price == 0.5
 
     # Small trade: minimal slippage
-    shares_small, price_small, slippage_small = pool.quote_buy(Side.UP, 10.0)
+    _shares_small, price_small, slippage_small = pool.quote_buy(Side.UP, 10.0)
     assert price_small > 0.50
     assert slippage_small < 250.0  # < 2.5%
 
     # Large trade: high slippage
-    shares_large, price_large, slippage_large = pool.quote_buy(Side.UP, 500.0)
+    _shares_large, price_large, slippage_large = pool.quote_buy(Side.UP, 500.0)
     assert price_large > price_small
     assert slippage_large > 2000.0  # > 20%
 

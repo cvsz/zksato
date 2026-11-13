@@ -69,7 +69,7 @@ class PolicyEngine:
         if context.reference_price:
             # Handle both Money and float types
             ref_price = context.reference_price
-            if hasattr(ref_price, 'to_float'):
+            if hasattr(ref_price, "to_float"):
                 estimated_notional = ref_price.to_float() * intent.quantity
             else:
                 estimated_notional = float(ref_price * intent.quantity)

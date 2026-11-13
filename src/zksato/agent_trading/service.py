@@ -17,7 +17,7 @@ import hashlib
 import logging
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -280,6 +280,7 @@ class AgentService:
     @dataclass(frozen=True)
     class AddPointsParams:
         """Parameters for adding agent points."""
+
         agent_id: str
         points: int
         reason: str = "reward"

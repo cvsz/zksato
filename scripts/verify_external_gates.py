@@ -109,9 +109,7 @@ GATES = [
 
 def check_files_exist() -> list[str]:
     missing = []
-    for path in REQUIRED_FILES:
-        if not Path(path).exists():
-            missing.append(path)
+    missing = [path for path in REQUIRED_FILES if not Path(path).exists()]
     return missing
 
 

@@ -54,13 +54,13 @@ class SettradeAdapter(MarketDataAdapter):
                     app_code=self._app_code,
                     is_sandbox=True,  # Default to sandbox
                 )
-            except ImportError:
-                raise MarketDataError("settrade-v2 SDK not installed")
+            except ImportError as err:
+                raise MarketDataError("settrade-v2 SDK not installed") from err
         return self._client
 
     async def get_quote(self, symbol: str) -> Quote | None:
         """Get current quote for symbol."""
-        client = await self._get_client()
+        await self._get_client()
         # Use Settrade SDK to get quote
         # market_data = client.MarketData()
         # quote = market_data.get_quote(symbol)
@@ -85,7 +85,7 @@ class SettradeAdapter(MarketDataAdapter):
         limit: int = 1000,
     ) -> list[Bar]:
         """Get historical bars."""
-        client = await self._get_client()
+        await self._get_client()
         # Use Settrade SDK to get historical data
         return []  # Placeholder
 
@@ -96,7 +96,7 @@ class SettradeAdapter(MarketDataAdapter):
 
     async def get_instruments(self, market_type: MarketType | None = None) -> list[Instrument]:
         """Get instrument reference data."""
-        client = await self._get_client()
+        await self._get_client()
         # Use Settrade SDK to get instrument list
         return []  # Placeholder
 
@@ -111,7 +111,7 @@ class SettradeAdapter(MarketDataAdapter):
     async def health_check(self) -> bool:
         """Check adapter health."""
         try:
-            client = await self._get_client()
+            await self._get_client()
             # Try a simple API call
             return True
         except Exception:

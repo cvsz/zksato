@@ -4,6 +4,7 @@ import asyncio
 import random
 from contextlib import suppress
 from datetime import UTC, datetime
+from typing import ClassVar
 
 from zksato.automation import AutomationEngine
 from zksato.domain import Quote
@@ -12,7 +13,7 @@ from zksato.domain import Quote
 class DemoMarketFeed:
     """Synthetic feed for local demos and CI; never represents real market data."""
 
-    DEFAULTS = {
+    DEFAULTS: ClassVar[dict[str, float]] = {
         "AOT": 42.50,
         "PTT": 31.25,
         "CPALL": 58.00,

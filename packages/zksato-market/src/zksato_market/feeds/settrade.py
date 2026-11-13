@@ -81,7 +81,7 @@ class SettradeRealtimeFeed(SettradeFeed):
             self._reconnect_attempts = 0
         except Exception as e:
             self._status = self._status.__class__.ERROR
-            raise MarketDataError(f"Failed to connect to Settrade: {e}")
+            raise MarketDataError(f"Failed to connect to Settrade: {e}") from e
 
     async def _reconnect(self) -> None:
         """Attempt reconnection."""

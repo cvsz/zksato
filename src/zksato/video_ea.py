@@ -184,7 +184,7 @@ class VideoDerivedEaPlanner:
                 step,
                 zone,
                 config,
-                reasons + [blocked],
+                [*reasons, blocked],
             )
         if config.grid_mode == VideoEaGridMode.PA_FILTERED and bias == VideoEaBias.NEUTRAL:
             return self._base_plan(
@@ -195,7 +195,7 @@ class VideoDerivedEaPlanner:
                 step,
                 zone,
                 config,
-                reasons + ["PA-filtered mode requires directional evidence"],
+                [*reasons, "PA-filtered mode requires directional evidence"],
             )
 
         sides = self._sides(config, bias)

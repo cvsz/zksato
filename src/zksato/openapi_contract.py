@@ -35,9 +35,11 @@ def validate_schema(schema: dict[str, object]) -> list[str]:
         if missing:
             errors.append(f"{path} missing methods: {', '.join(sorted(missing))}")
 
-    for forbidden in FORBIDDEN_LIVE_TFEX_PATHS:
-        if forbidden in paths:
-            errors.append(f"forbidden live TFEX mutation path exists: {forbidden}")
+    errors.extend(
+        f"forbidden live TFEX mutation path exists: {forbidden}"
+        for forbidden in FORBIDDEN_LIVE_TFEX_PATHS
+        if forbidden in paths
+    )
 
     operation_ids: list[str] = []
     for path, item in paths.items():

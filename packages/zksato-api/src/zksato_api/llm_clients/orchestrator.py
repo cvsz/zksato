@@ -187,7 +187,7 @@ class ModelOrchestrator:
         messages: list[dict[str, str]],
         task_type: str = "general",
         thinking_level: HydrogenThinkingLevel | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> OrchestratorResult:
         """Execute with automatic model routing.
 
@@ -239,7 +239,7 @@ class ModelOrchestrator:
         self,
         messages: list[dict[str, str]],
         thinking_level: HydrogenThinkingLevel | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> OrchestratorResult:
         """Execute on both Carbon and Hydrogen in parallel, pick best result.
 

@@ -142,8 +142,7 @@ class CCXTBroker(BaseBroker):
                 orders = exchange.fetch_open_orders()
             except (self._network_error, self._exchange_not_available):
                 continue
-            for raw in orders or []:
-                records.append(self._map_order(raw, exchange_id=exchange_id))
+            records.extend(self._map_order(raw, exchange_id=exchange_id) for raw in orders or [])
         if status:
             records = [r for r in records if r.status == status]
         return records
@@ -170,7 +169,7 @@ class CCXTBroker(BaseBroker):
         total_market_value = 0.0
         positions: list[Position] = []
 
-        for exchange_id, exchange in self._exchanges.items():
+        for exchange in self._exchanges.values():
             try:
                 balance = exchange.fetch_balance()
                 tickers = exchange.fetch_tickers()

@@ -73,9 +73,9 @@ def sma_series(prices: list[float], period: int) -> list[float]:
     if len(prices) < period:
         return []
 
-    sma_values = []
-    for i in range(period - 1, len(prices)):
-        sma_values.append(sum(prices[i - period + 1 : i + 1]) / period)
+    sma_values = [
+        sum(prices[i - period + 1 : i + 1]) / period for i in range(period - 1, len(prices))
+    ]
 
     return sma_values
 
@@ -98,7 +98,7 @@ def macd_series(
     fast_ema = fast_ema[-min_len:]
     slow_ema = slow_ema[-min_len:]
 
-    macd_line = [f - s for f, s in zip(fast_ema, slow_ema)]
+    macd_line = [f - s for f, s in zip(fast_ema, slow_ema, strict=False)]
     signal_line = ema_series(macd_line, signal)
 
     if not signal_line:
@@ -109,7 +109,7 @@ def macd_series(
     macd_line = macd_line[-min_len2:]
     signal_line = signal_line[-min_len2:]
 
-    histogram = [m - s for m, s in zip(macd_line, signal_line)]
+    histogram = [m - s for m, s in zip(macd_line, signal_line, strict=False)]
 
     return macd_line, signal_line, histogram
 
@@ -202,9 +202,10 @@ def stochastic_oscillator(
     if len(k_values) < d_period:
         return k_values, []
 
-    d_values = []
-    for i in range(d_period - 1, len(k_values)):
-        d_values.append(sum(k_values[i - d_period + 1 : i + 1]) / d_period)
+    d_values = [
+        sum(k_values[i - d_period + 1 : i + 1]) / d_period
+        for i in range(d_period - 1, len(k_values))
+    ]
 
     return k_values, d_values
 
@@ -264,9 +265,9 @@ def rate_of_change(prices: list[float], period: int) -> list[float]:
     if len(prices) < period + 1:
         return []
 
-    roc_values = []
-    for i in range(period, len(prices)):
-        roc_values.append((prices[i] - prices[i - period]) / prices[i - period])
+    roc_values = [
+        (prices[i] - prices[i - period]) / prices[i - period] for i in range(period, len(prices))
+    ]
 
     return roc_values
 

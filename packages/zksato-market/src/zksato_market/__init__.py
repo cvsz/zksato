@@ -14,7 +14,6 @@ from zksato_market.feeds import (
     CCXTFeed,
     CompositeFeed,
     Feed,
-    FeedEvent,
     FeedMetrics,
     FeedRouter,
     KuCoinFeed,
@@ -42,45 +41,45 @@ from zksato_market.types import (
 __version__ = "2.0.0-dev"
 
 __all__ = [
-    # Types
-    "MarketType",
-    "FeedStatus",
-    "Quote",
-    "Trade",
     "Bar",
-    "Instrument",
-    "FeedEvent",
-    "FeedConfig",
-    # Feeds
-    "Feed",
-    "MarketDataFeed",
-    "FeedMetrics",
-    "CompositeFeed",
-    "SettradeFeed",
-    "SettradeRealtimeFeed",
-    "CCXTFeed",
     "BinanceFeed",
     "BinanceTHFeed",
-    "KuCoinFeed",
-    "OKXFeed",
     "BybitFeed",
-    "MultiFeed",
+    "CCXTAdapter",
+    "CCXTFeed",
+    "CompositeFeed",
+    # Feeds
+    "Feed",
+    "FeedConfig",
+    "FeedEvent",
+    "FeedMetrics",
     "FeedRouter",
-    "ReplayFeed",
-    "ReplayEvent",
+    "FeedStatus",
+    "Instrument",
+    "KuCoinFeed",
     # Adapters
     "MarketDataAdapter",
-    "RESTAdapter",
-    "SettradeAdapter",
-    "CCXTAdapter",
-    # Reference
-    "ReferenceData",
-    "get_reference_data",
-    "load_reference_data",
-    # Calendar
-    "TradingCalendar",
+    "MarketDataFeed",
     # Scanner
     "MarketScanner",
+    # Types
+    "MarketType",
+    "MultiFeed",
     "MultiMarketScanner",
+    "OKXFeed",
+    "Quote",
+    "RESTAdapter",
+    # Reference
+    "ReferenceData",
+    "ReplayEvent",
+    "ReplayFeed",
     "ScanFilter",
+    "SettradeAdapter",
+    "SettradeFeed",
+    "SettradeRealtimeFeed",
+    "Trade",
+    # Calendar
+    "TradingCalendar",
+    "get_reference_data",
+    "load_reference_data",
 ]

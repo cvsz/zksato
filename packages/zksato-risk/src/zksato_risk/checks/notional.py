@@ -33,9 +33,12 @@ class DailyLossLimitCheck(BaseRiskCheck):
         self.name = "daily_loss_limit"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.daily_pnl_pct <= -abs(self.max_daily_loss_pct):
-                return [f"maximum daily loss threshold ({self.max_daily_loss_pct}%) reached"]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.daily_pnl_pct <= -abs(self.max_daily_loss_pct)
+        ):
+            return [f"maximum daily loss threshold ({self.max_daily_loss_pct}%) reached"]
         return []
 
 
@@ -47,9 +50,12 @@ class DrawdownLimitCheck(BaseRiskCheck):
         self.name = "drawdown_limit"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.drawdown_pct >= self.max_drawdown_pct:
-                return [f"maximum drawdown threshold ({self.max_drawdown_pct}%) reached"]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.drawdown_pct >= self.max_drawdown_pct
+        ):
+            return [f"maximum drawdown threshold ({self.max_drawdown_pct}%) reached"]
         return []
 
 
@@ -61,11 +67,14 @@ class GrossExposureCheck(BaseRiskCheck):
         self.name = "gross_exposure"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.gross_exposure_pct > self.max_gross_exposure_pct:
-                return [
-                    f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self.max_gross_exposure_pct:.1f}%"
-                ]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.gross_exposure_pct > self.max_gross_exposure_pct
+        ):
+            return [
+                f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self.max_gross_exposure_pct:.1f}%"
+            ]
         return []
 
 
@@ -77,11 +86,14 @@ class NetExposureCheck(BaseRiskCheck):
         self.name = "net_exposure"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if abs(context.net_exposure_pct) > self.max_net_exposure_pct:
-                return [
-                    f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self.max_net_exposure_pct:.1f}%"
-                ]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and abs(context.net_exposure_pct) > self.max_net_exposure_pct
+        ):
+            return [
+                f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self.max_net_exposure_pct:.1f}%"
+            ]
         return []
 
 
@@ -92,11 +104,15 @@ class LineAvailabilityCheck(BaseRiskCheck):
         self.name = "line_availability"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.line_available is not None and context.reference_price:
-                estimated_notional = float(context.reference_price * intent.quantity)
-                if estimated_notional > float(context.line_available):
-                    return ["estimated notional exceeds available line"]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.line_available is not None
+            and context.reference_price
+        ):
+            estimated_notional = float(context.reference_price * intent.quantity)
+            if estimated_notional > float(context.line_available):
+                return ["estimated notional exceeds available line"]
         return []
 
 
@@ -108,16 +124,21 @@ class PerTradeRiskCheck(BaseRiskCheck):
         self.name = "per_trade_risk"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if intent.stop_loss is not None and context.reference_price and context.portfolio_value:
-                per_share_risk = max(0.0, float(context.reference_price) - float(intent.stop_loss))
-                risk_value = per_share_risk * intent.quantity
-                estimated_risk_pct = risk_value / float(context.portfolio_value) * 100
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and intent.stop_loss is not None
+            and context.reference_price
+            and context.portfolio_value
+        ):
+            per_share_risk = max(0.0, float(context.reference_price) - float(intent.stop_loss))
+            risk_value = per_share_risk * intent.quantity
+            estimated_risk_pct = risk_value / float(context.portfolio_value) * 100
 
-                if estimated_risk_pct > self.max_risk_per_trade_pct:
-                    return [
-                        f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self.max_risk_per_trade_pct:.2f}%"
-                    ]
+            if estimated_risk_pct > self.max_risk_per_trade_pct:
+                return [
+                    f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self.max_risk_per_trade_pct:.2f}%"
+                ]
         return []
 
 
@@ -144,10 +165,14 @@ class TakeProfitCheck(BaseRiskCheck):
         self.name = "take_profit"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if intent.take_profit is not None and context.reference_price:
-                if intent.take_profit <= context.reference_price:
-                    return ["buy take profit must be above entry price"]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and intent.take_profit is not None
+            and context.reference_price
+            and intent.take_profit <= context.reference_price
+        ):
+            return ["buy take profit must be above entry price"]
         return []
 
 

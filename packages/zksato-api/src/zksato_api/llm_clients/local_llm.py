@@ -234,7 +234,7 @@ class LocalLLMClient:
     def _build_payload(
         self,
         messages: list[dict[str, str]],
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Build the OpenAI-compatible chat completions request payload."""
         payload: dict[str, Any] = {
@@ -312,7 +312,7 @@ class LocalLLMClient:
     async def generate(
         self,
         messages: list[dict[str, str]],
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> LocalLLMResponse:
         """Generate a response using the local LLM backend.
 

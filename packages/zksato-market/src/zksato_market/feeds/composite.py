@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from zksato_core.datetime import now_utc
 from zksato_core.models import Bar, Quote, Trade
 
@@ -32,10 +34,9 @@ class MultiFeed(MarketDataFeed):
     async def connect(self) -> None:
         """Connect all feeds."""
         for feed in self.feeds:
-            try:
+            # A single unhealthy feed must not block the composite
+            with contextlib.suppress(Exception):
                 await feed.connect()
-            except Exception:
-                pass  # Continue with other feeds
 
         # Find first connected feed
         for i, feed in enumerate(self.feeds):
@@ -53,27 +54,21 @@ class MultiFeed(MarketDataFeed):
         # if self._health_check_task:
         #     self._health_check_task.cancel()
         for feed in self.feeds:
-            try:
+            with contextlib.suppress(Exception):
                 await feed.disconnect()
-            except Exception:
-                pass
         self._status = self._status.__class__.DISCONNECTED
 
     async def subscribe(self, symbols: list[str]) -> None:
         """Subscribe to symbols on all feeds."""
         for feed in self.feeds:
-            try:
+            with contextlib.suppress(Exception):
                 await feed.subscribe(symbols)
-            except Exception:
-                pass
 
     async def unsubscribe(self, symbols: list[str]) -> None:
         """Unsubscribe from symbols on all feeds."""
         for feed in self.feeds:
-            try:
+            with contextlib.suppress(Exception):
                 await feed.unsubscribe(symbols)
-            except Exception:
-                pass
 
     def _emit_quote(self, quote: Quote) -> None:
         super()._emit_quote(quote)
@@ -115,14 +110,12 @@ class MultiFeed(MarketDataFeed):
             next_idx = (self._current_feed_idx + i) % len(self.feeds)
             feed = self.feeds[next_idx]
 
-            if feed.status == feed.status.__class__.CONNECTED:
-                # Check if feed is receiving data
-                if feed.metrics.last_message_at:
-                    age = (now_utc() - feed.metrics.last_message_at).total_seconds()
-                    if age < self.health_check_interval * 2:
-                        self._current_feed_idx = next_idx
-                        return
-
+            # Check if feed is receiving data
+            if feed.status == feed.status.__class__.CONNECTED and feed.metrics.last_message_at:
+                age = (now_utc() - feed.metrics.last_message_at).total_seconds()
+                if age < self.health_check_interval * 2:
+                    self._current_feed_idx = next_idx
+                    return
         # No healthy feed found
         pass
 

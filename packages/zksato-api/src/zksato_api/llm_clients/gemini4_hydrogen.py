@@ -102,7 +102,7 @@ class Gemini4HydrogenClient:
         self,
         messages: list[dict[str, str]],
         thinking_level: HydrogenThinkingLevel | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> dict[str, Any]:
         """Build the API request payload for Gemini 4 Hydrogen."""
         level = thinking_level or self.config.thinking_level
@@ -142,7 +142,7 @@ class Gemini4HydrogenClient:
         self,
         messages: list[dict[str, str]],
         thinking_level: HydrogenThinkingLevel | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> LLMResponse:
         """Generate a response using Gemini 4 Hydrogen.
 
