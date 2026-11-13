@@ -19,6 +19,9 @@ dependencies = [
 readme = "README.md"
 license = { text = "MIT" }
 
+[project.scripts]
+zksato = "zksato_cli.main:app"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0,<10.0",
