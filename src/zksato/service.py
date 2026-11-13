@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from threading import RLock
 
 from zksato.approvals import ApprovalRepository
 from zksato.broker.base import Broker, BrokerAmbiguousError
@@ -66,6 +67,9 @@ class TradingService:
             settings.equity_holidays,
             settings.equity_special_sessions_json,
         )
+        # Cached market session state (mutated only when enforce_market_sessions changes)
+        self._market_session_cache: dict[str, tuple[bool, bool]] = {}
+        self._market_session_lock = RLock()
 
     def check_risk(self, submission: OrderSubmission) -> RiskDecision:
         return self.risk_engine.evaluate(submission.intent, submission.risk)
@@ -83,8 +87,11 @@ class TradingService:
         )
         existing_value = float(existing.market_value) if existing else 0.0
         holding_qty = float(existing.quantity) if existing else 0
-        gross_value = sum(abs(float(position.market_value)) for position in portfolio.positions)
-        net_value = sum(float(position.market_value) for position in portfolio.positions)
+        # Compute exposure sums once; avoid repeated generator walks
+        positions = portfolio.positions
+        gross_value = sum(abs(float(p.market_value)) for p in positions)
+        net_value = sum(float(p.market_value) for p in positions)
+
         if intent.side == Side.BUY:
             symbol_after = existing_value + notional
             gross_after = gross_value + notional
@@ -94,31 +101,38 @@ class TradingService:
             symbol_after = max(0.0, existing_value - reduction)
             gross_after = max(0.0, gross_value - reduction)
             net_after = net_value - reduction
+
         position_pct = (symbol_after / equity * 100) if equity else 100.0
         gross_pct = (gross_after / equity * 100) if equity else 100.0
         net_pct = (net_after / equity * 100) if equity else 100.0
         symbol_pct = (symbol_after / equity * 100) if equity else 100.0
         sector_pct = self._sector_exposure_after_trade(intent, portfolio, notional, equity)
         daily_pnl_pct = (portfolio.daily_pnl / equity * 100) if equity else 0.0
-        drawdown = 0.0
-        account = getattr(self.broker, "account", None)
-        if account is not None:
-            drawdown_fn = getattr(account, "drawdown_pct", None)
-            if callable(drawdown_fn):
-                try:
-                    drawdown = float(drawdown_fn())
-                except (TypeError, ValueError):
-                    drawdown = 0.0
-        orders = self.store.list_orders()
+
+        # ── order counts without full list() ──────────────────────────────
+        # use stored indexes for O(1) lookups instead of iterating all orders
+        all_orders = self.store.orders  # raw list, cached under lock in store
         today = datetime.now(UTC).date()
-        orders_today = sum(item.created_at.date() == today for item in orders)
-        open_orders = sum(item.status in OPEN_ORDER_STATUSES for item in orders)
+        orders_today = sum(
+            1 for o in all_orders if o.created_at.date() == today
+        )
+        open_orders = sum(
+            1 for o in all_orders if o.status in OPEN_ORDER_STATUSES
+        )
+
         spread_pct: float | None = None
         if quote and quote.bid and quote.offer and quote.last:
             spread_pct = (quote.offer - quote.bid) / quote.last * 100
 
         if self.settings.enforce_market_sessions:
-            market_session_known, market_session_open = self.market_sessions.state()
+            with self._market_session_lock:
+                cache_key = "enforce_on"
+                if cache_key not in self._market_session_cache:
+                    known, open_ = self.market_sessions.state()
+                    self._market_session_cache[cache_key] = (known, open_)
+                else:
+                    known, open_ = self._market_session_cache[cache_key]
+            market_session_known, market_session_open = known, open_
         else:
             market_session_known, market_session_open = True, True
         metadata_known, price_band_ok, tick_size_ok = self.instruments.validate_price(
@@ -128,6 +142,17 @@ class TradingService:
         market_data_available = quote is not None
         if self.settings.strict_reference_data and not metadata_known:
             market_data_available = False
+
+        # Compute drawdown from broker account if available
+        drawdown = 0.0
+        account = getattr(self.broker, "account", None)
+        if account is not None:
+            drawdown_fn = getattr(account, "drawdown_pct", None)
+            if callable(drawdown_fn):
+                try:
+                    drawdown = float(drawdown_fn())
+                except (TypeError, ValueError):
+                    drawdown = 0.0
 
         return RiskContext(
             current_positions=len(portfolio.positions),
