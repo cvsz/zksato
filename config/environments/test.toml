@@ -1,0 +1,167 @@
+# zksato Test Environment Configuration
+# This file is loaded when ZKSATO_ENVIRONMENT=test
+
+[app]
+app_name = "zksato"
+environment = "test"
+trading_mode = "paper"
+live_trading_enabled = false
+live_requires_confirmation = true
+require_distinct_approver = true
+automation_enabled = true
+dashboard_enabled = false
+poll_interval_seconds = 1.0
+initial_cash = 100000.0
+paper_match_resting_limits = true
+paper_max_fill_quantity_per_quote = 0
+paper_price_improvement = true
+
+[database]
+database_url = "sqlite+aiosqlite:///:memory:"
+
+[redis]
+redis_url = "redis://localhost:6379/1"
+
+[coordination]
+coordination_lock_ttl_seconds = 10
+reconciliation_enabled = false
+reconciliation_interval_seconds = 5.0
+metrics_enabled = false
+
+[auth]
+auth_required = false
+api_keys = "test-key:read_only"
+session_cookie_name = "zksato_session_test"
+session_ttl_seconds = 300
+csrf_required = false
+rate_limit_per_minute = 10000
+allowed_origins = ""
+allowed_hosts = "localhost,127.0.0.1,testserver"
+account_allow_list = ""
+secret_dir = "/run/secrets"
+
+[market]
+market_data_stale_seconds = 30.0
+market_timezone = "Asia/Bangkok"
+equity_sessions = "09:30-12:30,14:00-16:30"
+equity_holidays = ""
+equity_special_sessions_json = ""
+enforce_market_sessions = false
+instrument_metadata_json = ""
+strict_reference_data = false
+
+[risk]
+max_positions = 10
+max_position_pct = 20.0
+max_risk_per_trade_pct = 5.0
+max_daily_loss_pct = 10.0
+max_drawdown_pct = 20.0
+max_orders_per_day = 1000
+max_open_orders = 100
+max_notional_per_order = 1000000.0
+max_price_deviation_pct = 50.0
+max_gross_exposure_pct = 200.0
+max_net_exposure_pct = 200.0
+max_symbol_exposure_pct = 50.0
+max_sector_exposure_pct = 80.0
+max_spread_pct = 10.0
+max_consecutive_broker_errors = 10
+require_stop_loss = false
+allow_equity_short_selling = true
+kill_switch = false
+max_tfex_contracts = 100
+max_tfex_margin_usage_pct = 80.0
+tfex_expiry_restriction_days = 0
+tfex_contract_metadata_json = ""
+strict_tfex_reference_data = false
+
+[strategy]
+default_strategy = "ema_cross"
+default_order_size = 100
+default_stop_loss_pct = 2.0
+default_take_profit_pct = 4.0
+default_watchlist = "TEST1,TEST2"
+
+[settrade]
+# settrade_app_id = ""
+# settrade_app_secret = ""
+# settrade_broker_id = ""
+# settrade_app_code = ""
+# settrade_account_no = ""
+# settrade_pin = ""
+# settrade_derivatives_account_no = ""
+
+[notifications]
+notification_webhook_url = ""
+notification_dispatch_interval_seconds = 1.0
+notification_timeout_seconds = 2.0
+notification_batch_size = 10
+notification_retry_base_seconds = 1.0
+notification_retry_max_seconds = 10.0
+notification_max_attempts = 2
+
+[tradingview]
+# tradingview_webhook_secret = ""
+
+[telegram]
+# telegram_bot_token = ""
+# telegram_chat_id = ""
+telegram_enabled = false
+telegram_notify_orders = false
+telegram_notify_fills = false
+telegram_notify_kill_switch = false
+telegram_notify_risk_rejections = false
+telegram_notify_pnl = false
+telegram_notify_var = false
+telegram_notify_tradingview = false
+telegram_notify_reconciliation = false
+
+[risk_free]
+risk_free_rate = 0.02
+
+[logging]
+log_level = "WARNING"
+log_json = false
+otel_endpoint = ""
+otel_service_name = "zksato-test"
+slo_feed_freshness_seconds = 30.0
+slo_reconciliation_backlog_max = 100
+slo_api_p95_ms = 1000.0
+
+[research]
+research_min_trades = 5
+research_max_drawdown_pct = 50.0
+research_min_oos_return_pct = -100.0
+
+[ccxt]
+ccxt_enabled = false
+ccxt_exchanges = ""
+ccxt_sandbox = true
+
+[prediction]
+prediction_enabled = false
+prediction_venue = "polymarket"
+prediction_max_order_usd = 10.0
+prediction_enable_live = false
+prediction_clob_url = "https://clob.polymarket.com"
+prediction_clob_timeout_seconds = 5.0
+max_directional_residual = 100.0
+max_complete_set_cost = 1.0
+min_prediction_edge = 0.03
+
+[local_llm]
+local_llm_backend = "llamacpp"
+local_llm_base_url = "http://localhost:8080"
+local_llm_model = "my-model"
+local_llm_model_path = "/zdata/models/"
+local_llm_api_key = ""
+local_llm_temperature = 0.7
+local_llm_max_input_tokens = 4096
+local_llm_max_output_tokens = 2048
+local_llm_max_retries = 3
+local_llm_timeout_seconds = 60.0
+
+[gemini]
+# gemini_api_key = ""
+gemini_model = "gemini-4-hydrogen"
+gemini_thinking_level = "high"

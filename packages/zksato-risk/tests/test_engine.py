@@ -145,7 +145,7 @@ def test_risk_engine_stale_quote():
 
     decision = engine.evaluate(intent, context)
     assert decision.approved is False
-    assert "market quote is stale" in decision.reasons
+    assert any("stale" in r.lower() for r in decision.reasons)
 
 
 def test_risk_engine_no_stop_loss():
@@ -213,4 +213,4 @@ def test_risk_engine_max_positions():
 
     decision = engine.evaluate(intent, context)
     assert decision.approved is False
-    assert "maximum number of positions reached" in decision.reasons
+    assert any("positions" in r.lower() for r in decision.reasons)

@@ -1,0 +1,73 @@
+# zksato Configuration Example
+# Copy this file to config/settings.toml or config/settings.local.toml and customize
+# Environment-specific configs go in config/environments/{dev,test,uat,prod}.toml
+
+[app]
+app_name = "zksato"
+environment = "dev"  # dev, test, uat, prod
+trading_mode = "paper"  # paper, sandbox, live
+
+# Local LLM Configuration (offline/private inference)
+# Backend options: ollama, llamacpp, vllm, tgi, openai_compatible
+local_llm_backend = "llamacpp"
+local_llm_base_url = "http://localhost:8080"  # llama.cpp server default
+local_llm_model = "my-model"  # Model name for the server
+local_llm_model_path = "/zdata/models/"  # Directory containing .gguf files (e.g., /zdata/models/*.gguf)
+local_llm_api_key = ""
+local_llm_temperature = 0.7
+local_llm_max_input_tokens = 4096
+local_llm_max_output_tokens = 2048
+local_llm_max_retries = 3
+local_llm_timeout_seconds = 60.0
+
+# Database
+database_url = "sqlite+aiosqlite:///./zksato.db"
+
+# Redis
+redis_url = "redis://localhost:6379/0"
+
+# Market Data
+market_data_stale_seconds = 10.0
+market_timezone = "Asia/Bangkok"
+equity_sessions = "09:30-12:30,14:00-16:30"
+
+# Risk Limits
+max_positions = 5
+max_position_pct = 10.0
+max_risk_per_trade_pct = 0.5
+max_daily_loss_pct = 2.0
+max_drawdown_pct = 5.0
+max_orders_per_day = 50
+max_open_orders = 20
+max_notional_per_order = 100000.0
+require_stop_loss = true
+allow_equity_short_selling = false
+kill_switch = false
+
+# Settrade Broker (live trading)
+# settrade_app_id = ""
+# settrade_app_secret = ""
+# settrade_broker_id = ""
+# settrade_app_code = ""
+# settrade_account_no = ""
+# settrade_pin = ""
+# settrade_derivatives_account_no = ""
+
+# CCXT Exchanges (crypto)
+ccxt_enabled = false
+ccxt_sandbox = true
+# ccxt_binance_api_key = ""
+# ccxt_binance_secret = ""
+
+# Gemini AI
+# gemini_api_key = ""
+gemini_model = "gemini-4-hydrogen"
+gemini_thinking_level = "high"
+
+# Logging
+level = "INFO"
+json = true
+
+# Auth
+required = false
+rate_limit_per_minute = 600

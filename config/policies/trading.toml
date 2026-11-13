@@ -1,0 +1,208 @@
+# zksato Risk Policy Configuration
+# This file defines declarative risk policies that can be loaded and evaluated
+# without hardcoding rules in the risk engine.
+#
+# Policy evaluation order: policies are checked in order, first match wins
+# Action types: "reject", "warn", "fail_closed", "require_approval"
+
+[risk_policy.daily_loss_limit]
+type = "notional"
+description = "Maximum daily loss limit in base currency"
+limit = 50000.0
+currency = "THB"
+action = "reject"
+approval_mode = "live"
+enabled = true
+
+[risk_policy.position_concentration]
+type = "concentration"
+description = "Maximum single symbol and sector concentration"
+max_single_symbol_pct = 15.0
+max_sector_pct = 30.0
+action = "warn"
+enabled = true
+
+[risk_policy.feed_freshness]
+type = "staleness"
+description = "Maximum age of market data feed before failing closed"
+max_age_ms = 5000
+action = "fail_closed"
+enabled = true
+
+[risk_policy.max_positions]
+type = "count"
+description = "Maximum number of concurrent positions"
+max_positions = 5
+action = "reject"
+enabled = true
+
+[risk_policy.max_position_pct]
+type = "percentage"
+description = "Maximum position size as percentage of portfolio"
+max_pct = 10.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_daily_loss_pct]
+type = "percentage"
+description = "Maximum daily loss as percentage of portfolio"
+max_pct = 2.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_drawdown_pct]
+type = "percentage"
+description = "Maximum drawdown as percentage of portfolio"
+max_pct = 5.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_orders_per_day]
+type = "count"
+description = "Maximum number of orders per day"
+max_count = 50
+action = "reject"
+enabled = true
+
+[risk_policy.max_open_orders]
+type = "count"
+description = "Maximum number of open orders"
+max_count = 20
+action = "reject"
+enabled = true
+
+[risk_policy.max_notional_per_order]
+type = "notional"
+description = "Maximum notional value per order"
+limit = 100000.0
+currency = "THB"
+action = "reject"
+enabled = true
+
+[risk_policy.max_price_deviation_pct]
+type = "percentage"
+description = "Maximum price deviation from reference price"
+max_pct = 10.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_gross_exposure_pct]
+type = "percentage"
+description = "Maximum gross exposure as percentage of portfolio"
+max_pct = 80.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_net_exposure_pct]
+type = "percentage"
+description = "Maximum net exposure as percentage of portfolio"
+max_pct = 80.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_symbol_exposure_pct]
+type = "percentage"
+description = "Maximum single symbol exposure as percentage of portfolio"
+max_pct = 20.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_sector_exposure_pct]
+type = "percentage"
+description = "Maximum sector exposure as percentage of portfolio"
+max_pct = 35.0
+action = "reject"
+enabled = true
+
+[risk_policy.max_spread_pct]
+type = "percentage"
+description = "Maximum bid/ask spread as percentage"
+max_pct = 3.0
+action = "reject"
+enabled = true
+
+[risk_policy.require_stop_loss]
+type = "boolean"
+description = "Require stop loss for buy orders"
+value = true
+action = "reject"
+enabled = true
+
+[risk_policy.allow_equity_short_selling]
+type = "boolean"
+description = "Allow equity short selling"
+value = false
+action = "reject"
+enabled = true
+
+[risk_policy.kill_switch]
+type = "boolean"
+description = "Global kill switch - blocks all new orders"
+value = false
+action = "fail_closed"
+enabled = true
+
+[risk_policy.max_tfex_contracts]
+type = "count"
+description = "Maximum number of TFEX contracts"
+max_count = 20
+action = "reject"
+enabled = true
+
+[risk_policy.max_tfex_margin_usage_pct]
+type = "percentage"
+description = "Maximum TFEX margin usage as percentage"
+max_pct = 50.0
+action = "reject"
+enabled = true
+
+[risk_policy.tfex_expiry_restriction_days]
+type = "count"
+description = "Days before expiry to restrict TFEX trading"
+max_count = 2
+action = "reject"
+enabled = true
+
+[risk_policy.strict_reference_data]
+type = "boolean"
+description = "Enforce strict reference data (tick size, price bands, board lots)"
+value = false
+action = "reject"
+enabled = true
+
+[risk_policy.enforce_market_sessions]
+type = "boolean"
+description = "Enforce market session hours"
+value = false
+action = "reject"
+enabled = true
+
+[risk_policy.prediction_max_order_usd]
+type = "notional"
+description = "Maximum prediction market order in USD"
+limit = 10.0
+currency = "USD"
+action = "reject"
+enabled = true
+
+[risk_policy.max_directional_residual]
+type = "notional"
+description = "Maximum directional residual for prediction markets"
+limit = 100.0
+currency = "USD"
+action = "reject"
+enabled = true
+
+[risk_policy.max_complete_set_cost]
+type = "percentage"
+description = "Maximum complete set cost for prediction markets"
+max_pct = 1.0
+action = "reject"
+enabled = true
+
+[risk_policy.min_prediction_edge]
+type = "percentage"
+description = "Minimum prediction edge required"
+min_pct = 0.03
+action = "reject"
+enabled = true

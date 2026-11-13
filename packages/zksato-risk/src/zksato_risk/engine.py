@@ -8,14 +8,40 @@ from zksato_core.config import BaseConfig
 from zksato_core.models import OrderIntent, RiskContext, RiskDecision, Side
 from zksato_core.money import thb
 
+from zksato_risk.policies.base import PolicyEngine
+from zksato_risk.policies.trading import create_default_policies
+
 
 @dataclass(frozen=True, slots=True)
 class RiskEngine:
     """Deterministic pre-trade checks that automation and AI cannot bypass."""
 
     settings: BaseConfig
+    _policy_engine: PolicyEngine | None = None
+
+    def __post_init__(self) -> None:
+        """Initialize policy engine after construction."""
+        if self._policy_engine is None:
+            engine = PolicyEngine(create_default_policies(self.settings))
+            object.__setattr__(self, "_policy_engine", engine)
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> RiskDecision:
+        # Use policy engine for all checks
+        if self._policy_engine:
+            policy_decision = self._policy_engine.evaluate(intent, context)
+            # Convert PolicyDecision to RiskDecision
+            return RiskDecision(
+                approved=policy_decision.approved,
+                reasons=policy_decision.reasons,
+                estimated_notional=policy_decision.estimated_notional,
+                estimated_risk_pct=policy_decision.estimated_risk_pct,
+            )
+
+        # Fallback to legacy implementation (should not happen)
+        return self._legacy_evaluate(intent, context)
+
+    def _legacy_evaluate(self, intent: OrderIntent, context: RiskContext) -> RiskDecision:
+        """Legacy risk evaluation for backward compatibility."""
         reasons: list[str] = []
         price = intent.price or context.reference_price
         estimated_notional = price * intent.quantity if price else thb(0)
