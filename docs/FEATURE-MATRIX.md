@@ -94,3 +94,14 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | GitHub protection | environments/ruleset/merge queue | External gate | plan/settings dependent |
 | Production | Machine-readable readiness + one-order canary plan | Implemented | non-executing/non-autonomous |
 | Production | Broker/legal/UAT/TLS/secrets/monitoring/DR/incident/rollback/capacity/time-sync/failover/retention/release evidence | External gate | source cannot certify operational facts |
+| Agent platform | Orchestrator v2 capability-based task routing | Implemented | `OrchestratorV2` dispatches across 5 specialized agents by `AgentCapability`; priority queue, dependency resolution, heartbeats, persistent task store |
+| Agent platform | A2A protocol & agent registry | Implemented | message envelopes, capability advertisement, request/response routing (`agent_os.a2a.protocol`) |
+| Agent platform | Specialized agents (architect/security/reviewer/test/docs) | Implemented | deterministic handlers; bandit/ruff-backed audits and complexity analysis |
+| Agent platform | Hooks framework | Implemented | priorities, conditions, timeouts, built-in logging/safety hooks, audit log |
+| Agent platform | Context management | Implemented | token budget, compaction (importance/recency/size), deduplication, cross-session JSON persistence |
+| Agent platform | Session persistence & checkpoints | Implemented | JSONL store, interrupted-session recovery, export/import |
+| Agent platform | Skills system | Implemented | manifest validation, scoped registries, entry-point execution, built-in skills |
+| Agent platform | Plan mode | Implemented | dependency-graph plans, ready-set computation, approval gates, phase tracking, persistence |
+| Agent platform | MCP client & server | Implemented | stdio/SSE/WebSocket transports, tool/resource/prompt discovery, manager config persistence |
+| Agent platform | CRDT shared state | Implemented | G/PN counters, LWW registers, OR-sets with merge-convergence semantics |
+| Agent platform | Test coverage | Implemented | `tests/test_agent_platform.py` (48 tests); `packages/` in ruff/mypy/bandit gates |

@@ -123,3 +123,5 @@
 ## Agent system
 - `../agents/README.md`
 - `../skills/README.md`
+- `../PHASE4_PLAN.md` — Phase 4 Agent Engineering Platform status (orchestrator/A2A/MCP/context/sessions/skills/plans)
+- `../ROADMAP.md` (P15) — Agent Engineering Platform roadmap entry

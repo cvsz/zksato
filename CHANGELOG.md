@@ -2,6 +2,50 @@
 
 All notable changes to zksato are documented here.
 
+## [1.1.0] - 2026-11-14 — Agent Engineering Platform (Phase 4) + Build Repair
+
+### Agent Engineering Platform (Phase 4)
+- **Orchestrator v2** (`OrchestratorV2`) — async multi-agent task engine with capability-based
+  routing across five specialized agents (Architect, Security Auditor, Code Reviewer, Test Engineer,
+  Documentation), priority queue, dependency resolution, heartbeat monitoring, and a persistent task store.
+- **A2A protocol** — agent-to-agent messaging with capability advertisement, registry, request/response
+  envelopes, and handler dispatch (`agent_os.a2a.protocol`).
+- **Hooks framework** — lifecycle events, execution priorities, conditions, per-hook timeouts, built-in
+  logging/safety hooks, and audit logging (`zksato_cli.hooks.framework`).
+- **Context management** — token budgeting, compaction (importance/recency/size), deduplication,
+  relevance ranking, and cross-session JSON persistence (`zksato_cli.context.manager`).
+- **Sessions** — JSONL session store with checkpoints, interrupted-session recovery, and export/import.
+- **Skills system** — manifest validation, scoped registries, entry-point execution, and built-in skills
+  (`grep`, `read-file`).
+- **Plan mode** — dependency-graph plans with ready-set computation, approval gates, phase tracking, and
+  persistence (`zksato_cli.planning.plan_mode`).
+- **MCP integration** — Model Context Protocol client and server with stdio/SSE/WebSocket transports,
+  tool/resource/prompt discovery, and manager config persistence (`zksato_cli.mcp`).
+- **CRDT shared state** — G/PN counters, LWW registers, and OR-sets with merge-convergence semantics
+  (`agent_os.coordination.shared_state`).
+
+### Build & tooling repair
+- Restored root `pyproject.toml` build backend (hatchling) so `pip install -e .` provides the legacy
+  `import zksato`; reinstated `dev/quality/security/settrade/ccxt/prediction/observability` extras.
+- Reverted the accidental Python `>=3.12` floor back to the AGENTS.md-mandated `>=3.11`.
+- Extended ruff/format/mypy/bandit gates across `packages/` (10 workspace packages).
+- Fixed real runtime bugs found by the new linters: undefined `Callable`/`asyncio`/`timedelta` imports,
+  a late-binding lambda loop capture, an unpersisted background-task reference, and a duplicate dict key.
+
+### Testing & coverage
+- New `tests/test_agent_platform.py` — 48 tests covering orchestrator e2e, A2A registry/messages, hooks
+  (registration/priority/conditions/builtins/timeout), context budget/compaction/dedup/persistence,
+  sessions (create/checkpoint/recovery/export/import/delete), skills (manifest/registry/builtins),
+  plan mode (dependencies/ready-set/persistence/phases), MCP (envelopes/transports/manager), CRDT
+  merge convergence, and the five specialized agents.
+- Full suite: **690 passed, 6 skipped**; root `zksato` coverage **65.51%** (gate ≥65%).
+- Makefile modernized: correct monorepo install (leaf-first), `packages/` in bandit scope, duplicate
+  `.PHONY` removal, `test-agent-platform` target, artifact-aware `clean`.
+
+### Deferred (tracked in `PHASE4_PLAN.md`)
+- Git worktree integration, LSP diagnostics, PII redaction, and the production conflict resolver
+  (file ownership is tracked; `resolve_conflict` is currently a stub).
+
 ## [1.0.1] - 2026-11-12 — Enterprise Production Validation
 
 ### Testing & Coverage

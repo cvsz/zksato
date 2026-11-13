@@ -38,9 +38,17 @@ Build zksato into a production-grade, risk-first automated trading platform for 
 
 ## Required validation before merging
 ```bash
-python -m pip install -e '.[dev]'
+# Monorepo install: root package (legacy `zksato` + tooling extras) then workspace packages (leaf-first)
+python -m pip install -e '.[dev,quality,security]'
+python -m pip install -e packages/zksato-core packages/zksato-risk packages/zksato-market \
+  packages/zksato-strategy packages/zksato-portfolio packages/zksato-test-utils
+python -m pip install -e packages/zksato-broker packages/zksato-automation
+python -m pip install -e packages/zksato-api packages/zksato-cli
 ruff check .
+ruff format --check .
 pytest
+mypy src/zksato scripts
+bandit -q -r src packages -ll
 ```
 For infrastructure changes also run:
 ```bash
