@@ -44,8 +44,13 @@ class QuoteStalenessCheck(BaseRiskCheck):
         self.name = "quote_staleness"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if context.quote_age_seconds is not None and context.quote_age_seconds > self.max_age_seconds:
-            return [f"market quote is stale ({context.quote_age_seconds:.1f}s > {self.max_age_seconds:.1f}s)"]
+        if (
+            context.quote_age_seconds is not None
+            and context.quote_age_seconds > self.max_age_seconds
+        ):
+            return [
+                f"market quote is stale ({context.quote_age_seconds:.1f}s > {self.max_age_seconds:.1f}s)"
+            ]
         return []
 
 
@@ -58,7 +63,9 @@ class SpreadCheck(BaseRiskCheck):
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if context.spread_pct is not None and context.spread_pct > self.max_spread_pct:
-            return [f"bid/offer spread {context.spread_pct:.2f}% exceeds limit {self.max_spread_pct:.2f}%"]
+            return [
+                f"bid/offer spread {context.spread_pct:.2f}% exceeds limit {self.max_spread_pct:.2f}%"
+            ]
         return []
 
 

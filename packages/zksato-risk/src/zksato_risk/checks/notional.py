@@ -19,7 +19,9 @@ class NotionalLimitCheck(BaseRiskCheck):
 
         estimated_notional = float(context.reference_price * intent.quantity)
         if estimated_notional > self.max_notional:
-            return [f"order notional {estimated_notional:.2f} exceeds limit {self.max_notional:.2f}"]
+            return [
+                f"order notional {estimated_notional:.2f} exceeds limit {self.max_notional:.2f}"
+            ]
         return []
 
 
@@ -61,7 +63,9 @@ class GrossExposureCheck(BaseRiskCheck):
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if intent.side == Side.BUY and not context.reduces_exposure:
             if context.gross_exposure_pct > self.max_gross_exposure_pct:
-                return [f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self.max_gross_exposure_pct:.1f}%"]
+                return [
+                    f"gross exposure {context.gross_exposure_pct:.1f}% exceeds limit {self.max_gross_exposure_pct:.1f}%"
+                ]
         return []
 
 
@@ -75,7 +79,9 @@ class NetExposureCheck(BaseRiskCheck):
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if intent.side == Side.BUY and not context.reduces_exposure:
             if abs(context.net_exposure_pct) > self.max_net_exposure_pct:
-                return [f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self.max_net_exposure_pct:.1f}%"]
+                return [
+                    f"net exposure {abs(context.net_exposure_pct):.1f}% exceeds limit {self.max_net_exposure_pct:.1f}%"
+                ]
         return []
 
 
@@ -109,7 +115,9 @@ class PerTradeRiskCheck(BaseRiskCheck):
                 estimated_risk_pct = risk_value / float(context.portfolio_value) * 100
 
                 if estimated_risk_pct > self.max_risk_per_trade_pct:
-                    return [f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self.max_risk_per_trade_pct:.2f}%"]
+                    return [
+                        f"estimated stop-loss risk {estimated_risk_pct:.2f}% exceeds per-trade budget {self.max_risk_per_trade_pct:.2f}%"
+                    ]
         return []
 
 
@@ -152,7 +160,13 @@ class PriceDeviationCheck(BaseRiskCheck):
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
         if context.reference_price and intent.price:
-            deviation = abs(float(intent.price) - float(context.reference_price)) / float(context.reference_price) * 100
+            deviation = (
+                abs(float(intent.price) - float(context.reference_price))
+                / float(context.reference_price)
+                * 100
+            )
             if deviation > self.max_deviation_pct:
-                return [f"limit price deviates {deviation:.2f}% from reference (max {self.max_deviation_pct:.2f}%)"]
+                return [
+                    f"limit price deviates {deviation:.2f}% from reference (max {self.max_deviation_pct:.2f}%)"
+                ]
         return []

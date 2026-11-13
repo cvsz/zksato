@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import AsyncGenerator
 
-from zksato_market.types import MarketType, Instrument
-from zksato_core.models import Quote, Trade, Bar
+from zksato_core.models import Bar, Quote
+
+from zksato_market.types import Instrument, MarketType
 
 
 class MarketDataAdapter(ABC):
@@ -85,6 +85,7 @@ class RESTAdapter(MarketDataAdapter):
         """Get or create HTTP session."""
         if self._session is None:
             import aiohttp
+
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
         return self._session
 

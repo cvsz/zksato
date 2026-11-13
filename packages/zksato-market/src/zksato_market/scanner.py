@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
-from zksato_market.types import Quote, MarketType
-from zksato_market.adapters.base import MarketDataAdapter
 from zksato_core.models import ScannerResult
-from zksato_core.money import Money
+
+from zksato_market.adapters.base import MarketDataAdapter
+from zksato_market.types import Quote
 
 
 @dataclass

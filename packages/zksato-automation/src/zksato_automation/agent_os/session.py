@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from zksato_core.ids import new_ulid
+from zksato_core.ids import new_uuid
 
 
 class AgentEventType(str, Enum):
@@ -30,8 +30,8 @@ class AgentEventType(str, Enum):
 class AgentEvent:
     """Event in an agent session."""
 
-    event_id: UUID = field(default_factory=new_ulid)
-    session_id: UUID = field(default_factory=new_ulid)
+    event_id: UUID = field(default_factory=new_uuid)
+    session_id: UUID = field(default_factory=new_uuid)
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     event_type: AgentEventType = AgentEventType.SESSION_CREATED
     payload: dict[str, Any] = field(default_factory=dict)

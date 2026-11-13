@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime, time
-from typing import Any
 
-from zksato_core.datetime import MarketSession, MarketCalendar, create_default_calendar, BANGKOK_TZ
+from zksato_core.datetime import MarketCalendar, MarketSession, create_default_calendar
+
 from zksato_market.types import MarketType
 
 
@@ -24,7 +24,7 @@ class TradingCalendar:
         tfex_holidays: list[date] | None = None,
         equity_special: dict[date, list[MarketSession]] | None = None,
         tfex_special: dict[date, list[MarketSession]] | None = None,
-    ) -> "TradingCalendar":
+    ) -> TradingCalendar:
         """Create default trading calendar."""
         equity_cal = create_default_calendar(
             holidays=equity_holidays or [],

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Protocol
 
-from zksato_core.models import OrderIntent, RiskContext, RiskDecision
+from zksato_core.models import OrderIntent, RiskContext
 
 
 class RiskCheck(Protocol):

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from zksato_core.exceptions import MarketDataError
+
 from zksato_market.feeds.base import MarketDataFeed
 from zksato_market.types import MarketType
-from zksato_core.models import Quote, Trade, Bar
-from zksato_core.exceptions import MarketDataError
-from zksato_core.money import Money
 
 
 class SettradeFeed(MarketDataFeed):
@@ -94,5 +93,6 @@ class SettradeRealtimeFeed(SettradeFeed):
         self._reconnect_attempts += 1
 
         import asyncio
-        await asyncio.sleep(2 ** self._reconnect_attempts)
+
+        await asyncio.sleep(2**self._reconnect_attempts)
         await self.connect()

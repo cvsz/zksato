@@ -1,27 +1,34 @@
 """Feed modules."""
 
-from zksato_market.feeds.base import Feed, MarketDataFeed, FeedMetrics, CompositeFeed, FeedEvent
+from zksato_market.feeds.base import CompositeFeed, Feed, FeedEvent, FeedMetrics, MarketDataFeed
+from zksato_market.feeds.ccxt import (
+    BinanceFeed,
+    BinanceTHFeed,
+    BybitFeed,
+    CCXTFeed,
+    KuCoinFeed,
+    OKXFeed,
+)
+from zksato_market.feeds.composite import FeedRouter, MultiFeed
+from zksato_market.feeds.replay import ReplayEvent, ReplayFeed
 from zksato_market.feeds.settrade import SettradeFeed, SettradeRealtimeFeed
-from zksato_market.feeds.ccxt import CCXTFeed, BinanceFeed, BinanceTHFeed, KuCoinFeed, OKXFeed, BybitFeed
-from zksato_market.feeds.composite import MultiFeed, FeedRouter
-from zksato_market.feeds.replay import ReplayFeed, ReplayEvent
 
 __all__ = [
-    "Feed",
-    "MarketDataFeed",
-    "FeedMetrics",
-    "CompositeFeed",
-    "FeedEvent",
-    "SettradeFeed",
-    "SettradeRealtimeFeed",
-    "CCXTFeed",
     "BinanceFeed",
     "BinanceTHFeed",
-    "KuCoinFeed",
-    "OKXFeed",
     "BybitFeed",
-    "MultiFeed",
+    "CCXTFeed",
+    "CompositeFeed",
+    "Feed",
+    "FeedEvent",
+    "FeedMetrics",
     "FeedRouter",
-    "ReplayFeed",
+    "KuCoinFeed",
+    "MarketDataFeed",
+    "MultiFeed",
+    "OKXFeed",
     "ReplayEvent",
+    "ReplayFeed",
+    "SettradeFeed",
+    "SettradeRealtimeFeed",
 ]

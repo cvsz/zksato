@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
-from dataclasses import dataclass
 
-from zksato_core.types import Side, OrderType, OrderStatus
 from zksato_core.models import OrderIntent, OrderRecord, PortfolioSnapshot
+from zksato_core.types import OrderStatus
 
 
 class BrokerCapabilities(str, Enum):
     """Capabilities that a broker may support."""
-    
+
     EQUITY = "equity"
     TFEX_FUTURES = "tfex_futures"
     TFEX_OPTIONS = "tfex_options"
@@ -41,7 +41,7 @@ class BrokerCapabilities(str, Enum):
 @dataclass
 class BrokerConfig:
     """Configuration for a broker adapter."""
-    
+
     name: str
     capabilities: set[BrokerCapabilities]
     trading_mode: str = "paper"
@@ -53,60 +53,60 @@ class BrokerConfig:
 @runtime_checkable
 class BrokerAdapter(Protocol):
     """Protocol for broker adapters.
-    
+
     All broker implementations must conform to this protocol.
     """
-    
+
     @property
     def name(self) -> str:
         """Unique name of the broker."""
         ...
-    
+
     @property
     def capabilities(self) -> set[BrokerCapabilities]:
         """Set of capabilities this broker supports."""
         ...
-    
+
     async def connect(self, config: BrokerConfig) -> None:
         """Connect to the broker with given configuration."""
         ...
-    
+
     async def disconnect(self) -> None:
         """Disconnect from the broker."""
         ...
-    
+
     async def place_order(self, order: OrderIntent) -> OrderRecord:
         """Place an order and return the order record."""
         ...
-    
+
     async def cancel_order(self, order_id: str) -> OrderRecord:
         """Cancel an order by ID."""
         ...
-    
+
     async def get_order(self, order_id: str) -> OrderRecord | None:
         """Get order by ID."""
         ...
-    
+
     async def list_orders(self, status: OrderStatus | None = None) -> list[OrderRecord]:
         """List orders, optionally filtered by status."""
         ...
-    
+
     async def get_positions(self) -> list:
         """Get current positions."""
         ...
-    
+
     async def get_account(self) -> dict:
         """Get account information."""
         ...
-    
+
     async def get_portfolio(self) -> PortfolioSnapshot:
         """Get portfolio snapshot."""
         ...
-    
+
     async def health_check(self) -> dict:
         """Check broker health status."""
         ...
-    
+
     async def get_quote(self, symbol: str) -> dict | None:
         """Get current quote for a symbol."""
         ...

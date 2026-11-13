@@ -9,7 +9,7 @@ from typing import Any
 @dataclass
 class TradingViewWebhook:
     """Handles TradingView webhook alerts."""
-    
+
     def parse_alert(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Parse TradingView alert payload."""
         return {
@@ -18,10 +18,11 @@ class TradingViewWebhook:
             "price": payload.get("price", 0),
             "strategy": payload.get("strategy", ""),
         }
-    
+
     def validate_signature(self, payload: str, signature: str, secret: str) -> bool:
         """Validate webhook signature."""
-        import hmac
         import hashlib
+        import hmac
+
         expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)

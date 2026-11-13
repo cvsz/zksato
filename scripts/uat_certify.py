@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 
 def get_json(url: str, api_key: str) -> dict[str, object]:
     request = Request(url, headers={"X-API-Key": api_key})
-    with urlopen(request, timeout=15) as response:  # noqa: S310 - operator-selected UAT endpoint
+    with urlopen(request, timeout=15) as response:
         payload = json.loads(response.read())
     if not isinstance(payload, dict):
         raise ValueError(f"expected JSON object from {url}")

@@ -21,7 +21,7 @@ class RiskPanel(Widget):
     DEFAULT_CSS = """
     RiskPanel {
         height: 1fr;
-        border: solid $primary;
+        border: solid cyan;
         padding: 1;
     }
     """
@@ -42,7 +42,7 @@ class RiskPanel(Widget):
         """Render the risk panel."""
         table = Table(show_header=False, box=None, padding=(0, 1))
         table.add_column("Metric", style="dim", width=20)
-        table.add_column("Value", style="primary")
+        table.add_column("Value", style="cyan")
 
         risk_level = self._risk_data.get("risk_level", "unknown")
         approved = self._risk_data.get("approved", False)
@@ -66,6 +66,6 @@ class RiskPanel(Widget):
         return Panel(
             table,
             title="Risk Engine",
-            border_style="primary",
+            border_style="cyan",
             title_align="left",
         )

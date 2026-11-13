@@ -1,5 +1,5 @@
 """Commands module."""
 
-from zksato_cli.commands import bot, strategy, risk, broker, portfolio, agent, config
+from zksato_cli.commands import agent, bot, broker, config, portfolio, risk, strategy
 
-__all__ = ["bot", "strategy", "risk", "broker", "portfolio", "agent", "config"]
+__all__ = ["agent", "bot", "broker", "config", "portfolio", "risk", "strategy"]

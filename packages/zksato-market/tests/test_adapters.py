@@ -1,7 +1,6 @@
 """Tests for zksato-market adapters."""
 
-import pytest
-from zksato_market.adapters import MarketDataAdapter, SettradeAdapter, CCXTAdapter
+from zksato_market.adapters import CCXTAdapter, MarketDataAdapter, SettradeAdapter
 from zksato_market.types import MarketType
 
 

@@ -116,30 +116,29 @@ class TrailingStopManager:
                     if new_stop > state.current_stop_price:
                         state.current_stop_price = new_stop
                         state.updated_at = current_time
-        else:
-            # Short position: trail the lowest price
-            if current_price < state.lowest_price:
-                state.lowest_price = current_price
+        # Short position: trail the lowest price
+        elif current_price < state.lowest_price:
+            state.lowest_price = current_price
 
-                # Check if trailing should activate
-                if not state.trailing_activated and self.trailing_stop_positive is not None:
-                    profit_pct = (state.entry_price - current_price) / state.entry_price
-                    if profit_pct >= self.trailing_stop_positive:
-                        state.trailing_activated = True
-                        state.activation_price = current_price
-                        logger.info(
-                            "Trailing stop activated for %s at %s (profit %.2f%%)",
-                            symbol,
-                            current_price,
-                            profit_pct * 100,
-                        )
+            # Check if trailing should activate
+            if not state.trailing_activated and self.trailing_stop_positive is not None:
+                profit_pct = (state.entry_price - current_price) / state.entry_price
+                if profit_pct >= self.trailing_stop_positive:
+                    state.trailing_activated = True
+                    state.activation_price = current_price
+                    logger.info(
+                        "Trailing stop activated for %s at %s (profit %.2f%%)",
+                        symbol,
+                        current_price,
+                        profit_pct * 100,
+                    )
 
-                # If activated, adjust stop price
-                if state.trailing_activated and self.trailing_stop_positive_offset is not None:
-                    new_stop = state.lowest_price * (1 + self.trailing_stop_positive_offset)
-                    if new_stop < state.current_stop_price:
-                        state.current_stop_price = new_stop
-                        state.updated_at = current_time
+            # If activated, adjust stop price
+            if state.trailing_activated and self.trailing_stop_positive_offset is not None:
+                new_stop = state.lowest_price * (1 + self.trailing_stop_positive_offset)
+                if new_stop < state.current_stop_price:
+                    state.current_stop_price = new_stop
+                    state.updated_at = current_time
 
         return state
 

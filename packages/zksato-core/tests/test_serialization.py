@@ -1,22 +1,21 @@
 """Tests for zksato-core serialization module."""
 
-import pytest
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
+from zksato_core.models import OrderIntent, OrderType, Side
+from zksato_core.money import thb
 from zksato_core.serialization import (
+    deserialize_datetime,
+    deserialize_decimal,
     json_dumps,
     json_loads,
     pydantic_to_dict,
     pydantic_to_json,
     serialize_datetime,
-    deserialize_datetime,
     serialize_decimal,
-    deserialize_decimal,
 )
-from zksato_core.models import OrderIntent, Side, OrderType
-from zksato_core.money import thb
 
 
 def test_json_dumps_loads():

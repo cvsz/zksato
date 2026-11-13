@@ -4,11 +4,12 @@ Provides server lifecycle management (start/stop), health checking,
 and model discovery for locally-hosted LLM servers. All server processes
 run on-premise — critical for zksato's paper/sandbox trading environments.
 
-Patterns adapted from gemini-cli's local LLM client:
+Patterns adapted from gemini-cli's local LLM client and llama.cpp server:
 - Short timeout for health checks (local server should respond quickly)
 - Process lifecycle management with proper cleanup
 - Health check endpoint polling
 - Model discovery from server /v1/models endpoint
+- Support for llama.cpp server arguments (context size, GPU layers, etc.)
 """
 
 from __future__ import annotations
@@ -34,8 +35,31 @@ class LocalLLMServerConfig:
     """Configuration for a local LLM server process."""
 
     backend: str = "llama.cpp"
+    # Core llama.cpp server arguments
+    ctx_size: int = 4096
+    n_gpu_layers: int = -1
+    threads: int = 0
+    batch_size: int = 512
+    ubatch_size: int = 512
+    n_parallel: int = 1
+    flash_attn: bool = True
+    mlock: bool = True
+    no_mmap: bool = False
+    main_gpu: int = 0
+    tensor_split: str | None = None
+    cache_type_k: str = "f16"
+    cache_type_v: str = "f16"
+    rope_scaling: str | None = None
+    rope_scale: float | None = None
+    rope_freq_base: float | None = None
+    rope_freq_scale: float | None = None
+    # Hugging Face model download
+    hf_repo: str | None = None
+    hf_file: str | None = None
+    hf_token: str | None = None
+    # Server config
     host: str = "localhost"
-    port: int = DEFAULT_LLAMA_CPP_PORT
+    port: int = 8080
     model_path: str | None = None
     model_name: str | None = None
     executable: str = "llama-server"
@@ -44,6 +68,33 @@ class LocalLLMServerConfig:
     startup_timeout_seconds: float = 30.0
     health_check_interval_seconds: float = 1.0
     max_health_check_retries: int = 30
+
+    @classmethod
+    def from_settings(cls, settings: object) -> LocalLLMServerConfig:
+        """Create config from zksato Settings object.
+
+        Args:
+            settings: zksato Settings instance (from zksato_core.config.Settings)
+
+        Returns:
+            LocalLLMServerConfig with values mapped from settings.
+        """
+        backend = (
+            settings.local_llm_backend if hasattr(settings, "local_llm_backend") else "llama.cpp"
+        )
+        model_path = (
+            settings.local_llm_model_path if hasattr(settings, "local_llm_model_path") else None
+        )
+        model_name = settings.local_llm_model if hasattr(settings, "local_llm_model") else None
+        return cls(
+            backend=backend,
+            host="localhost",
+            port=8080,
+            model_path=model_path,
+            model_name=model_name,
+            ctx_size=4096,
+            n_gpu_layers=-1,
+        )
 
 
 @dataclass
@@ -141,6 +192,34 @@ class LocalLLMServerManager:
             await asyncio.sleep(self.config.health_check_interval_seconds)
         return False
 
+    async def _probe_backend(self) -> None:
+        """Probe the backend to check availability and list models.
+
+        Non-fatal — sets _backend_available flag for callers to inspect.
+        """
+        if not self._http_client or self._server_info is None:
+            self._backend_available = False
+            return
+        try:
+            resp = await self._http_client.get(self._server_info.models_endpoint)
+            self._backend_available = resp.is_success
+            if self._backend_available:
+                logger.info(
+                    "[LocalLLMServerManager] Backend available at %s",
+                    self._server_info.base_url,
+                )
+            else:
+                logger.warning(
+                    "[LocalLLMServerManager] Backend unavailable: %s",
+                    self._server_info.base_url,
+                )
+        except Exception as exc:
+            logger.debug(
+                "[LocalLLMServerManager] Backend probe failed: %s",
+                exc,
+            )
+            self._backend_available = False
+
     async def _discover_models(self) -> list[str]:
         """Discover available models from the server.
 
@@ -163,6 +242,68 @@ class LocalLLMServerManager:
             logger.debug("Model discovery failed: %s", exc)
         return []
 
+    def _build_server_command(self) -> list[str]:  # noqa: PLR0912
+        """Build the llama.cpp server command with all configured arguments."""
+        cmd = [self.config.executable]
+        if self.config.model_path:
+            cmd.extend(["--model", self.config.model_path])
+        if self.config.model_name:
+            cmd.extend(["--model-name", self.config.model_name])
+
+        # Core llama.cpp server arguments
+        cmd.extend(["--host", self.config.host, "--port", str(self.config.port)])
+        cmd.extend(["--ctx-size", str(self.config.ctx_size)])
+        cmd.extend(["--n-gpu-layers", str(self.config.n_gpu_layers)])
+        cmd.extend(["--threads", str(self.config.threads)])
+        cmd.extend(["--batch-size", str(self.config.batch_size)])
+        cmd.extend(["--ubatch-size", str(self.config.ubatch_size)])
+        cmd.extend(["--n-parallel", str(self.config.n_parallel)])
+
+        if self.config.flash_attn:
+            cmd.extend(["--flash-attn", "on"])
+        if self.config.mlock:
+            cmd.append("--mlock")
+        if self.config.no_mmap:
+            cmd.append("--no-mmap")
+
+        # GPU layers configuration
+        if self.config.n_gpu_layers >= 0:
+            cmd.extend(["--n-gpu-layers", str(self.config.n_gpu_layers)])
+        if self.config.main_gpu != 0:
+            cmd.extend(["--main-gpu", str(self.config.main_gpu)])
+        if self.config.tensor_split:
+            cmd.extend(["--tensor-split", self.config.tensor_split])
+
+        # Cache configuration
+        if self.config.cache_type_k:
+            cmd.extend(["--cache-type-k", self.config.cache_type_k])
+        if self.config.cache_type_v:
+            cmd.extend(["--cache-type-v", self.config.cache_type_v])
+
+        # RoPE configuration
+        if self.config.rope_scaling:
+            cmd.extend(["--rope-scaling", self.config.rope_scaling])
+        if self.config.rope_scale:
+            cmd.extend(["--rope-scale", str(self.config.rope_scale)])
+        if self.config.rope_freq_base:
+            cmd.extend(["--rope-freq-base", str(self.config.rope_freq_base)])
+        if self.config.rope_freq_scale:
+            cmd.extend(["--rope-freq-scale", str(self.config.rope_freq_scale)])
+
+        # Hugging Face model download support
+        if self.config.hf_repo:
+            cmd.extend(["--hf-repo", self.config.hf_repo])
+        if self.config.hf_file:
+            cmd.extend(["--hf-file", self.config.hf_file])
+        if self.config.hf_token:
+            cmd.extend(["--hf-token", self.config.hf_token])
+
+        # Server args
+        cmd.extend(["--host", self.config.host, "--port", str(self.config.port)])
+        if self.config.server_args:
+            cmd.extend(self.config.server_args)
+        return cmd
+
     async def start(self) -> ServerInfo:
         """Start the local LLM server process.
 
@@ -183,15 +324,18 @@ class LocalLLMServerManager:
         if self.config.model_path and not Path(self.config.model_path).exists():
             raise FileNotFoundError(f"Model path not found: {self.config.model_path}")
 
-        # Build server command
-        cmd = [self.config.executable]
-        if self.config.model_path:
-            cmd.extend(["--model", self.config.model_path])
-        if self.config.model_name:
-            cmd.extend(["--model-name", self.config.model_name])
-        cmd.extend(["--host", self.config.host, "--port", str(self.config.port)])
-        if self.config.server_args:
-            cmd.extend(self.config.server_args)
+        # Build server command with llama.cpp specific arguments
+        cmd = self._build_server_command()
+
+        # Prepare environment
+        env = dict(os.environ)
+        if self.config.env:
+            env.update(self.config.env)
+
+        logger.info(
+            "Starting local LLM server: %s",
+            " ".join(cmd),
+        )
 
         # Prepare environment
         env = dict(os.environ)
@@ -324,3 +468,16 @@ class LocalLLMServerManager:
     ) -> None:
         """Async context manager exit — stops the server."""
         await self.stop()
+
+
+def create_local_llm_server_manager(settings: object) -> LocalLLMServerManager:
+    """Create a LocalLLMServerManager from zksato Settings.
+
+    Args:
+        settings: zksato Settings instance (from zksato_core.config.Settings)
+
+    Returns:
+        Configured LocalLLMServerManager instance.
+    """
+    config = LocalLLMServerConfig.from_settings(settings)
+    return LocalLLMServerManager(config)

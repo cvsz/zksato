@@ -19,7 +19,7 @@ class SessionsPanel(Widget):
     DEFAULT_CSS = """
     SessionsPanel {
         height: 1fr;
-        border: solid $primary;
+        border: solid cyan;
         padding: 1;
     }
     """
@@ -56,7 +56,7 @@ class SessionsPanel(Widget):
 
     def render(self) -> Panel:
         """Render the sessions panel."""
-        table = Table(show_header=True, header_style="bold primary", box=None)
+        table = Table(show_header=True, header_style="bold cyan", box=None)
         table.add_column("Session ID", style="cyan")
         table.add_column("Status", style="green")
         table.add_column("Subaccount", style="magenta")
@@ -76,6 +76,6 @@ class SessionsPanel(Widget):
         return Panel(
             table,
             title="Agent Sessions",
-            border_style="primary",
+            border_style="cyan",
             title_align="left",
         )

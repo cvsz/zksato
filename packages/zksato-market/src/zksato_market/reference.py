@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from zksato_market.types import Instrument, MarketType
 from zksato_core.money import Money
-from zksato_core.exceptions import MarketDataError
+
+from zksato_market.types import Instrument, MarketType
 
 
 @dataclass

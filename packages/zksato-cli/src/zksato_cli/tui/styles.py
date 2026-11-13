@@ -10,7 +10,7 @@ from __future__ import annotations
 from rich.style import Style
 from rich.text import Text
 
-# Color palette using valid rich/textual color names
+# Color palette using valid CSS color names
 COLORS = {
     "primary": "cyan",
     "secondary": "magenta",

@@ -31,7 +31,7 @@ class InputPanel(Widget):
     DEFAULT_CSS = """
     InputPanel {
         height: 3;
-        border: solid $primary;
+        border: solid cyan;
         padding: 0 1;
     }
     """

@@ -1,14 +1,13 @@
 """Tests for zksato-market scanner."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
 
-from zksato_market.scanner import MarketScanner, MultiMarketScanner, ScanFilter
-from zksato_market.adapters.base import MarketDataAdapter
-from zksato_market.types import Quote
+import pytest
 from zksato_core.models import ScannerResult
 from zksato_core.money import thb
-from datetime import datetime
+from zksato_market.adapters.base import MarketDataAdapter
+from zksato_market.scanner import MarketScanner, MultiMarketScanner, ScanFilter
+from zksato_market.types import Quote
 
 
 class MockAdapter(MarketDataAdapter):
@@ -33,7 +32,14 @@ class MockAdapter(MarketDataAdapter):
     async def get_quotes(self, symbols: list[str]):
         return {s: self._quotes[s] for s in symbols if s in self._quotes}
 
-    async def get_bars(self, symbol: str, timeframe: str, start: datetime, end: datetime | None = None, limit: int = 1000):
+    async def get_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        start: datetime,
+        end: datetime | None = None,
+        limit: int = 1000,
+    ):
         return []
 
     async def get_latest_bar(self, symbol: str, timeframe: str):
@@ -55,9 +61,30 @@ class MockAdapter(MarketDataAdapter):
 @pytest.fixture
 def sample_quotes():
     return {
-        "AOT": Quote(symbol="AOT", last=thb(50), bid=thb(49.5), offer=thb(50.5), volume=10000, timestamp=datetime.now()),
-        "PTT": Quote(symbol="PTT", last=thb(40), bid=thb(39.5), offer=thb(40.5), volume=20000, timestamp=datetime.now()),
-        "CPALL": Quote(symbol="CPALL", last=thb(60), bid=thb(59.5), offer=thb(60.5), volume=5000, timestamp=datetime.now()),
+        "AOT": Quote(
+            symbol="AOT",
+            last=thb(50),
+            bid=thb(49.5),
+            offer=thb(50.5),
+            volume=10000,
+            timestamp=datetime.now(),
+        ),
+        "PTT": Quote(
+            symbol="PTT",
+            last=thb(40),
+            bid=thb(39.5),
+            offer=thb(40.5),
+            volume=20000,
+            timestamp=datetime.now(),
+        ),
+        "CPALL": Quote(
+            symbol="CPALL",
+            last=thb(60),
+            bid=thb(59.5),
+            offer=thb(60.5),
+            volume=5000,
+            timestamp=datetime.now(),
+        ),
     }
 
 
@@ -105,7 +132,9 @@ async def test_scan_sorting(scanner):
 @pytest.mark.asyncio
 async def test_multi_market_scanner():
     adapter1 = MockAdapter({"AOT": Quote(symbol="AOT", last=thb(50), timestamp=datetime.now())})
-    adapter2 = MockAdapter({"BTC/USDT": Quote(symbol="BTC/USDT", last=thb(2000000), timestamp=datetime.now())})
+    adapter2 = MockAdapter(
+        {"BTC/USDT": Quote(symbol="BTC/USDT", last=thb(2000000), timestamp=datetime.now())}
+    )
 
     scanner1 = MarketScanner(adapter1)
     scanner2 = MarketScanner(adapter2)

@@ -1,19 +1,19 @@
 """Tests for zksato-market types."""
 
-import pytest
 from datetime import datetime
 
+import pytest
+from zksato_core.money import thb
 from zksato_market.types import (
-    MarketType,
+    Bar,
+    FeedConfig,
+    FeedEvent,
     FeedStatus,
+    Instrument,
+    MarketType,
     Quote,
     Trade,
-    Bar,
-    Instrument,
-    FeedEvent,
-    FeedConfig,
 )
-from zksato_core.money import thb, Money
 
 
 def test_market_type():

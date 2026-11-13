@@ -39,7 +39,7 @@ class ChatPanel(Widget):
     DEFAULT_CSS = """
     ChatPanel {
         height: 1fr;
-        border: solid $primary;
+        border: solid cyan;
         padding: 1;
     }
     """
@@ -92,7 +92,7 @@ class ChatPanel(Widget):
         panel = Panel(
             self._render_messages(),
             title="Agent Chat",
-            border_style="primary",
+            border_style="cyan",
             title_align="left",
         )
         return panel
@@ -106,12 +106,12 @@ class ChatPanel(Widget):
         for msg in self._messages:
             timestamp = msg.timestamp.strftime("%H:%M:%S")
             role_color = {
-                "user": "primary",
-                "agent": "success",
-                "system": "info",
-                "tool": "warning",
-                "risk": "error",
-            }.get(msg.role, "muted")
+                "user": "cyan",
+                "agent": "green",
+                "system": "blue",
+                "tool": "yellow",
+                "risk": "red",
+            }.get(msg.role, "grey")
 
             role_label = Text(f"[{msg.role.upper()}] ", style=Style(color=role_color, bold=True))
             time_label = Text(f" {timestamp} ", style=Style(color="muted", dim=True))

@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from zksato_core.ids import new_ulid
+from zksato_core.ids import new_uuid
 
 
 class A2AMessageType(str, Enum):
@@ -24,7 +24,7 @@ class A2AMessageType(str, Enum):
 class A2AMessage:
     """A2A protocol message."""
 
-    message_id: UUID = field(default_factory=new_ulid)
+    message_id: UUID = field(default_factory=new_uuid)
     from_agent: str = ""
     to_agent: str = ""
     payload: dict[str, Any] = field(default_factory=dict)

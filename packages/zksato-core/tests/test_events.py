@@ -1,10 +1,8 @@
 """Tests for zksato-core events module."""
 
-import pytest
-from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 
-from zksato_core.events import Event, DomainEvent, EventType
+from zksato_core.events import DomainEvent, Event, EventType
 
 
 def test_event_creation():

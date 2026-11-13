@@ -3,7 +3,7 @@
 import typer
 from rich.console import Console
 
-from zksato_cli.commands import bot, strategy, risk, broker, portfolio, agent, config, tui
+from zksato_cli.commands import agent, bot, broker, config, portfolio, risk, strategy, tui
 
 app = typer.Typer(
     name="zksato",
@@ -24,7 +24,7 @@ app.add_typer(tui.app, name="tui", help="Terminal UI for agent management")
 
 
 @app.callback()
-def main():
+def main() -> None:
     """zksato CLI - Automated trading platform for SET/TFEX."""
 
 

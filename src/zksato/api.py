@@ -1427,9 +1427,8 @@ async def tradingview_webhook(
         sym_validator = TradingViewWebhookValidator(symbol_secret)
         if not sym_validator.validate(payload_bytes, sig):
             raise HTTPException(status_code=401, detail="invalid webhook signature for symbol")
-    else:
-        if not tradingview_validator.validate(payload_bytes, sig):
-            raise HTTPException(status_code=401, detail="invalid webhook signature")
+    elif not tradingview_validator.validate(payload_bytes, sig):
+        raise HTTPException(status_code=401, detail="invalid webhook signature")
 
     stored = store.add_signal(signal)
     store.add_audit(

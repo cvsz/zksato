@@ -119,14 +119,14 @@ class StateStore:
                         break
             else:
                 self.orders.append(order)
-            
+
             # Add new indexes
             self._order_by_id[order.id] = order
             if order.client_order_id:
                 self._order_by_client_id[order.client_order_id] = order
             if order.broker_order_id:
                 self._order_by_broker_id[order.broker_order_id] = order
-            
+
             # Archive oldest orders if exceeding max to prevent unbounded growth
             if len(self.orders) > self._max_orders:
                 overflow = len(self.orders) - self._max_orders

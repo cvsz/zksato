@@ -109,7 +109,7 @@ class LoggingConfig(BaseConfig):
     """Logging configuration."""
 
     level: str = Field(default="INFO")
-    json: bool = True  # type: ignore[assignment]  # overrides BaseModel.json method intentionally
+    json_format: bool = Field(default=True, alias="json")
     otel_endpoint: str | None = None
     otel_service_name: str = "zksato"
 
@@ -233,6 +233,9 @@ class Settings(BaseConfig):
     local_llm_backend: str = "ollama"
     local_llm_base_url: str = "http://localhost:11434"
     local_llm_model: str = "llama3.2:3b"
+    local_llm_model_path: str = (
+        "/zdata/models/"  # Directory containing .gguf files (e.g., /zdata/models/*.gguf)
+    )
     local_llm_api_key: str | None = None
     local_llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     local_llm_max_input_tokens: int = Field(default=4096, gt=0)

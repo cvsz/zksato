@@ -87,7 +87,8 @@ class LocalLLMConfig:
     max_delay_seconds: float = 30.0
     # Short timeout for local server — should respond quickly.
     # If the server is not started, connection is refused immediately.
-    timeout_seconds: float = 10.0
+    # For llama.cpp on CPU, generation can take 30-60+ seconds for complex tasks.
+    timeout_seconds: float = 60.0
     # JSON mode for structured output.
     json_mode: bool = False
 
@@ -138,6 +139,7 @@ class LocalLLMClient:
         self._http_client: httpx.AsyncClient | None = None
         self._initialized = False
         self._backend_available: bool | None = None
+        self._stub_mode = False
 
     async def initialize(self) -> None:
         """Initialize the HTTP client and check backend availability."""
@@ -171,10 +173,12 @@ class LocalLLMClient:
         """
         if not self._http_client:
             self._backend_available = False
+            self._stub_mode = True
             return
         try:
             resp = await self._http_client.get(self.config.models_endpoint)
             self._backend_available = resp.is_success
+            self._stub_mode = not resp.is_success
             if self._backend_available:
                 logger.info(
                     "Local LLM backend available at %s",
@@ -182,16 +186,45 @@ class LocalLLMClient:
                 )
             else:
                 logger.warning(
-                    "Local LLM backend returned status %s at %s",
+                    "Local LLM backend returned status %s at %s; falling back to stub mode",
                     resp.status_code,
                     self.config.base_url,
                 )
         except Exception as exc:
             logger.debug(
-                "Local LLM backend probe failed: %s",
+                "Local LLM backend probe failed: %s; falling back to stub mode",
                 exc,
             )
             self._backend_available = False
+            self._stub_mode = True
+
+    def _generate_stub_response(self, messages: list[dict[str, str]]) -> LocalLLMResponse:
+        """Generate a stub response when the backend is unavailable."""
+        # Get the last user message
+        user_message = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "")
+                break
+
+        # Simple stub response based on the message content
+        content = (
+            f"[Local LLM Stub Mode] Backend unavailable. "
+            f"Your message: {user_message[:100]}...\n\n"
+            f"Configure a local LLM backend (Ollama, llama.cpp, vLLM, or TGI) "
+            f"at {self.config.base_url} to enable real inference."
+        )
+
+        return LocalLLMResponse(
+            content=content,
+            model=self.config.model,
+            backend=self.config.backend,
+            input_tokens=0,
+            output_tokens=0,
+            latency_seconds=0.0,
+            finish_reason="stub",
+            metadata={"stub": True},
+        )
 
     @property
     def is_available(self) -> bool:
@@ -294,7 +327,7 @@ class LocalLLMClient:
 
         Raises:
             RuntimeError: If the client is not initialized.
-            LocalLLMConnectionError: If the backend is unreachable.
+            LocalLLMConnectionError: If the backend is unreachable and not in stub mode.
             LocalLLMModelError: If the model is unsupported.
             LocalLLMContextError: If the context window is exceeded.
         """
@@ -303,6 +336,11 @@ class LocalLLMClient:
 
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized")
+
+        # If in stub mode, return a stub response immediately
+        if self._stub_mode:
+            logger.info("Local LLM backend unavailable; returning stub response")
+            return self._generate_stub_response(messages)
 
         payload = self._build_payload(messages, **kwargs)
         start = datetime.now(UTC)
@@ -360,11 +398,14 @@ class LocalLLMClient:
                     await asyncio.sleep(delay)
 
         if response is None:
-            raise last_error or LocalLLMConnectionError(
-                f"Local LLM backend at {self.config.base_url} is unreachable "
-                f"after {self.config.max_retries} attempts",
-                error_code="CONNECTION_ERROR",
+            # Fall back to stub mode on failure
+            logger.warning(
+                "Local LLM backend at %s unreachable after %d attempts; falling back to stub mode",
+                self.config.base_url,
+                self.config.max_retries,
             )
+            self._stub_mode = True
+            return self._generate_stub_response(messages)
         return response
 
     async def generate_code(
@@ -372,6 +413,7 @@ class LocalLLMClient:
         prompt: str,
         language: str = "python",
         temperature: float | None = None,
+        thinking_level: str | None = None,
     ) -> LocalLLMResponse:
         """Generate code using the local LLM backend.
 
@@ -403,6 +445,7 @@ class LocalLLMClient:
         self,
         code: str,
         language: str = "python",
+        thinking_level: str | None = None,
     ) -> LocalLLMResponse:
         """Analyze code for bugs, security issues, and improvements.
 
@@ -427,6 +470,7 @@ class LocalLLMClient:
         self,
         test_code: str,
         source_code: str,
+        thinking_level: str | None = None,
     ) -> LocalLLMResponse:
         """Verify that tests adequately cover the source code.
 

@@ -24,11 +24,20 @@ pip install -e packages/zksato-core
 
 ```python
 from zksato_core import (
-    Side, OrderType, OrderStatus,
-    Money, thb,
-    now_bangkok, MarketCalendar,
-    OrderIntent, RiskContext, RiskDecision,
-    OrderRecord, FillRecord, Position,
-    PortfolioSnapshot, StrategyConfig,
+    Side,
+    OrderType,
+    OrderStatus,
+    Money,
+    thb,
+    now_bangkok,
+    MarketCalendar,
+    OrderIntent,
+    RiskContext,
+    RiskDecision,
+    OrderRecord,
+    FillRecord,
+    Position,
+    PortfolioSnapshot,
+    StrategyConfig,
 )
 ```
