@@ -361,13 +361,20 @@ BUILTIN_TOOLS: list[ToolSchema] = [
         input_schema={
             "type": "object",
             "properties": {
-                "operation": {"type": "string", "description": "Git operation (status, diff, add, commit, branch, checkout, tag, log, diff, worktree)"},
+                "operation": {
+                    "type": "string",
+                    "description": "Git operation (status, diff, add, commit, branch, checkout, tag, log, diff, worktree)",
+                },
                 "args": {"type": "array", "description": "Arguments for the git operation"},
                 "repo_path": {"type": "string", "description": "Repository path"},
             },
             "required": ["operation"],
         },
-        output_schema={"success": {"type": "boolean"}, "output": {"type": "string"}, "returncode": {"type": "integer"}},
+        output_schema={
+            "success": {"type": "boolean"},
+            "output": {"type": "string"},
+            "returncode": {"type": "integer"},
+        },
         required_permissions={Permission.GIT_OPERATIONS},
         side_effect=SideEffect.LOCAL_WRITE,
         timeout_seconds=30.0,
@@ -379,12 +386,20 @@ BUILTIN_TOOLS: list[ToolSchema] = [
         input_schema={
             "type": "object",
             "properties": {
-                "action": {"type": "string", "description": "Action (capture_state, get_history, get_diff_between)"},
+                "action": {
+                    "type": "string",
+                    "description": "Action (capture_state, get_history, get_diff_between)",
+                },
                 "params": {"type": "object", "description": "Optional parameters"},
             },
             "required": ["action"],
         },
-        output_schema={"success": {"type": "boolean"}, "state": {"type": "object"}, "history": {"type": "array"}, "difference": {"type": "object"}},
+        output_schema={
+            "success": {"type": "boolean"},
+            "state": {"type": "object"},
+            "history": {"type": "array"},
+            "difference": {"type": "object"},
+        },
         required_permissions={Permission.GIT_OPERATIONS},
         side_effect=SideEffect.LOCAL_WRITE,
         timeout_seconds=30.0,
@@ -396,13 +411,20 @@ BUILTIN_TOOLS: list[ToolSchema] = [
         input_schema={
             "type": "object",
             "properties": {
-                "hook_type": {"type": "string", "description": "Hook type (pre_commit, post_commit, check_safety)"},
+                "hook_type": {
+                    "type": "string",
+                    "description": "Hook type (pre_commit, post_commit, check_safety)",
+                },
                 "commit_hash": {"type": "string", "description": "Optional commit hash"},
                 "repo_path": {"type": "string", "description": "Repository path"},
             },
             "required": ["hook_type"],
         },
-        output_schema={"success": {"type": "boolean"}, "output": {"type": "string"}, "results": {"type": "array"}},
+        output_schema={
+            "success": {"type": "boolean"},
+            "output": {"type": "string"},
+            "results": {"type": "array"},
+        },
         required_permissions={Permission.GIT_OPERATIONS},
         side_effect=SideEffect.LOCAL_WRITE,
         timeout_seconds=30.0,
@@ -496,7 +518,7 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
 
     async def git_change_tracking_handler(data: dict[str, Any]) -> dict[str, Any]:
         """Handle git change tracking."""
-        from zksato_automation.agent_os.git import get_tracker
+        from zksato_automation.agent_os.git import get_client, get_tracker
 
         tracker = get_tracker(get_client(data.get("repo_path", ".")))
         action = data["action"]
@@ -527,7 +549,11 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
 
     async def git_hooks_handler(data: dict[str, Any]) -> dict[str, Any]:
         """Handle git hooks."""
-        from zksato_automation.agent_os.git import run_pre_commit_hooks, run_post_commit_hooks, check_commit_safety
+        from zksato_automation.agent_os.git import (
+            check_commit_safety,
+            run_post_commit_hooks,
+            run_pre_commit_hooks,
+        )
 
         hook_type = data["hook_type"]
         commit_hash = data.get("commit_hash")
@@ -553,6 +579,29 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
             }
         else:
             return {"success": False, "error": f"Unknown hook type: {hook_type}"}
+
+    async def http_request_handler(data: dict[str, Any]) -> dict[str, Any]:
+        """Handle HTTP requests."""
+        import httpx
+
+        url = data["url"]
+        method = data.get("method", "GET")
+        headers = data.get("headers", {})
+        body = data.get("body")
+
+        async with httpx.AsyncClient() as client:
+            if method.upper() == "GET":
+                response = await client.get(url, headers=headers)
+            elif method.upper() == "POST":
+                response = await client.post(url, headers=headers, content=body)
+            else:
+                return {"success": False, "error": f"Unsupported method: {method}"}
+
+        return {
+            "success": response.is_error is False,
+            "status_code": response.status_code,
+            "body": response.text,
+        }
 
     tool_executor.register_handler("read_file", read_file_handler)
     tool_executor.register_handler("write_file", write_file_handler)

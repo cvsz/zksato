@@ -73,7 +73,7 @@ class GitClient:
                 stderr=stderr.decode("utf-8", errors="replace"),
                 returncode=proc.returncode,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             proc.kill()
             await proc.wait()
             return GitOperationResult(
@@ -136,9 +136,7 @@ class GitClient:
             "branch": (await self.run("rev-parse", "--abbrev-ref", "HEAD")).stdout.strip()
             if (await self.run("rev-parse", "--abbrev-ref", "HEAD")).success
             else None,
-            "modified": result.stdout.strip().split("\n")
-            if result.stdout.strip()
-            else [],
+            "modified": result.stdout.strip().split("\n") if result.stdout.strip() else [],
             "is_dirty": result.returncode == 0 and bool(result.stdout.strip()),
         }
 
@@ -239,7 +237,7 @@ class GitClient:
         checkout: bool = True,
     ) -> GitOperationResult:
         """Worktree management.
-        
+
         Supported actions:
         - "add <path>": Create a new worktree at <path>
         - "list": List worktrees
@@ -264,7 +262,7 @@ class GitClient:
             cmd = ["worktree", "list"]
         else:
             cmd = ["worktree", action, name]
-        
+
         return await self.run(*cmd)
 
     async def list_worktrees(self) -> GitOperationResult:
@@ -314,7 +312,7 @@ class WorktreeManager:
 
     async def switch_worktree(self, name: str) -> GitOperationResult:
         """Switch to a worktree."""
-        return await client.checkout(name)
+        return await self.client.checkout(name)
 
     async def list_worktrees(self) -> GitOperationResult:
         """List all worktrees."""
@@ -337,7 +335,9 @@ _worktree_manager: WorktreeManager | None = None
 def get_client(repo_path: str | Path | None = None) -> GitClient:
     """Get or create a GitClient instance."""
     global _client
-    if _client is None or (repo_path is not None and _client.repo_path != Path(repo_path).resolve()):
+    if _client is None or (
+        repo_path is not None and _client.repo_path != Path(repo_path).resolve()
+    ):
         _client = GitClient(repo_path)
     return _client
 
@@ -345,7 +345,9 @@ def get_client(repo_path: str | Path | None = None) -> GitClient:
 def get_worktree_manager(repo_path: str | Path | None = None) -> WorktreeManager:
     """Get or create a WorktreeManager instance."""
     global _worktree_manager
-    if _worktree_manager is None or (repo_path is not None and _worktree_manager.client.repo_path != Path(repo_path).resolve()):
+    if _worktree_manager is None or (
+        repo_path is not None and _worktree_manager.client.repo_path != Path(repo_path).resolve()
+    ):
         _worktree_manager = WorktreeManager(repo_path)
     return _worktree_manager
 
@@ -363,10 +365,10 @@ async def get_state() -> dict[str, Any]:
 
 # Export main classes
 __all__ = [
+    "GitClient",
     "GitError",
     "GitOperationResult",
-    "GitClient",
     "WorktreeManager",
-    "init",
     "get_state",
+    "init",
 ]

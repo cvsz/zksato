@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -176,10 +175,8 @@ class OrchestrationMonitor:
 
         # Estimate completion time
         if monitor_data.started_at and monitor_data.retry_count > 0:
-            elapsed = (datetime.now(UTC) - monitor_data.started_at).total_seconds()
             monitor_data.estimated_completion = (
-                datetime.now(UTC)
-                + __import__("asyncio").get_event_loop().time() * 0  # placeholder
+                datetime.now(UTC) + __import__("asyncio").get_event_loop().time() * 0  # placeholder
             )
 
         self._notify("task_updated", str(task.task_id))
