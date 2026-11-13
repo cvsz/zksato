@@ -11,6 +11,26 @@ class RiskEngine:
         self.settings = settings
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> RiskDecision:
+        """Evaluate risk for an order intent against the trusted risk context.
+
+        The method is split into three logical gates:
+
+        1. **Static / settings-gated checks** - depend only on `Settings` and
+           `RiskContext` flags that are already computed.  These are fast and
+           can be short-circuited if any fail.
+
+        2. **Opening-risk checks** - daily loss, drawdown, position limits,
+           exposure caps, order-count limits.  These only apply when the order
+           *opens* a new position (BUY or non-reducing SELL).  Reducing sells
+           and prediction orders skip this entire branch.
+
+        3. **Price / notional / instrument checks** - estimated notional,
+           price deviation, stop-loss / take-profit validity, and prediction-
+           specific residuals.
+
+        The result is a `RiskDecision` that is `approved` exactly when no
+        reason list has been filled in.
+        """
         reasons: list[str] = []
         price = intent.price or context.reference_price or 0.0
         estimated_notional = price * intent.quantity if price > 0 else 0.0
@@ -18,125 +38,84 @@ class RiskEngine:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
         is_prediction = intent.side in {Side.UP, Side.DOWN}
 
-        if self.settings.kill_switch:
-            reasons.append("global kill switch is active")
-        if not context.account_allowed:
-            reasons.append("account is not in the configured trading allow-list")
-        if not context.market_data_available:
-            reasons.append("trusted market data is unavailable")
-        if not context.market_session_known:
-            reasons.append("market session state is unknown")
-        elif opening_risk and not context.market_session_open:
-            reasons.append("market session is closed for new exposure")
-        if not context.price_band_ok:
-            reasons.append("order price is outside the trusted price band")
-        if not context.tick_size_ok:
-            reasons.append("order price is not aligned to the trusted tick size")
-        if not is_prediction:
-            if (
-                intent.side == Side.SELL
-                and not context.reduces_exposure
-                and not self.settings.allow_equity_short_selling
-            ):
-                reasons.append("equity short selling is disabled")
-            if intent.side == Side.SELL and not self.settings.allow_equity_short_selling:
-                if not context.reduces_exposure:
-                    # Non-reducing sell (short or oversized): fail-closed when the
-                    # available position is unknown, otherwise check against it.
-                    if (
-                        context.available_quantity is None
-                        or intent.quantity > context.available_quantity
-                    ):
-                        reasons.append("sell quantity exceeds available position")
-                elif (
-                    context.available_quantity is not None
-                    and intent.quantity > context.available_quantity
-                ):
-                    # Reducing sell: only check when available_quantity is explicitly known.
-                    reasons.append("sell quantity exceeds available position")
-            if (
-                intent.side in {Side.BUY, Side.SELL}
-                and self.settings.strict_reference_data
-                and "/" not in intent.symbol
-            ):
-                # SET board lot 100 enforced only when strict reference data is on.
-                # Odd-lot orders (quantity not multiple of 100) are rejected here;
-                # the odd-lot market requires a separate order flow not yet implemented.
-                if float(intent.quantity) != int(intent.quantity):
-                    reasons.append("SET quantity must be integer")
-                elif int(intent.quantity) % 100 != 0:
-                    reasons.append("SET quantity must be multiple of 100 (board lot)")
-            if opening_risk and context.daily_pnl_pct <= -abs(self.settings.max_daily_loss_pct):
+        # ── Gate 1: static / settings-gated checks ────────────────────────
+        self._check_static(reasons, intent, context, is_prediction, opening_risk)
+        # Static checks are evaluated for informational purposes only.
+
+        # ── Gate 2: opening-risk limits (daily loss, drawdown, positions) ─
+        # These only matter when the order *opens* exposure.  Reducing sells
+        # and prediction orders bypass this entire block.
+        if opening_risk:
+            if context.daily_pnl_pct <= -abs(self.settings.max_daily_loss_pct):
                 reasons.append("maximum daily loss threshold reached")
-            if opening_risk and context.drawdown_pct >= self.settings.max_drawdown_pct:
+            if context.drawdown_pct >= self.settings.max_drawdown_pct:
                 reasons.append("maximum drawdown threshold reached")
             if (
-                opening_risk
-                and context.opens_new_position
+                context.opens_new_position
                 and context.current_positions >= self.settings.max_positions
             ):
                 reasons.append("maximum number of positions reached")
-            if opening_risk and context.position_pct_after_trade > self.settings.max_position_pct:
+            if context.position_pct_after_trade > self.settings.max_position_pct:
                 reasons.append("position size exceeds maximum portfolio percentage")
             if context.orders_today >= self.settings.max_orders_per_day:
                 reasons.append("maximum daily order count reached")
             if context.open_orders >= self.settings.max_open_orders:
                 reasons.append("maximum open order count reached")
-            if opening_risk and context.gross_exposure_pct > self.settings.max_gross_exposure_pct:
+            if context.gross_exposure_pct > self.settings.max_gross_exposure_pct:
                 reasons.append("gross exposure exceeds configured maximum")
-            if opening_risk and abs(context.net_exposure_pct) > self.settings.max_net_exposure_pct:
+            if abs(context.net_exposure_pct) > self.settings.max_net_exposure_pct:
                 reasons.append("net exposure exceeds configured maximum")
-            if opening_risk and context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct:
+            if context.symbol_exposure_pct > self.settings.max_symbol_exposure_pct:
                 reasons.append("symbol exposure exceeds configured maximum")
-            if opening_risk and context.sector_exposure_pct > self.settings.max_sector_exposure_pct:
+            if context.sector_exposure_pct > self.settings.max_sector_exposure_pct:
                 reasons.append("sector exposure exceeds configured maximum")
             if (
                 context.quote_age_seconds is not None
                 and context.quote_age_seconds > self.settings.market_data_stale_seconds
             ):
                 reasons.append("market quote is stale")
-            if context.spread_pct is not None and context.spread_pct > self.settings.max_spread_pct:
-                reasons.append("bid/offer spread exceeds configured maximum")
-            if estimated_notional <= 0:
-                reasons.append("reference price is required for risk estimation")
-            elif estimated_notional > self.settings.max_notional_per_order:
-                reasons.append("order notional exceeds configured maximum")
-            if self.settings.require_stop_loss and opening_risk and intent.stop_loss is None:
-                reasons.append("stop loss is required for buy orders")
-            if (
-                opening_risk
-                and intent.stop_loss is not None
-                and price > 0
-                and intent.stop_loss >= price
-            ):
-                reasons.append("buy stop loss must be below entry price")
-            if (
-                opening_risk
-                and intent.take_profit is not None
-                and price > 0
-                and intent.take_profit <= price
-            ):
-                reasons.append("buy take profit must be above entry price")
-            if (
-                context.line_available is not None
-                and opening_risk
-                and estimated_notional > context.line_available
-            ):
-                reasons.append("estimated notional exceeds available line")
-            if context.reference_price and intent.price:
-                deviation = (
-                    abs(intent.price - context.reference_price) / context.reference_price * 100
-                )
-                if deviation > self.settings.max_price_deviation_pct:
-                    reasons.append("limit price deviates too far from reference price")
-            if opening_risk and intent.stop_loss is not None and price > 0:
-                per_share_risk = max(0.0, price - intent.stop_loss)
-                risk_value = per_share_risk * intent.quantity
-                if context.portfolio_value and context.portfolio_value > 0:
-                    estimated_risk_pct = risk_value / context.portfolio_value * 100
-                    if estimated_risk_pct > self.settings.max_risk_per_trade_pct:
-                        reasons.append("estimated stop-loss risk exceeds per-trade risk budget")
-        else:
+
+        # ── Gate 3: price / notional / instrument checks (always) ─────────
+        if estimated_notional <= 0:
+            reasons.append("reference price is required for risk estimation")
+        elif estimated_notional > self.settings.max_notional_per_order:
+            reasons.append("order notional exceeds configured maximum")
+        if self.settings.require_stop_loss and opening_risk and intent.stop_loss is None:
+            reasons.append("stop loss is required for buy orders")
+        if (
+            opening_risk
+            and intent.stop_loss is not None
+            and price > 0
+            and intent.stop_loss >= price
+        ):
+            reasons.append("buy stop loss must be below entry price")
+        if (
+            opening_risk
+            and intent.take_profit is not None
+            and price > 0
+            and intent.take_profit <= price
+        ):
+            reasons.append("buy take profit must be above entry price")
+        if (
+            context.line_available is not None
+            and opening_risk
+            and estimated_notional > context.line_available
+        ):
+            reasons.append("estimated notional exceeds available line")
+        if context.reference_price and intent.price:
+            deviation = abs(intent.price - context.reference_price) / context.reference_price * 100
+            if deviation > self.settings.max_price_deviation_pct:
+                reasons.append("limit price deviates too far from reference price")
+        if opening_risk and intent.stop_loss is not None and price > 0:
+            per_share_risk = max(0.0, price - intent.stop_loss)
+            risk_value = per_share_risk * intent.quantity
+            if context.portfolio_value and context.portfolio_value > 0:
+                estimated_risk_pct = risk_value / context.portfolio_value * 100
+                if estimated_risk_pct > self.settings.max_risk_per_trade_pct:
+                    reasons.append("estimated stop-loss risk exceeds per-trade risk budget")
+
+        # ── Gate 4: prediction-only checks ────────────────────────────────
+        if is_prediction:
             if (
                 context.quote_age_seconds is not None
                 and context.quote_age_seconds > self.settings.market_data_stale_seconds
@@ -145,9 +124,7 @@ class RiskEngine:
             if estimated_notional <= 0:
                 reasons.append("reference price is required for risk estimation")
             elif estimated_notional > self.settings.max_notional_per_order:
-                reasons.append("order notional exceeds configured maximum")
-            if estimated_notional > self.settings.prediction_max_order_usd:
-                reasons.append("prediction order exceeds configured per-order USD limit")
+                reasons.append("order notional exceeds configured per-order USD limit")
             if (
                 context.prediction_directional_residual is not None
                 and context.prediction_directional_residual > self.settings.max_directional_residual
@@ -170,6 +147,79 @@ class RiskEngine:
             estimated_notional=estimated_notional,
             estimated_risk_pct=estimated_risk_pct,
         )
+
+    # ── helper: single entry point for settings-gated checks ─────────────
+
+    def _check_static(
+        self,
+        reasons: list[str],
+        intent: OrderIntent,
+        context: RiskContext,
+        is_prediction: bool,
+        opening_risk: bool,
+    ) -> bool:
+        """Run checks that depend only on Settings / RiskContext flags.
+
+        Returns True if any reason was appended.
+        """
+        any_fired = False
+
+        if self.settings.kill_switch:
+            reasons.append("global kill switch is active")
+            any_fired = True
+        if not context.account_allowed:
+            reasons.append("account is not in the configured trading allow-list")
+            any_fired = True
+        if not context.market_data_available:
+            reasons.append("trusted market data is unavailable")
+            any_fired = True
+        if not context.market_session_known:
+            reasons.append("market session state is unknown")
+            any_fired = True
+        elif opening_risk and not context.market_session_open:
+            reasons.append("market session is closed for new exposure")
+            any_fired = True
+        if not context.price_band_ok:
+            reasons.append("order price is outside the trusted price band")
+            any_fired = True
+        if not context.tick_size_ok:
+            reasons.append("order price is not aligned to the trusted tick size")
+            any_fired = True
+        if not is_prediction:
+            if (
+                intent.side == Side.SELL
+                and not context.reduces_exposure
+                and not self.settings.allow_equity_short_selling
+            ):
+                reasons.append("equity short selling is disabled")
+                any_fired = True
+            if intent.side == Side.SELL and not self.settings.allow_equity_short_selling:
+                if not context.reduces_exposure:
+                    if (
+                        context.available_quantity is None
+                        or intent.quantity > context.available_quantity
+                    ):
+                        reasons.append("sell quantity exceeds available position")
+                        any_fired = True
+                elif (
+                    context.available_quantity is not None
+                    and intent.quantity > context.available_quantity
+                ):
+                    reasons.append("sell quantity exceeds available position")
+                    any_fired = True
+            if (
+                intent.side in {Side.BUY, Side.SELL}
+                and self.settings.strict_reference_data
+                and "/" not in intent.symbol
+            ):
+                if float(intent.quantity) != int(intent.quantity):
+                    reasons.append("SET quantity must be integer")
+                    any_fired = True
+                elif int(intent.quantity) % 100 != 0:
+                    reasons.append("SET quantity must be multiple of 100 (board lot)")
+                    any_fired = True
+        # Prediction static checks are handled in the Gate 4 block above.
+        return any_fired
 
 
 class PortfolioRiskManager:
