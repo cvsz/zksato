@@ -50,18 +50,21 @@ class RipgrepSearcher:
     ) -> None:
         self.project_root = Path(project_root).resolve()
         self.rg_path = rg_path
+        self._rg_available = True
         self._check_rg()
 
     def _check_rg(self) -> None:
-        """Check if ripgrep is available."""
+        """Check if ripgrep is available; degrade to empty results if not."""
         try:
             subprocess.run(
                 [self.rg_path, "--version"],
                 capture_output=True,
                 check=True,
             )
-        except (subprocess.CalledProcessError, FileNotFoundError) as err:
-            raise RuntimeError("ripgrep (rg) not found. Please install ripgrep.") from err
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            # Agent tasks still complete without ripgrep; search returns empty
+            logger.warning("ripgrep (rg) not found; code search will return no results")
+            self._rg_available = False
 
     def search(
         self,
@@ -80,6 +83,9 @@ class RipgrepSearcher:
         import time
 
         start = time.time()
+
+        if not self._rg_available:
+            return SearchResults(query=pattern, results=[], truncated=False)
 
         args = [self.rg_path]
 
