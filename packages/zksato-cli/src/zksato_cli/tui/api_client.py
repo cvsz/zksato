@@ -13,7 +13,7 @@ import httpx
 class ZKSATOAPIClient:
     """HTTP client for zksato API."""
 
-    def __init__(self, base_url: str = "http://localhost:9569", api_key: str | None = None):
+    def __init__(self, base_url: str = "http://localhost:9569", api_key: str | None = None) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._client: httpx.AsyncClient | None = None
@@ -56,7 +56,14 @@ class ZKSATOAPIClient:
         client = await self._get_client()
         resp = await client.post(
             "/v1/market/quote",
-            json={"symbol": symbol, "last": 0.0, "bid": 0.0, "offer": 0.0, "previous_close": 0.0, "volume": 0},
+            json={
+                "symbol": symbol,
+                "last": 0.0,
+                "bid": 0.0,
+                "offer": 0.0,
+                "previous_close": 0.0,
+                "volume": 0,
+            },
         )
         resp.raise_for_status()
         return resp.json()

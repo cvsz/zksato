@@ -7,6 +7,7 @@ box if banner generation fails.
 
 from __future__ import annotations
 
+from rich.style import Style
 from rich.text import Text
 
 from .styles import COLORS
@@ -55,7 +56,6 @@ FONT_5x7: dict[str, list[str]] = {
     ".": ["     ", "     ", "     ", "     ", "     ", "  █  ", "  █  "],
     "/": ["    █", "   █ ", "  █  ", " █   ", "█    ", "█    ", "█    "],
     "\\": ["█    ", "█    ", " █   ", "  █  ", "   █ ", "  █  ", "    █"],
-    "_": ["     ", "     ", "     ", "     ", "     ", "     ", "█████"],
 }
 
 
@@ -83,6 +83,3 @@ def render_text(text: str, color: str = "primary") -> Text:
         result.append(line.rstrip() + "\n", style=Style(color=COLORS[color], bold=True))
 
     return result
-
-
-from rich.style import Style

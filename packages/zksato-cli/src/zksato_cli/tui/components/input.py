@@ -8,6 +8,7 @@ Provides text input for user messages with different styles:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from textual.message import Message
@@ -42,7 +43,7 @@ class InputPanel(Widget):
         self.input_style = input_style
         self._input: Input | None = None
 
-    def compose(self) -> None:
+    def compose(self) -> Iterable[Input]:
         """Compose the input widget."""
         self._input = Input(placeholder="Type a command (e.g., /quote AAPL)...")
         yield self._input
@@ -50,7 +51,8 @@ class InputPanel(Widget):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle input submission."""
         self.post_message(InputSubmitted(event.value))
-        self._input.value = ""
+        if self._input is not None:
+            self._input.value = ""
 
     def set_text(self, text: str) -> None:
         """Set the input text."""
@@ -59,7 +61,7 @@ class InputPanel(Widget):
 
     def clear(self) -> None:
         """Clear the input text."""
-        if self._input:
+        if self._input is not None:
             self._input.value = ""
 
     def get_text(self) -> str:
@@ -68,7 +70,8 @@ class InputPanel(Widget):
             return self._input.value
         return ""
 
-    def focus(self) -> None:
+    def focus(self, scroll_visible: bool = False) -> InputPanel:
         """Focus the input widget."""
         if self._input:
-            self._input.focus()
+            self._input.focus(scroll_visible)
+        return self

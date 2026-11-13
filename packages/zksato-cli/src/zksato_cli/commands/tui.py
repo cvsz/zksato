@@ -5,16 +5,23 @@ Launches the terminal user interface for agent management.
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from zksato_cli.tui.app import ZKSATOTUI
-from zksato_cli.tui.config import TUIConfig
+from zksato_cli.tui.config import (
+    InputStyle,
+    LoaderStyle,
+    ToolDisplayStyle,
+    TUIConfig,
+)
 
 app = typer.Typer(name="tui", help="Terminal UI for agent management")
 console = Console()
 
 
 @app.command()
-def start(
+def start(  # noqa: PLR0913
+    *,
     host: str = typer.Option("localhost", "--host", "-h", help="API host"),
     port: int = typer.Option(9569, "--port", "-p", help="API port"),
     api_key: str = typer.Option(None, "--api-key", "-k", help="API key"),
@@ -44,9 +51,9 @@ def start(
     config = TUIConfig(
         api_base_url=f"http://{host}:{port}",
         api_key=api_key if api_key else None,
-        tool_display=tool_display,
-        input_style=input_style,
-        loader_style=loader,
+        tool_display=ToolDisplayStyle(tool_display),
+        input_style=InputStyle(input_style),
+        loader_style=LoaderStyle(loader),
         show_banner=not no_banner,
         banner_text=banner,
     )
@@ -58,8 +65,6 @@ def start(
 @app.command()
 def list_styles() -> None:
     """List available display styles."""
-    from rich.table import Table
-
     table = Table(title="Available Styles")
     table.add_column("Setting")
     table.add_column("Options")
