@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "zksato-core"
 version = "2.0.0-dev"
 description = "zksato core domain types and utilities"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.10,<3.0",
     "pydantic-settings>=2.7,<3.0",
@@ -14,6 +14,7 @@ dependencies = [
     "python-dateutil>=2.9,<3.0",
     "pendulum>=3.0,<4.0",
     "orjson>=3.10,<4.0",
+    "tomli-w>=1.0,<2.0",
 ]
 readme = "README.md"
 license = { text = "MIT" }

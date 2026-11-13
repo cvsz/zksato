@@ -101,8 +101,8 @@ def test_auth_manager_rejects_expired_api_key() -> None:
 def test_auth_manager_masks_raw_key_in_list() -> None:
     """Raw API key values should never appear in list output."""
     manager = AuthManager(Settings(auth_required=True))
-    _, key1 = manager.create_api_key(role="read_only", description="first")
-    _, key2 = manager.create_api_key(role="risk_admin", description="second")
+    _, _key1 = manager.create_api_key(role="read_only", description="first")
+    _, _key2 = manager.create_api_key(role="risk_admin", description="second")
     keys = manager.list_api_keys()
     assert len(keys) == 2
     for k in keys:

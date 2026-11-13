@@ -33,3 +33,8 @@ backups/
 frontend/test-results/
 frontend/playwright-report/
 
+# Generated artifacts (never commit)
+.zksato/
+log.txt
+bandit-report.json
+

@@ -1,6 +1,7 @@
 """Agent OS - Autonomous agent orchestration for zksato."""
 
 from .context.manager import ContextEntry, ContextManager, ContextWindow
+from .coordination.orchestrator_v2 import OrchestratorV2
 from .monitoring.dashboard import (
     AgentStatus,
     OrchestrationMonitor,
@@ -50,20 +51,9 @@ from .tasks.state import (
 __all__ = [
     # Orchestrator
     "AgentConfig",
+    # Monitoring
+    "AgentStatus",
     "AutonomousOrchestrator",
-    "OrchestratorConfig",
-    # Tasks
-    "TaskExecutor",
-    "create_task_plan",
-    "TaskEventLogger",
-    "TaskStore",
-    "Task",
-    "TaskDependency",
-    "TaskPlan",
-    "TaskPriority",
-    "TaskResult",
-    "TaskState",
-    "TaskType",
     # Context
     "ContextEntry",
     "ContextManager",
@@ -73,25 +63,37 @@ __all__ = [
     "ModelMetadata",
     "ModelRouter",
     "ModelRouterWithFallback",
-    "ProviderHealth",
-    "ProviderRegistry",
-    "ProviderType",
-    "RoutingContext",
-    "RoutingDecision",
-    # Monitoring
-    "AgentStatus",
     "OrchestrationMonitor",
-    "ProviderMonitorData",
-    "QualityGateResult",
-    "TaskMonitorData",
-    "get_monitor",
+    "OrchestratorConfig",
+    "OrchestratorV2",
     # Security
     "Permission",
     "PermissionManager",
-    "ToolExecutor",
-    "ToolSchema",
+    "ProviderHealth",
+    "ProviderMonitorData",
+    "ProviderRegistry",
+    "ProviderType",
+    "QualityGateResult",
+    "RoutingContext",
+    "RoutingDecision",
+    "SideEffect",
+    "Task",
+    "TaskDependency",
+    "TaskEventLogger",
+    # Tasks
+    "TaskExecutor",
+    "TaskMonitorData",
+    "TaskPlan",
+    "TaskPriority",
+    "TaskResult",
+    "TaskState",
+    "TaskStore",
+    "TaskType",
     "ToolAuthorization",
     "ToolExecutionRecord",
-    "SideEffect",
+    "ToolExecutor",
+    "ToolSchema",
+    "create_task_plan",
+    "get_monitor",
     "setup_builtin_tools",
 ]

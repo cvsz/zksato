@@ -14,9 +14,12 @@ class PositionLimitCheck(BaseRiskCheck):
         self.name = "position_limit"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and context.opens_new_position:
-            if context.current_positions >= self.max_positions:
-                return [f"maximum number of positions ({self.max_positions}) reached"]
+        if (
+            intent.side == Side.BUY
+            and context.opens_new_position
+            and context.current_positions >= self.max_positions
+        ):
+            return [f"maximum number of positions ({self.max_positions}) reached"]
         return []
 
 
@@ -28,11 +31,14 @@ class PositionSizeCheck(BaseRiskCheck):
         self.name = "position_size"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.position_pct_after_trade > self.max_position_pct:
-                return [
-                    f"position size exceeds maximum portfolio percentage ({self.max_position_pct}%)"
-                ]
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.position_pct_after_trade > self.max_position_pct
+        ):
+            return [
+                f"position size exceeds maximum portfolio percentage ({self.max_position_pct}%)"
+            ]
         return []
 
 
@@ -65,15 +71,13 @@ class ShortSellingCheck(BaseRiskCheck):
         self.name = "short_selling"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        if intent.side == Side.SELL:
-            if not self.allow_short and not context.reduces_exposure:
-                if (
-                    context.available_quantity is None
-                    or intent.quantity > context.available_quantity
-                ):
-                    return [
-                        "equity short selling is disabled: sell quantity exceeds available position"
-                    ]
+        if (
+            intent.side == Side.SELL
+            and not self.allow_short
+            and not context.reduces_exposure
+            and (context.available_quantity is None or intent.quantity > context.available_quantity)
+        ):
+            return ["equity short selling is disabled: sell quantity exceeds available position"]
         return []
 
 
@@ -85,6 +89,7 @@ class BoardLotCheck(BaseRiskCheck):
         self.name = "board_lot"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
+        # Not collapsible: the elif must only fire for strict integer quantities.
         if self.strict and "/" not in intent.symbol:
             if float(intent.quantity) != int(intent.quantity):
                 return ["SET quantity must be integer"]

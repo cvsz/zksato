@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 API = "https://api.github.com"
 DEFAULT_MANIFEST = Path(".github/environments/requirements.json")
@@ -81,7 +81,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
     environments = payload.get("environments")
     if not isinstance(environments, dict) or not environments:
         raise ValueError("manifest requires at least one environment")
-    return payload
+    return cast("dict[str, Any]", payload)
 
 
 def repo_base(repository: str) -> str:

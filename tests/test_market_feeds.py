@@ -50,6 +50,7 @@ def test_ccxt_market_feed_validates_mode_and_config(mock_automation: AutomationE
         ccxt_enabled=True,
         ccxt_exchanges="binance",
         trading_mode="live",
+        database_url="sqlite:///:memory:",
         live_trading_enabled=True,
     )
     with pytest.raises(RuntimeError, match="restricted to paper/sandbox"):

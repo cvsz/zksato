@@ -23,7 +23,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -273,7 +273,7 @@ class IStrategy(ABC):
     # ── Trading parameters ─────────────────────────────────────────────
     timeframe: str = "1m"
     stoploss: float = -0.10  # -10%
-    minimal_roi: dict[int, float] | None = None  # {minutes: profit_ratio}
+    minimal_roi: ClassVar[dict[int, float] | None] = None  # {minutes: profit_ratio}
     trailing_stop: TrailingStopConfig | None = None
     max_open_trades: int = 3
     position_adjustment_enable: bool = False
@@ -634,7 +634,7 @@ class EMAcrossStrategy(IStrategy):
     description = "EMA Cross strategy — buys on fast EMA cross above slow EMA"
     timeframe = "15m"
     stoploss = -0.05  # -5%
-    minimal_roi = {0: 0.02, 60: 0.01, 120: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.02, 60: 0.01, 120: 0.0}
     trailing_stop = TrailingStopConfig(
         enabled=True,
         positive=0.02,
@@ -728,7 +728,7 @@ class RSIRebversionStrategy(IStrategy):
     description = "RSI Reversion strategy — buys oversold, sells overbought"
     timeframe = "1h"
     stoploss = -0.08  # -8%
-    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -803,7 +803,7 @@ class MACDCrossStrategy(IStrategy):
     description = "MACD Cross strategy — buys on MACD cross above signal, sells on cross below"
     timeframe = "15m"
     stoploss = -0.06  # -6%
-    minimal_roi = {0: 0.025, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.025, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -902,7 +902,7 @@ class BollingerReversionStrategy(IStrategy):
     description = "Bollinger Band Reversion — buys at lower band, sells at upper band"
     timeframe = "15m"
     stoploss = -0.08  # -8%
-    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -990,7 +990,7 @@ class StochasticOscillatorStrategy(IStrategy):
     )
     timeframe = "15m"
     stoploss = -0.08  # -8%
-    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -1078,7 +1078,7 @@ class WilliamsRStrategy(IStrategy):
     )
     timeframe = "15m"
     stoploss = -0.08  # -8%
-    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -1158,7 +1158,7 @@ class ATRChannelStrategy(IStrategy):
     description = "ATR Channel — buys at lower channel, sells at upper channel"
     timeframe = "15m"
     stoploss = -0.08  # -8%
-    minimal_roi = {0: 0.03, 120: 0.015, 240: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 240: 0.0}
     max_open_trades = 5
 
     # Hyperoptable parameters
@@ -1235,7 +1235,7 @@ class MomentumStrategy(IStrategy):
     description = "Momentum — buys when ROC crosses above zero, sells when below"
     timeframe = "15m"
     stoploss = -0.06
-    minimal_roi = {0: 0.02, 60: 0.01, 180: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.02, 60: 0.01, 180: 0.0}
     max_open_trades = 5
 
     momentum_period = IntParameter(10, 30, default=14, space="buy", optimize=True)
@@ -1321,7 +1321,7 @@ class BreakoutStrategy(IStrategy):
     description = "Breakout — buys on breakout above N-bar high, sells on breakdown below N-bar low"
     timeframe = "1h"
     stoploss = -0.05
-    minimal_roi = {0: 0.03, 120: 0.015, 360: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 360: 0.0}
     max_open_trades = 4
 
     breakout_lookback = IntParameter(10, 50, default=20, space="buy", optimize=True)
@@ -1393,7 +1393,7 @@ class ScalpStrategy(IStrategy):
     description = "Scalp — quick trades on RSI extremes with tight risk controls"
     timeframe = "5m"
     stoploss = -0.02
-    minimal_roi = {0: 0.01, 30: 0.005, 60: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.01, 30: 0.005, 60: 0.0}
     max_open_trades = 8
 
     scalp_rsi_period = IntParameter(7, 21, default=14, space="buy", optimize=True)
@@ -1474,7 +1474,7 @@ class SwingStrategy(IStrategy):
     description = "Swing — trend following using fast/slow EMA crossovers"
     timeframe = "1h"
     stoploss = -0.07
-    minimal_roi = {0: 0.04, 240: 0.02, 720: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.04, 240: 0.02, 720: 0.0}
     max_open_trades = 3
 
     swing_fast_period = IntParameter(8, 24, default=12, space="buy", optimize=True)
@@ -1552,7 +1552,7 @@ class PositionStrategy(IStrategy):
     description = "Position — long-term trend following with SMA and ADX confirmation"
     timeframe = "4h"
     stoploss = -0.10
-    minimal_roi = {0: 0.05, 720: 0.025, 1440: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.05, 720: 0.025, 1440: 0.0}
     max_open_trades = 2
 
     position_fast_sma = IntParameter(20, 50, default=50, space="buy", optimize=True)
@@ -1627,7 +1627,7 @@ class VWAPStrategy(IStrategy):
     description = "VWAP — mean reversion around volume-weighted average price"
     timeframe = "15m"
     stoploss = -0.04
-    minimal_roi = {0: 0.015, 60: 0.008, 180: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.015, 60: 0.008, 180: 0.0}
     max_open_trades = 6
 
     vwap_period = IntParameter(10, 50, default=20, space="buy", optimize=True)
@@ -1703,7 +1703,7 @@ class LLMSentimentStrategy(IStrategy):
     description = "LLM Sentiment — advisory-only strategy based on LLM sentiment signals"
     timeframe = "1h"
     stoploss = -0.05
-    minimal_roi = {0: 0.02, 240: 0.01, 720: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.02, 240: 0.01, 720: 0.0}
     max_open_trades = 3
 
     sentiment_buy_threshold = DecimalParameter(0.1, 0.9, default=0.6, space="buy", optimize=True)
@@ -1773,7 +1773,7 @@ class MultiFactorStrategy(IStrategy):
     description = "Multi-Factor — combines RSI, EMA trend, and volume confirmation"
     timeframe = "1h"
     stoploss = -0.05
-    minimal_roi = {0: 0.03, 120: 0.015, 360: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.03, 120: 0.015, 360: 0.0}
     max_open_trades = 4
 
     mf_rsi_period = IntParameter(10, 20, default=14, space="buy", optimize=True)
@@ -1878,7 +1878,7 @@ class TFEXSpreadStrategy(IStrategy):
     description = "TFEX Spread — trades futures spread, SET/TFEX domain separated"
     timeframe = "15m"
     stoploss = -0.03
-    minimal_roi = {0: 0.01, 60: 0.005, 180: 0.0}
+    minimal_roi: ClassVar[dict[int, float] | None] = {0: 0.01, 60: 0.005, 180: 0.0}
     max_open_trades = 3
 
     tfex_spread_period = IntParameter(10, 40, default=20, space="buy", optimize=True)

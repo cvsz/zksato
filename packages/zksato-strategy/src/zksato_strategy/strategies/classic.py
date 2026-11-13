@@ -316,7 +316,7 @@ class StrategyEngine:
         period = config.parameters.get("period", 20)
         std_dev = config.parameters.get("std_dev", 2.0)
 
-        upper, middle, lower = bollinger_bands(prices, period, std_dev)
+        upper, _middle, lower = bollinger_bands(prices, period, std_dev)
 
         if not upper or not lower:
             return Signal(
@@ -433,7 +433,7 @@ class StrategyEngine:
         slow = config.parameters.get("slow", 26)
         signal_period = config.parameters.get("signal", 9)
 
-        macd, signal, histogram = macd_series(prices, fast, slow, signal_period)
+        macd, signal, _histogram = macd_series(prices, fast, slow, signal_period)
 
         if len(macd) < 2:
             return Signal(
@@ -626,7 +626,7 @@ class StrategyEngine:
             signals.append(1 if sentiment_score > 0.2 else -1 if sentiment_score < -0.2 else 0)
             weights.append(config.parameters.get("sentiment_weight", 0.2))
 
-        weighted_sum = sum(s * w for s, w in zip(signals, weights))
+        weighted_sum = sum(s * w for s, w in zip(signals, weights, strict=False))
         total_weight = sum(weights)
         score = weighted_sum / total_weight if total_weight > 0 else 0
 

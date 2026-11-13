@@ -59,6 +59,7 @@ class FakeBroker:
 def configured_settings() -> Settings:
     return Settings(
         trading_mode="sandbox",
+        database_url="sqlite:///:memory:",
         reconciliation_enabled=True,
         settrade_app_id="id",
         settrade_app_secret="secret",

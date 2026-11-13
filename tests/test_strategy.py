@@ -96,11 +96,11 @@ def test_tfex_spread_strategy() -> None:
         min_history=20,
     )
     # Basis dump: price drops 10 pts below steady EMA
-    sig_buy = engine.evaluate("S50M26", prices + [940.0], config)
+    sig_buy = engine.evaluate("S50M26", [*prices, 940.0], config)
     assert sig_buy.action == SignalAction.BUY
     assert "discount" in sig_buy.reason
 
     # Basis surge: price spikes 10 pts above steady EMA
-    sig_sell = engine.evaluate("S50M26", prices + [960.0], config)
+    sig_sell = engine.evaluate("S50M26", [*prices, 960.0], config)
     assert sig_sell.action == SignalAction.SELL
     assert "premium" in sig_sell.reason

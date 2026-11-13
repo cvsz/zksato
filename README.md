@@ -102,12 +102,20 @@ For environment-specific unlock/release procedures, see [`docs/UNLOCK-RELEASE.md
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\\Scripts\\activate
 pip install -e '.[dev]'
+# Workspace packages (leaf-first: inter-package deps are unpublished bare names)
+pip install -e packages/zksato-core packages/zksato-risk packages/zksato-market \
+  packages/zksato-strategy packages/zksato-portfolio packages/zksato-test-utils
+pip install -e packages/zksato-broker packages/zksato-automation
+pip install -e packages/zksato-api packages/zksato-cli
 cp .env.example .env
 ruff check .
 ruff format --check .
 pytest -m "not uat and not performance"
 uvicorn zksato.api:app --reload --port 9569
 ```
+
+The Phase 4 Agent Engineering Platform (multi-agent orchestration, A2A, MCP, context, sessions, skills, plan mode)
+lives in `packages/zksato-automation` and `packages/zksato-cli`; see `PHASE4_PLAN.md` and `ROADMAP.md` (P15).
 
 Docker Compose:
 

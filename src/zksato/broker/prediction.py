@@ -83,8 +83,7 @@ class PredictionBroker:
                 orders = await self._client.fetch_open_orders(market_id)
             except (TimeoutError, ConnectionError, OSError):
                 continue
-            for order in orders or []:
-                records.append(self._map_fill(order))
+            records.extend(self._map_fill(order) for order in orders or [])
         return records
 
     async def portfolio(self) -> PortfolioSnapshot:

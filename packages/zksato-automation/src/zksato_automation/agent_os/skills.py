@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from zksato_api.llm_clients import HydrogenThinkingLevel  # type: ignore[import-untyped]
 
@@ -62,7 +62,7 @@ class SkillRegistry:
 class GetQuoteSkill:
     name = "get_quote"
     description = "Get real-time quote for a symbol"
-    required_capabilities = {"realtime_quotes"}
+    required_capabilities: ClassVar[set[str]] = {"realtime_quotes"}
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
         symbol = params.get("symbol")
@@ -75,7 +75,7 @@ class GetQuoteSkill:
 class PlaceOrderSkill:
     name = "place_order"
     description = "Place a trading order"
-    required_capabilities = {"order_management"}
+    required_capabilities: ClassVar[set[str]] = {"order_management"}
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
         symbol = params.get("symbol")
@@ -90,7 +90,7 @@ class PlaceOrderSkill:
 class GetPositionsSkill:
     name = "get_positions"
     description = "Get current positions"
-    required_capabilities = {"position_tracking"}
+    required_capabilities: ClassVar[set[str]] = {"position_tracking"}
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
         # Would call portfolio manager
@@ -100,7 +100,7 @@ class GetPositionsSkill:
 class CancelOrderSkill:
     name = "cancel_order"
     description = "Cancel an order"
-    required_capabilities = {"order_management"}
+    required_capabilities: ClassVar[set[str]] = {"order_management"}
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
         order_id = params.get("order_id")
@@ -115,9 +115,9 @@ class CodeGenerationSkill:
 
     name = "generate_code"
     description = "Generate production-ready code using Gemini 4 Hydrogen"
-    required_capabilities = {"code_generation", "llm"}
+    required_capabilities: ClassVar[set[str]] = {"code_generation", "llm"}
 
-    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
+    def __init__(self, llm_client: Any = None) -> None:
         self.llm_client = llm_client
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
@@ -163,9 +163,9 @@ class CodeAnalysisSkill:
 
     name = "analyze_code"
     description = "Analyze code for bugs, security, and performance using Gemini 4 Hydrogen"
-    required_capabilities = {"code_analysis", "llm"}
+    required_capabilities: ClassVar[set[str]] = {"code_analysis", "llm"}
 
-    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
+    def __init__(self, llm_client: Any = None) -> None:
         self.llm_client = llm_client
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:
@@ -211,9 +211,9 @@ class TestVerificationSkill:
 
     name = "verify_test"
     description = "Verify test coverage using Gemini 4 Hydrogen"
-    required_capabilities = {"test_verification", "llm"}
+    required_capabilities: ClassVar[set[str]] = {"test_verification", "llm"}
 
-    def __init__(self, llm_client: Any = None) -> None:  # noqa: ANN401
+    def __init__(self, llm_client: Any = None) -> None:
         self.llm_client = llm_client
 
     async def execute(self, params: dict, ctx: SkillContext) -> SkillResult:

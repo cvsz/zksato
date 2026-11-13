@@ -54,9 +54,10 @@ class BrokerRouter:
         healthy = []
         for name, broker in self.brokers.items():
             health = self._health.get(name, {})
-            if health.get("status") == "healthy":
-                if required_capability is None or required_capability in broker.capabilities:
-                    healthy.append(broker)
+            if (
+                health.get("status") == "healthy" and required_capability is None
+            ) or required_capability in broker.capabilities:
+                healthy.append(broker)
         return healthy
 
     async def place_order(self, order: OrderIntent) -> OrderRecord:

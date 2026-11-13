@@ -43,7 +43,7 @@ jobs:
       - name: Audit runtime Python dependencies
         run: pip-audit --strict --progress-spinner off -r audit-requirements.txt
       - name: Bandit static analysis
-        run: bandit -q -r src -ll
+        run: bandit -q -r src packages -ll
       - name: Install verified Gitleaks
         env:
           GITLEAKS_VERSION: 8.30.1

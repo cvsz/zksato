@@ -20,7 +20,7 @@ console = Console()
 
 
 @app.command()
-def start(  # noqa: PLR0913
+def start(
     *,
     host: str = typer.Option("localhost", "--host", "-h", help="API host"),
     port: int = typer.Option(9569, "--port", "-p", help="API port"),

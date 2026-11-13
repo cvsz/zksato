@@ -190,7 +190,7 @@ class BacktestEngine:
 
         portfolio = PaperPortfolio(self.initial_cash)
         prices = [c.close for c in candles]
-        timestamps = [c.timestamp for c in candles]
+        [c.timestamp for c in candles]
 
         for i, candle in enumerate(candles):
             # Update equity curve

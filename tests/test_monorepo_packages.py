@@ -96,11 +96,10 @@ def test_market_exports():
 
 def test_broker_exports():
     """Test broker package exports key types."""
-    from zksato_broker import BrokerAdapter
+    from zksato_broker import BrokerAdapter, BrokerCapabilities
     from zksato_broker.ccxt import CCXTBroker
     from zksato_broker.errors import BrokerError, BrokerErrorCategory
     from zksato_broker.paper import PaperBroker
-    from zksato_broker import BrokerCapabilities
     from zksato_broker.router import BrokerRouter
     from zksato_broker.sandbox import SandboxManager
     from zksato_broker.settrade import SettradeBroker

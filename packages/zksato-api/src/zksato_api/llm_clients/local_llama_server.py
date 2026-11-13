@@ -242,7 +242,7 @@ class LocalLLMServerManager:
             logger.debug("Model discovery failed: %s", exc)
         return []
 
-    def _build_server_command(self) -> list[str]:  # noqa: PLR0912
+    def _build_server_command(self) -> list[str]:
         """Build the llama.cpp server command with all configured arguments."""
         cmd = [self.config.executable]
         if self.config.model_path:

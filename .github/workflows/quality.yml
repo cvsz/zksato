@@ -33,6 +33,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e '.[dev,quality]'
+          # Workspace packages, leaf-first (inter-package deps are unpublished bare names)
+          python -m pip install -e packages/zksato-core packages/zksato-risk packages/zksato-market packages/zksato-strategy packages/zksato-portfolio packages/zksato-test-utils
+          python -m pip install -e packages/zksato-broker packages/zksato-automation
+          python -m pip install -e packages/zksato-api packages/zksato-cli
       - name: Lint
         run: ruff check .
       - name: Format check

@@ -379,14 +379,15 @@ class EnhancedBacktester:
             current_price = closes[i]
 
             # Expire pending orders
-            expired_orders = []
-            for pending in pending_orders:
+            expired_orders = [
+                pending
+                for pending in pending_orders
                 if (
                     pending.get("order_expiration_candles") is not None
                     and pending.get("entry_candle_index") is not None
                     and i - pending["entry_candle_index"] >= pending["order_expiration_candles"]
-                ):
-                    expired_orders.append(pending)
+                )
+            ]
             for expired in expired_orders:
                 pending_orders.remove(expired)
                 trades.append(

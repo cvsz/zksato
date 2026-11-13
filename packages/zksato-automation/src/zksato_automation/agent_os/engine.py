@@ -59,7 +59,7 @@ class AgentEngine:
     def register_llm_skill(
         self,
         skill_name: str,
-        llm_client: Any,  # noqa: ANN401
+        llm_client: Any,
     ) -> None:
         """Register an LLM-powered skill dynamically.
 
@@ -80,7 +80,7 @@ class AgentEngine:
         self,
         account_id: str,
         parent_id: str,
-        quotas: Any = None,  # noqa: ANN401
+        quotas: Any = None,
     ) -> SubAccount:
         """Create a new sub-account."""
         subaccount = SubAccount(

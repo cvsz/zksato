@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -38,17 +39,14 @@ class OutboxDelivery:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
 
     async def _delivery_loop(self) -> None:
         while self._running:
-            try:
+            # Failures are retried on the next batch; production wires real logging here
+            with contextlib.suppress(Exception):
                 await self._process_batch()
-            except Exception:
-                pass  # Log in production
             await asyncio.sleep(1.0)
 
     async def _process_batch(self) -> None:

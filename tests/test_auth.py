@@ -61,7 +61,7 @@ def test_authenticate_revoked_api_key_rejected() -> None:
 
 def test_authenticate_expired_api_key_rejected() -> None:
     manager = AuthManager(Settings(auth_required=True))
-    raw_key, api_key = manager.create_api_key(
+    raw_key, _api_key = manager.create_api_key(
         role="read_only", ttl_seconds=-1
     )  # Immediately expired
     with pytest.raises(HTTPException) as exc_info:
@@ -71,8 +71,8 @@ def test_authenticate_expired_api_key_rejected() -> None:
 
 def test_list_api_keys_returns_metadata() -> None:
     manager = AuthManager(Settings(auth_required=True))
-    _, key1 = manager.create_api_key(role="read_only", description="first")
-    _, key2 = manager.create_api_key(role="risk_admin", description="second")
+    _, _key1 = manager.create_api_key(role="read_only", description="first")
+    _, _key2 = manager.create_api_key(role="risk_admin", description="second")
     keys = manager.list_api_keys()
     assert len(keys) == 2
     roles = {k["role"] for k in keys}

@@ -45,6 +45,22 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 - [x] Binance TH (Thailand) spot integration (`BTC/THB`, `USDT/THB`, `ETH/THB`, `BNB/THB`)
 - [x] Full REST API endpoints for Agent OS mounted on FastAPI control plane (`/v1/agent-os/*`)
 
+### P15 — Agent Engineering Platform (Phase 4, v1.1.0)
+- [x] **Orchestrator v2** — async task engine (`OrchestratorV2`) with capability-based routing across five specialized agents, priority queue, dependency resolution, heartbeats, and persistent task store
+- [x] **Specialized agents** — Architect, Security Auditor, Code Reviewer, Test Engineer, Documentation with deterministic handlers (design, bandit/ruff-powered audits, complexity analysis, coverage analysis, ADR generation)
+- [x] **A2A protocol** — agent-to-agent messaging with capability advertisement, registry, request/response envelopes, and handler dispatch
+- [x] **Hooks framework** — lifecycle events, priorities, conditions, timeouts, built-in logging/safety hooks, and audit logging
+- [x] **Context management** — token budgeting, compaction, deduplication, relevance ranking, and cross-session persistence
+- [x] **Session persistence** — JSONL session store with checkpoints, interrupted-session recovery, and export/import
+- [x] **Skills system** — manifest validation, scoped registries, entry-point execution, and built-in skills (grep, read-file)
+- [x] **Plan mode** — dependency-graph plans with ready-set computation, approval gates, phase tracking, and persistence
+- [x] **MCP integration** — Model Context Protocol client and server with stdio/SSE/WebSocket transports, capability discovery, and manager config persistence
+- [x] **CRDT shared state** — G/PN counters, LWW registers, OR-sets with merge-convergence semantics for multi-agent coordination
+- [x] **48-test platform suite** (`tests/test_agent_platform.py`) covering orchestrator e2e, A2A, hooks, context, sessions, skills, plans, MCP, CRDTs, and specialized agents
+- [x] **Workspace lint/type/security gates extended to `packages/`** (ruff, mypy, bandit across `src` + all monorepo packages)
+
+Deferred to a later phase (tracked in `PHASE4_PLAN.md`): Git worktree integration, LSP diagnostics, PII redaction, production conflict resolver (file ownership is tracked; resolver is stubbed).
+
 ## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars
 - [x] versioned migrations and restart-safe `client_order_id` uniqueness

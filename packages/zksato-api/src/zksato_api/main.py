@@ -2,9 +2,26 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from zksato_core.config import Settings
+
+from zksato_api.dashboard import (
+    start_periodic_broadcast,
+    stop_periodic_broadcast,
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> None:
+    """Application lifespan handler."""
+    # Startup
+    await start_periodic_broadcast()
+    yield
+    # Shutdown
+    await stop_periodic_broadcast()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -13,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="zksato Trading API",
         description="REST API for zksato automated trading platform",
         version="2.0.0-dev",
+        lifespan=lifespan,
     )
 
     # CORS
@@ -24,6 +42,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Include dashboard router
+    from zksato_api.dashboard import router as dashboard_router
+
+    app.include_router(dashboard_router)
 
     # Health check
     @app.get("/health")

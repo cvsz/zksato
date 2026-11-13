@@ -357,7 +357,7 @@ class NotionalLimitPolicy(Policy):
             )
 
         ref_price = context.reference_price
-        if hasattr(ref_price, 'to_float'):
+        if hasattr(ref_price, "to_float"):
             notional = ref_price.to_float() * intent.quantity
         else:
             notional = float(ref_price * intent.quantity)
@@ -442,7 +442,7 @@ class LineAvailabilityPolicy(Policy):
         return "1.0"
 
     def _to_float(self, value: float | object) -> float:
-        if hasattr(value, 'to_float'):
+        if hasattr(value, "to_float"):
             return value.to_float()
         return float(value)
 
@@ -477,7 +477,7 @@ class PriceDeviationPolicy(Policy):
         return "1.0"
 
     def _to_float(self, value: float | object) -> float:
-        if hasattr(value, 'to_float'):
+        if hasattr(value, "to_float"):
             return value.to_float()
         return float(value)
 
@@ -513,7 +513,7 @@ class PerTradeRiskPolicy(Policy):
         return "1.0"
 
     def _to_float(self, value: float | object) -> float:
-        if hasattr(value, 'to_float'):
+        if hasattr(value, "to_float"):
             return value.to_float()
         return float(value)
 

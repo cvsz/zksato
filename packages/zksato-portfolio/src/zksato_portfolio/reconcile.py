@@ -123,11 +123,13 @@ class ReconciliationEngine:
         missing_in_local = broker_ids - local_ids
         missing_in_broker = local_ids - broker_ids
 
-        for oid in missing_in_local:
-            discrepancies.append({"type": "order_missing_local", "broker_order_id": oid})
+        discrepancies.extend(
+            {"type": "order_missing_local", "broker_order_id": oid} for oid in missing_in_local
+        )
 
-        for oid in missing_in_broker:
-            discrepancies.append({"type": "order_missing_broker", "broker_order_id": oid})
+        discrepancies.extend(
+            {"type": "order_missing_broker", "broker_order_id": oid} for oid in missing_in_broker
+        )
 
         # Compare matching orders
         for local_order in local_orders:

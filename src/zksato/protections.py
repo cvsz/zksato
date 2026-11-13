@@ -10,6 +10,7 @@ They never bypass RiskEngine — they are an additional layer of safety.
 
 from __future__ import annotations
 
+import itertools
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -236,7 +237,7 @@ class VolatilityProtection(Protection):
             return ProtectionResult(allowed=True)
 
         returns: list[float] = []
-        for previous, current in zip(prices, prices[1:], strict=False):
+        for previous, current in itertools.pairwise(prices):
             if previous <= 0:
                 continue
             returns.append((current - previous) / previous * 100.0)

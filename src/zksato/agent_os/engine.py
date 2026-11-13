@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class GuardedOrderParams:
     """Parameters for submitting a guarded order via Agent OS."""
+
     sub_account_id: str
     symbol: str
     side: str
@@ -71,12 +72,11 @@ class AgentExecutionEngine:
 
             intent_side = Side.BUY if params.side.lower() == "buy" else Side.SELL
             intent_type = (
-                OrderType.LIMIT
-                if params.order_type.lower() == "limit"
-                else OrderType.MARKET
+                OrderType.LIMIT if params.order_type.lower() == "limit" else OrderType.MARKET
             )
 
             # If buy order and stop_loss not explicitly supplied, calculate default safety stop
+            stop_loss: float | None
             if intent_side == Side.BUY and params.stop_loss is None:
                 ref_p = params.price or 1.0
                 stop_loss = ref_p * (1.0 - self.settings.default_stop_loss_pct / 100.0)

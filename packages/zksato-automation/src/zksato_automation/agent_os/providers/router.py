@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -75,9 +76,101 @@ class ProviderHealth:
     error_rate: float = 0.0
     rate_limit_remaining: int | None = None
     rate_limit_reset: datetime | None = None
+    quota_remaining: float | None = None  # For paid providers
+    quota_reset: datetime | None = None
     last_check: datetime = field(default_factory=lambda: datetime.now(UTC))
     last_error: str | None = None
     models_available: list[str] = field(default_factory=list)
+    consecutive_failures: int = 0
+    circuit_breaker_open: bool = False
+    circuit_breaker_opened_at: datetime | None = None
+    total_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+
+
+@dataclass
+class UsageRecord:
+    """Record of model usage for cost/quota tracking."""
+
+    model_id: str
+    provider: ProviderType
+    input_tokens: int
+    output_tokens: int
+    cost: float
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
+    session_id: str | None = None
+    task_id: str | None = None
+
+
+@dataclass
+class UsageTracker:
+    """Tracks usage and costs across models and providers."""
+
+    records: list[UsageRecord] = field(default_factory=list)
+    per_model_cost: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+    per_model_tokens: dict[str, tuple[int, int]] = field(
+        default_factory=lambda: defaultdict(lambda: (0, 0))
+    )
+    per_provider_cost: dict[ProviderType, float] = field(default_factory=lambda: defaultdict(float))
+    per_session_cost: dict[str, float] = field(default_factory=lambda: defaultdict(float))
+
+    # Ensure defaultdict is available in lambda scope
+    _defaultdict = defaultdict
+    total_cost: float = 0.0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+
+    def record(self, record: UsageRecord) -> None:
+        """Record a usage event."""
+        self.records.append(record)
+        self.per_model_cost[record.model_id] += record.cost
+        input_t, output_t = self.per_model_tokens[record.model_id]
+        self.per_model_tokens[record.model_id] = (
+            input_t + record.input_tokens,
+            output_t + record.output_tokens,
+        )
+        self.per_provider_cost[record.provider] += record.cost
+        if record.session_id:
+            self.per_session_cost[record.session_id] += record.cost
+        self.total_cost += record.cost
+        self.total_input_tokens += record.input_tokens
+        self.total_output_tokens += record.output_tokens
+
+    def get_model_usage(self, model_id: str) -> dict[str, Any]:
+        """Get usage stats for a model."""
+        input_t, output_t = self.per_model_tokens.get(model_id, (0, 0))
+        return {
+            "model_id": model_id,
+            "total_cost": self.per_model_cost.get(model_id, 0.0),
+            "input_tokens": input_t,
+            "output_tokens": output_t,
+            "total_tokens": input_t + output_t,
+        }
+
+    def get_provider_usage(self, provider: ProviderType) -> dict[str, Any]:
+        """Get usage stats for a provider."""
+        return {
+            "provider": provider.value,
+            "total_cost": self.per_provider_cost.get(provider, 0.0),
+        }
+
+    def get_session_usage(self, session_id: str) -> dict[str, Any]:
+        """Get usage stats for a session."""
+        return {
+            "session_id": session_id,
+            "total_cost": self.per_session_cost.get(session_id, 0.0),
+        }
+
+    def get_total_usage(self) -> dict[str, Any]:
+        """Get overall usage stats."""
+        return {
+            "total_cost": self.total_cost,
+            "total_input_tokens": self.total_input_tokens,
+            "total_output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_input_tokens + self.total_output_tokens,
+            "models_used": len(self.per_model_cost),
+        }
 
 
 @dataclass
@@ -91,6 +184,8 @@ class RoutingContext:
     max_cost_per_request: float | None = None
     thinking_level: str | None = None
     prefer_local: bool = False
+    session_id: str | None = None
+    usage_tracker: UsageTracker | None = None
 
 
 @dataclass
@@ -149,6 +244,33 @@ class LocalProvider:
         if not self._initialized:
             await self.initialize()
         return await self.client.generate(messages, **kwargs)
+
+    async def generate_with_tracking(
+        self,
+        messages: list[dict[str, str]],
+        health: ProviderHealth,
+        **kwargs: Any,
+    ) -> LocalLLMResponse:
+        """Generate a response with health tracking."""
+        if not self._initialized:
+            await self.initialize()
+        try:
+            response = await self.client.generate(messages, **kwargs)
+            # Record success
+            health.consecutive_failures = 0
+            health.successful_requests += 1
+            health.total_requests += 1
+            return response
+        except Exception:
+            # Record failure
+            health.consecutive_failures += 1
+            health.failed_requests += 1
+            health.total_requests += 1
+            # Open circuit breaker after 5 consecutive failures
+            if health.consecutive_failures >= 5 and not health.circuit_breaker_open:
+                health.circuit_breaker_open = True
+                health.circuit_breaker_opened_at = datetime.now(UTC)
+            raise
 
     async def health_check(self) -> ProviderHealth:
         """Check provider health."""
@@ -267,6 +389,26 @@ class ProviderRegistry:
         """Get cached health for a provider."""
         return self._health.get(provider_type)
 
+    def record_success(self, provider_type: ProviderType) -> None:
+        """Record a successful request."""
+        health = self._health.get(provider_type)
+        if health:
+            health.consecutive_failures = 0
+            health.successful_requests += 1
+            health.total_requests += 1
+
+    def record_failure(self, provider_type: ProviderType) -> None:
+        """Record a failed request."""
+        health = self._health.get(provider_type)
+        if health:
+            health.consecutive_failures += 1
+            health.failed_requests += 1
+            health.total_requests += 1
+            # Open circuit breaker after 5 consecutive failures
+            if health.consecutive_failures >= 5 and not health.circuit_breaker_open:
+                health.circuit_breaker_open = True
+                health.circuit_breaker_opened_at = datetime.now(UTC)
+
 
 class ModelRouter:
     """Intelligent model router with fallback chain."""
@@ -281,15 +423,29 @@ class ModelRouter:
             task_type="general",
             required_capabilities={ModelCapability.TEXT_GENERATION},
         )
+        self.usage_tracker = UsageTracker()
 
     def route(self, context: RoutingContext | None = None) -> RoutingDecision:
         """Route to the best model based on context."""
         ctx = context or self.default_context
 
-        # Get healthy providers
-        healthy_providers = {
-            ptype: health for ptype, health in self.registry._health.items() if health.is_healthy
-        }
+        # Get healthy providers (respecting circuit breakers)
+        healthy_providers = {}
+        for ptype, health in self.registry._health.items():
+            if health.is_healthy and not health.circuit_breaker_open:
+                healthy_providers[ptype] = health
+                # Check if circuit breaker should reset (after 60 seconds)
+            elif health.circuit_breaker_open and health.circuit_breaker_opened_at:
+                elapsed = (datetime.now(UTC) - health.circuit_breaker_opened_at).total_seconds()
+                if elapsed > 60:  # Reset after 60 seconds
+                    health.circuit_breaker_open = False
+                    health.consecutive_failures = 0
+                    healthy_providers[ptype] = health
+        if not healthy_providers:
+            # Try all providers (including those with open circuit breakers)
+            healthy_providers = {
+                ptype: h for ptype, h in self.registry._health.items() if h.is_healthy
+            }
 
         if not healthy_providers:
             # Try all providers
@@ -298,7 +454,7 @@ class ModelRouter:
         # Find candidate models
         candidates: list[tuple[ModelMetadata, ProviderHealth, float]] = []
 
-        for model_id, model in self.registry._model_metadata.items():
+        for model in self.registry._model_metadata.values():
             health = healthy_providers.get(model.provider)
             if not health or not health.is_healthy:
                 continue
@@ -319,6 +475,12 @@ class ModelRouter:
                 if estimated_cost > ctx.max_cost_per_request:
                     continue
 
+            # Check quota/rate limits
+            if health.rate_limit_remaining is not None and health.rate_limit_remaining <= 0:
+                continue
+            if health.quota_remaining is not None and health.quota_remaining <= 0:
+                continue
+
             # Score the model
             score = self._score_model(model, health, ctx)
             candidates.append((model, health, score))
@@ -331,10 +493,13 @@ class ModelRouter:
 
         best_model, best_health, best_score = candidates[0]
 
-        # Build fallback chain
+        # Build fallback chain (filter out models with circuit breakers or quota issues)
         fallback_chain = [
             m.model_id
-            for m, h, s in candidates[1:6]  # Top 5 fallbacks
+            for m, h, s in candidates[1:6]
+            if not h.circuit_breaker_open
+            and (h.rate_limit_remaining is None or h.rate_limit_remaining > 0)
+            and (h.quota_remaining is None or h.quota_remaining > 0)
         ]
 
         return RoutingDecision(
@@ -407,6 +572,7 @@ class ModelRouterWithFallback:
         self,
         messages: list[dict[str, str]],
         context: RoutingContext | None = None,
+        session_id: str | None = None,
         **kwargs: Any,
     ) -> tuple[LocalLLMResponse, RoutingDecision]:
         """Execute with automatic fallback on failure."""
@@ -430,10 +596,35 @@ class ModelRouterWithFallback:
 
             try:
                 self._fallback_attempts[model_id] = self._fallback_attempts.get(model_id, 0) + 1
-                response = await provider.generate(messages, **kwargs)
+                # Use the new tracking method
+                if hasattr(provider, "generate_with_tracking"):
+                    health = self.router.registry._health.get(model_meta.provider)
+                    response = await provider.generate_with_tracking(messages, health, **kwargs)
+                else:
+                    response = await provider.generate(messages, **kwargs)
 
                 if attempt > 0:
                     logger.info("Fallback succeeded on attempt %d with model %s", attempt, model_id)
+
+                # Record success
+                self.router.registry.record_success(model_meta.provider)
+
+                # Track usage
+                if context and context.usage_tracker:
+                    cost = (
+                        model_meta.cost_per_1k_input * response.input_tokens
+                        + model_meta.cost_per_1k_output * response.output_tokens
+                    ) / 1000
+                    context.usage_tracker.record(
+                        UsageRecord(
+                            model_id=model_id,
+                            provider=model_meta.provider,
+                            input_tokens=response.input_tokens,
+                            output_tokens=response.output_tokens,
+                            cost=cost,
+                            session_id=session_id,
+                        )
+                    )
 
                 return response, decision
 
@@ -445,6 +636,9 @@ class ModelRouterWithFallback:
                     attempt + 1,
                     exc,
                 )
+
+                # Record failure
+                self.router.registry.record_failure(model_meta.provider)
 
                 # Check health and potentially update
                 await self.router.registry.check_health(model_meta.provider)

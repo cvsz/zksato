@@ -144,12 +144,15 @@ class PositionLimitPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        if intent.side == Side.BUY and context.opens_new_position:
-            if context.current_positions >= self._max_positions:
-                return PolicyResult(
-                    decision=PolicyDecision.REJECT,
-                    reasons=[f"maximum positions ({self._max_positions}) reached"],
-                )
+        if (
+            intent.side == Side.BUY
+            and context.opens_new_position
+            and context.current_positions >= self._max_positions
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=[f"maximum positions ({self._max_positions}) reached"],
+            )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
@@ -170,12 +173,15 @@ class DailyLossLimitPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.daily_pnl_pct <= -self._max_daily_loss_pct:
-                return PolicyResult(
-                    decision=PolicyDecision.REJECT,
-                    reasons=[f"daily loss limit ({self._max_daily_loss_pct}%) reached"],
-                )
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.daily_pnl_pct <= -self._max_daily_loss_pct
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=[f"daily loss limit ({self._max_daily_loss_pct}%) reached"],
+            )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
@@ -196,12 +202,15 @@ class DrawdownLimitPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        if intent.side == Side.BUY and not context.reduces_exposure:
-            if context.drawdown_pct >= self._max_drawdown_pct:
-                return PolicyResult(
-                    decision=PolicyDecision.REJECT,
-                    reasons=[f"drawdown limit ({self._max_drawdown_pct}%) reached"],
-                )
+        if (
+            intent.side == Side.BUY
+            and not context.reduces_exposure
+            and context.drawdown_pct >= self._max_drawdown_pct
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=[f"drawdown limit ({self._max_drawdown_pct}%) reached"],
+            )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)
 
@@ -314,11 +323,15 @@ class StopLossRequiredPolicy(Policy):
         return "1.0"
 
     def evaluate(self, intent: OrderIntent, context: RiskContext) -> PolicyResult:
-        if self._required and intent.side == Side.BUY and not context.reduces_exposure:
-            if intent.stop_loss is None:
-                return PolicyResult(
-                    decision=PolicyDecision.REJECT,
-                    reasons=["stop loss is required for buy orders"],
-                )
+        if (
+            self._required
+            and intent.side == Side.BUY
+            and not context.reduces_exposure
+            and intent.stop_loss is None
+        ):
+            return PolicyResult(
+                decision=PolicyDecision.REJECT,
+                reasons=["stop loss is required for buy orders"],
+            )
 
         return PolicyResult(decision=PolicyDecision.APPROVE)

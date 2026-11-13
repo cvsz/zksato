@@ -73,9 +73,7 @@ class MarketScanner:
             return False
         if filter_criteria.exclude_symbols and quote.symbol in filter_criteria.exclude_symbols:
             return False
-        if filter_criteria.custom_filter and not filter_criteria.custom_filter(quote):
-            return False
-        return True
+        return not (filter_criteria.custom_filter and not filter_criteria.custom_filter(quote))
 
     def _create_result(self, symbol: str, quote: Quote) -> ScannerResult:
         """Create scanner result from quote."""

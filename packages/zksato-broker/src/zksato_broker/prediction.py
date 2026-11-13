@@ -143,8 +143,7 @@ class PredictionBroker(BaseBroker):
                 orders = await self._client.fetch_open_orders(market_id)
             except (TimeoutError, ConnectionError, OSError):
                 continue
-            for order in orders or []:
-                records.append(self._map_fill(order))
+            records.extend(self._map_fill(order) for order in orders or [])
         if status:
             records = [r for r in records if r.status == status]
         return records

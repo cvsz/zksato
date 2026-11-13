@@ -133,21 +133,20 @@ class CCXTAdapter(MarketDataAdapter):
 
     def _convert_ohlcv(self, symbol: str, timeframe: str, ohlcv: list[list]) -> list[Bar]:
         """Convert CCXT OHLCV to Bar list."""
-        bars = []
-        for candle in ohlcv:
-            bars.append(
-                Bar(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    timestamp=datetime.fromtimestamp(candle[0] / 1000),
-                    open=Money(str(candle[1])),
-                    high=Money(str(candle[2])),
-                    low=Money(str(candle[3])),
-                    close=Money(str(candle[4])),
-                    volume=int(candle[5]),
-                    source=self.name,
-                )
+        bars = [
+            Bar(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=datetime.fromtimestamp(candle[0] / 1000),
+                open=Money(str(candle[1])),
+                high=Money(str(candle[2])),
+                low=Money(str(candle[3])),
+                close=Money(str(candle[4])),
+                volume=int(candle[5]),
+                source=self.name,
             )
+            for candle in ohlcv
+        ]
         return bars
 
     async def get_latest_bar(self, symbol: str, timeframe: str) -> Bar | None:

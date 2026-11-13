@@ -164,7 +164,7 @@ def test_stochastic_strategy_oversold_buy() -> None:
         min_history=10,
     )
     signal = engine.evaluate("AOT", prices, config, candles=candles)
-    # Should be BUY or HOLD depending on D line – just ensure no crash and valid signal
+    # Should be BUY or HOLD depending on D line - just ensure no crash and valid signal
     assert signal.action in {SignalAction.BUY, SignalAction.HOLD}
 
 

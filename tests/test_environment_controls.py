@@ -32,7 +32,11 @@ def test_live_approvals_require_live_mode_even_with_valid_evidence() -> None:
 
 def test_tfex_uat_endpoint_rejects_non_sandbox_modes(monkeypatch: pytest.MonkeyPatch) -> None:
     for mode in ("paper", "live"):
-        monkeypatch.setattr(api_module, "settings", Settings(trading_mode=mode))
+        monkeypatch.setattr(
+            api_module,
+            "settings",
+            Settings(trading_mode=mode, database_url="sqlite:///:memory:"),
+        )
         response = client.post(
             "/v1/tfex/orders/uat",
             json={
@@ -53,6 +57,7 @@ def test_tfex_uat_endpoint_rejects_non_sandbox_modes(monkeypatch: pytest.MonkeyP
 async def test_sandbox_mode_requires_settrade_credentials() -> None:
     settings = Settings(
         trading_mode="sandbox",
+        database_url="sqlite:///:memory:",
         settrade_app_id="",
         settrade_app_secret="",
         settrade_broker_id="",
@@ -116,6 +121,7 @@ async def test_paper_mode_does_not_require_settrade_credentials() -> None:
 async def test_live_mode_without_enabled_flag_blocks_orders() -> None:
     settings = Settings(
         trading_mode="live",
+        database_url="sqlite:///:memory:",
         live_trading_enabled=False,
         settrade_app_id="id",
         settrade_app_secret="secret",
@@ -153,6 +159,7 @@ async def test_live_mode_without_enabled_flag_blocks_orders() -> None:
 async def test_live_mode_with_kill_switch_active_rejects_orders() -> None:
     settings = Settings(
         trading_mode="live",
+        database_url="sqlite:///:memory:",
         live_trading_enabled=True,
         kill_switch=True,
         settrade_app_id="id",

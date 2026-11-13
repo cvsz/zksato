@@ -81,6 +81,7 @@ async def test_non_paper_mode_requires_settrade_configuration() -> None:
     service = make_service(
         Settings(
             trading_mode="sandbox",
+            database_url="sqlite:///:memory:",
             live_trading_enabled=False,
             settrade_app_id="",
             settrade_app_secret="",
@@ -105,6 +106,7 @@ async def test_non_paper_mode_requires_settrade_configuration() -> None:
 async def test_live_automation_is_never_allowed() -> None:
     settings = Settings(
         trading_mode="live",
+        database_url="sqlite:///:memory:",
         live_trading_enabled=True,
         live_confirmation_token="secret",
         settrade_app_id="id",
