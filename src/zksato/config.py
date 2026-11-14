@@ -51,6 +51,18 @@ class Settings(BaseSettings):
 
     database_url: str | None = None
     redis_url: str | None = None
+    # Database component settings (used to build DATABASE_URL when the full URL
+    # is not supplied directly; passwords are read from mounted secret files).
+    postgres_host: str = "zpostgressql"
+    postgres_port: int = Field(default=5432, ge=1, le=65535)
+    postgres_db: str = "zcoder_db"
+    postgres_user: str = "zksato"
+    postgres_password_file: str | None = None
+    test_postgres_db: str = "zksato_db"
+    redis_host: str = "zredis"
+    redis_port: int = Field(default=6379, ge=1, le=65535)
+    redis_db: int = Field(default=0, ge=0, le=15)
+    redis_password_file: str | None = None
     coordination_lock_ttl_seconds: int = Field(default=30, ge=5, le=600)
     reconciliation_enabled: bool = True
     reconciliation_interval_seconds: float = Field(default=15.0, ge=1, le=3600)
@@ -213,6 +225,20 @@ class Settings(BaseSettings):
                 "live approvals must be durable across restarts"
             )
         return self
+
+    def _read_secret_file(self, file_name: str) -> str | None:
+        """Read a secret value from a mounted file under ZKSATO_SECRET_DIR.
+
+        Returns None if the file is missing, unreadable, or empty.  Never raises
+        so that optional secrets degrade gracefully to environment values.
+        """
+        secret_root = Path(self.secret_dir)
+        secret_file = secret_root / file_name
+        try:
+            value = secret_file.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeError):
+            return None
+        return value or None
 
     def model_post_init(self, __context: object) -> None:
         mapping = {
