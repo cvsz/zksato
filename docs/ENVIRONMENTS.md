@@ -12,6 +12,21 @@ Default `paper`, local/memory or Docker PostgreSQL/Redis, no production credenti
     - Requires Redis ACL credentials (e.g. `repo` or dedicated user).
     - `ZKSATO_REDIS_URL=redis://<acl_user>:<password>@zredis:6379/0` (in-docker) or `redis://<acl_user>:<password>@172.26.0.3:6379/0` (host)
 
+### Database/Redis component settings (ops plan 2.4)
+
+The following `ZKSATO_*`-prefixed component vars are read by `zksato.config.Settings` when the corresponding connection-string var is not set. Passwords are resolved from secret files (never inline):
+
+| Variable | Example value | Purpose |
+|----------|---------------|---------|
+| `ZKSATO_POSTGRES_HOST` | `zpostgresql` | PostgreSQL host |
+| `ZKSATO_POSTGRES_PORT` | `5432` | PostgreSQL port |
+| `ZKSATO_POSTGRES_PASSWORD_FILE` | `/run/secrets/zksato_postgres_password` | File containing PostgreSQL password |
+| `ZKSATO_REDIS_HOST` | `zredis` | Redis host |
+| `ZKSATO_REDIS_PORT` | `6379` | Redis port |
+| `ZKSATO_REDIS_PASSWORD_FILE` | `/run/secrets/zksato_zredis_password` | File containing Redis ACL password |
+
+Plain `DATABASE_URL` / `TEST_DATABASE_URL` are accepted as fallbacks when `ZKSATO_DATABASE_URL` / `ZKSATO_TEST_DATABASE_URL` are absent.
+
 **Public Ingress Routing (`https://zksato.zeaz.dev/*`):**
 When routed through production/staging reverse proxies (NGINX/Cloudflare):
 - Frontend: `https://zksato.zeaz.dev/`
