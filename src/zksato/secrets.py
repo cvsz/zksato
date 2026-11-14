@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from importlib import import_module
 from typing import Any
 
@@ -72,7 +73,6 @@ def validate_env_file(env_path: str = ".env") -> None:
 
     Raises ValueError with a descriptive message on any violation.
     """
-    import re
     from pathlib import Path
 
     path = Path(env_path)
@@ -96,7 +96,10 @@ def validate_env_file(env_path: str = ".env") -> None:
             raise ValueError(f"{env_path}:{lineno}: invalid environment variable name '{key}'")
         # Allow ${...} placeholder syntax for secret values
         is_placeholder = val.startswith("${") and val.endswith("}")
-        if not is_placeholder and shell_meta.search(val):
+        # Allow $(cat /path/to/secret) secret-file reference syntax anywhere in value
+        secret_ref_pattern = re.compile(r"\$\(cat\s+/[^)]+\)")
+        val_without_refs = secret_ref_pattern.sub("", val)
+        if not is_placeholder and shell_meta.search(val_without_refs):
             raise ValueError(
                 f"{env_path}:{lineno}: value for '{key}' contains shell metacharacters"
             )

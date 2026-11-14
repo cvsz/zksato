@@ -153,7 +153,7 @@ No unsafe patterns detected
 
 ---
 
-## Security Hardening Summary (2026-11-14)
+## Security Hardening Summary (2026-11-15)
 
 ### 1. Removed Hardcoded Credentials from `.env`
 
@@ -212,11 +212,11 @@ Then grant `zksato` role access to `zksato` and `zksato_db` on `zpostgressql`.
 | `prediction_clob_api_secret` | `zksato_prediction_clob_api_secret` |
 | `prediction_clob_passphrase` | `zksato_prediction_clob_passphrase` |
 
-### 4. Additional Security Fixes (2026-11-14)
+### 4. Additional Security Fixes (2026-11-15)
 
 | Fix | File | Description |
 |-----|------|-------------|
-| Precise secret key detection | `src/zksato/secrets.py` | `validate_env_file()` now flags only keys ending with `_SECRET`, `_API_KEY`, `_PRIVATE_KEY`, `_PASSWORD`, `_PIN`, `_CREDENTIAL`, `_TOKEN` as secret keys requiring `${...}` placeholders; `_DIR`, `_ENABLED`, `_NAME` etc. are treated as configuration |
+| Precise secret key detection | `src/zksato/secrets.py` | `validate_env_file()` now flags only keys ending with `_SECRET`, `_API_KEY`, `_PRIVATE_KEY`, `_PASSWORD`, `_PIN`, `_CREDENTIAL`, `_TOKEN` as secret keys requiring `${...}` placeholders; `_DIR`, `_ENABLED`, `_NAME` etc. are treated as configuration; `$(cat /path/to/secret)` secret-file reference syntax is allowed in values |
 | `TradingModeError` carries mode | `src/zksato/service.py` | `TradingModeError` now accepts a `mode` parameter for better debugging and auditing of rejected live/sandbox operations |
 | Outbox dead-letter handling | `packages/zksato-portfolio/src/zksato_portfolio/outbox.py` | Messages exceeding `max_retries` are dead-lettered (`dead_lettered_at` set) so poison messages cannot block the delivery loop forever; exceptions are logged instead of silently swallowed |
 | `OutboxMessage` writable fields | `packages/zksato-core/src/zksato_core/models.py` | `OutboxMessage` unfrozen; added `retry_count`, `last_error`, `last_attempt_at`, `dead_lettered_at` fields |
