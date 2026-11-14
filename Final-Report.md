@@ -398,6 +398,27 @@ git checkout main && git pull origin main
 **Account Separation:** Strict — `cvsz` (author/merge), `policedbc` (audit/approve)  
 **Credential Management:** `/home/cvsz/.config/gh/.git-credentials` via `git config credential.helper "store --file=..."` and `gh auth setup-git`
 
+### Workflow status for this change
+
+| Step | Account | Action | Status | Evidence |
+|------|---------|--------|--------|----------|
+| Step 1 | `cvsz` | Branch `feat/ops-database-config-and-validation`, GPG-signed commit `5202cdd`, pushed to origin | ✅ Complete | `git log --show-signature`, branch on origin |
+| Step 1 | `cvsz` | PR #133 opened: `chore(database): configure shared PostgreSQL/Redis credentials and validate persistence` | ✅ Complete | https://github.com/cvsz/zksato/pull/133 |
+| Step 2 | `policedbc` | Independent audit & approval | ⚠️ Blocked | `policedbc` lacks write access to `cvsz/zksato`; cannot create approving review. Branch protection requires ≥1 approving review from a reviewer with write access. cvsz (author) cannot self-approve. |
+| Step 3 | `cvsz` | Merge to main, delete branch | ⏳ Pending | Blocked until Step 2 review is obtained. All CI checks pass (see table below). |
+
+**All CI checks on PR #133:** ✅ Pass
+- Title and risk-sensitive change policy: pass
+- Format, types, workflows, contract, package and licenses: pass
+- Quality / Python 3.11: pass
+- Vulnerability, SBOM and hardened-runtime checks: pass
+- Build and smoke test: pass
+- Compatibility (Python 3.11-3.14): pass
+- required-docs: pass
+- Build and smoke test: pass
+
+**Resolution:** A repository member with write access (other than the PR author) must submit an approving review on PR #133, after which `cvsz` can merge via `gh pr merge 133 --merge --delete-branch`.
+
 ---
 
 ## External Gates — Not Source-Certifiable
