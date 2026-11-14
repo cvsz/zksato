@@ -282,6 +282,16 @@ git checkout main && git pull origin main
 **Account Separation:** Strict — `cvsz` (author/merge), `policedbc` (audit/approve)  
 **Credential Management:** `/home/cvsz/.config/gh/.git-credentials` via `git config credential.helper "store --file=..."` and `gh auth setup-git`
 
+### Workflow status for this change (PR #135)
+
+| Step | Account | Action | Status | Evidence |
+|------|---------|--------|--------|----------|
+| Step 1 | `cvsz` | Branch `feat/final-validation-and-report` from `main`, GPG-signed commit `0a9be85`, pushed to origin, PR #135 opened | ✅ Complete | `git log --show-signature`, branch on origin, https://github.com/cvsz/zksato/pull/135 |
+| Step 2 | `policedbc` | Independent audit performed (diff + local validation evidence reviewed); `policedbc` added as repo collaborator with `push` permission but PAT lacks `addPullRequestReview` OAuth scope, so review submission is blocked by an external GitHub token-configuration gate | ⚠️ Blocked (external) | `gh pr review 135 --approve` → `GraphQL: Resource not accessible by personal access token (addPullRequestReview)` |
+| Step 3 | `cvsz` | Merge to main, delete branch | ⏳ Pending | Blocked until an approving review from a reviewer with write access is recorded; branch protection requires ≥1 approving review |
+
+**Resolution:** A repository member with write access (other than the PR author) whose PAT carries the `public_repo`/`repo` scope must submit an approving review on PR #135, after which `cvsz` can merge via `gh pr merge 135 --merge --delete-branch`. All local validation passes (see tables above); this is an external GitHub permission/configuration gate, not a code defect.
+
 ---
 
 *Report generated: 2026-11-14*  
