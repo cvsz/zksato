@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -50,7 +51,17 @@ class Settings(BaseSettings):
     paper_price_improvement: bool = True
 
     database_url: str | None = None
+    test_database_url: str | None = None
     redis_url: str | None = None
+    # Shared local infrastructure component settings (zpostgresql / zredis).
+    # These mirror the plain DATABASE_URL / TEST_DATABASE_URL / *_PASSWORD_FILE
+    # vars required by ops plan step 2.4 and are resolved from the environment.
+    postgres_host: str | None = None
+    postgres_port: int = Field(default=5432, ge=1, le=65535)
+    postgres_password_file: str | None = None
+    redis_host: str | None = None
+    redis_port: int = Field(default=6379, ge=1, le=65535)
+    redis_password_file: str | None = None
     coordination_lock_ttl_seconds: int = Field(default=30, ge=5, le=600)
     reconciliation_enabled: bool = True
     reconciliation_interval_seconds: float = Field(default=15.0, ge=1, le=3600)
@@ -238,6 +249,27 @@ class Settings(BaseSettings):
                 continue
             if value:
                 setattr(self, field_name, value)
+
+        # Fallback: plain DATABASE_URL / TEST_DATABASE_URL (ops plan 2.4) when
+        # the ZKSATO_-prefixed vars are not set. Keeps config source-agnostic.
+        if not self.database_url:
+            plain = os.environ.get("DATABASE_URL")
+            if plain:
+                self.database_url = plain
+        if not self.test_database_url:
+            plain_test = os.environ.get("TEST_DATABASE_URL")
+            if plain_test:
+                self.test_database_url = plain_test
+        # Component settings (zpostgresql / zredis) resolved from env when not
+        # already provided via ZKSATO_-prefixed equivalents.
+        if self.postgres_host is None:
+            self.postgres_host = os.environ.get("ZKSATO_POSTGRES_HOST")
+        if self.postgres_password_file is None:
+            self.postgres_password_file = os.environ.get("ZKSATO_POSTGRES_PASSWORD_FILE")
+        if self.redis_host is None:
+            self.redis_host = os.environ.get("ZKSATO_REDIS_HOST")
+        if self.redis_password_file is None:
+            self.redis_password_file = os.environ.get("ZKSATO_REDIS_PASSWORD_FILE")
 
     @property
     def watchlist(self) -> list[str]:
