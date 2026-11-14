@@ -228,6 +228,59 @@ The following require operator/broker/deployment evidence and cannot be certifie
 
 ---
 
+## Git Governance — Multi-Account Workflow Status
+
+Per `AGENTS.md`, the mandatory sign-off workflow is:
+
+```bash
+# Step 1 — Author, GPG-Sign, and Open PR as cvsz
+gh auth switch -u cvsz
+git checkout -b <feature-or-fix-branch>
+# Implement, validate
+python -m pip install -e '.[dev]'
+ruff check .
+pytest
+git add -A
+git commit -S -m "<type>(<scope>): <summary>"
+git push -u origin <feature-or-fix-branch>
+gh pr create --title "<title>" --body "<body>"
+
+# Step 2 — Independent Audit, Review, & Approval as policedbc
+gh auth switch -u policedbc
+gh pr review <pr-number> --approve -b "Independent audit: <review-summary>"
+
+# Step 3 — Merge and Sync as cvsz
+gh auth switch -u cvsz
+gh pr merge <pr-number> --merge --delete-branch
+git checkout main && git pull origin main
+```
+
+**GPG Signing:** Mandatory on all commits (`-S` flag)  
+**Account Separation:** Strict — `cvsz` (author/merge), `policedbc` (audit/approve)  
+**Credential Management:** `/home/cvsz/.config/gh/.git-credentials` via `git config credential.helper "store --file=..."` and `gh auth setup-git`
+
+### Workflow status for this change (PR #134)
+
+| Step | Account | Action | Status | Evidence |
+|------|---------|--------|--------|----------|
+| Step 1 | `cvsz` | Branch `feat/final-report-and-database-validation`, GPG-signed commit `b4ed962` (Good signature, EDDSA key `8BC7A85F1FB5322782921AEC14E1E0BC08F632B0`), pushed to origin | ✅ Complete | `git log --show-signature --format="%H %G?"`, branch on origin |
+| Step 1 | `cvsz` | PR #134 opened: `docs(report): complete final validation report with security metrics and database configuration` | ✅ Complete | https://github.com/cvsz/zksato/pull/134 |
+| Step 2 | `policedbc` | Independent audit & approval | ⚠️ Blocked | `policedbc` lacks write access to `cvsz/zksato`; cannot create approving review (`addPullRequestReview` permission denied). Branch protection requires ≥1 approving review from a reviewer with write access. cvsz (author) cannot self-approve. |
+| Step 3 | `cvsz` | Merge to main, delete branch | ⏳ Pending | Blocked until Step 2 review is obtained. All local validation passes (see table below). |
+
+**Local validation (all passed):**
+- `ruff check .` — All checks passed
+- `ruff format --check .` — 630 files formatted
+- `mypy src/zksato scripts` — 0 issues (86 files, --strict)
+- `bandit -q -r src packages -ll` — 0 HIGH/MEDIUM findings
+- `shellcheck scripts/*.sh deploy/*.sh .github/scripts/*.sh` — 0 issues
+- `python -m pytest` — 694 passed, 6 skipped
+- Database read/write verified on `zcoder_db` and `zksato_db` (user `zksato` on `zpostgressql`)
+
+**Resolution:** A repository member with write access (other than the PR author) must submit an approving review on PR #134, after which `cvsz` can merge via `gh pr merge 134 --merge --delete-branch`. This is an external gate (GitHub plan/settings dependent), documented in ROADMAP.md P7.
+
+---
+
 *Report generated: 2026-11-14*  
 *Validation environment: Python 3.14.4, pytest 9.1.1, mypy 2.4.0, ruff 0.16.6, bandit 1.9.4, shellcheck 0.11.0*  
 *All evidence: CI artifacts (coverage.xml, junit.xml)*
