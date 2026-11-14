@@ -1,7 +1,7 @@
 # zksato — Final Validation Report
 
 **Version:** 2.0.0-dev  
-**Date:** 2026-11-13  
+**Date:** 2026-11-14  
 **Status:** ✅ **PRODUCTION-GRADE READY — ALL VALIDATION GATES PASSED**
 
 ---
@@ -14,7 +14,7 @@ This report documents the complete validation of **zksato v2.0.0-dev** — a ris
 |------|--------|----------|
 | **Type Safety (mypy)** | ✅ PASS | zksato-core: 0 errors across 16 source files |
 | **Linting (ruff)** | ✅ PASS | zksato-core: 0 errors; other packages: critical bugs fixed |
-| **Unit/Integration Tests** | ✅ PASS | 642 tests passed, 6 skipped |
+| **Unit/Integration Tests** | ✅ PASS | 694 tests passed, 1 skipped |
 | **Branch Coverage** | ✅ PASS | **≥ 65%** (target met) |
 | **Security Scan (bandit)** | ✅ PASS | 0 HIGH/MEDIUM |
 | **Dependency Audit (pip-audit)** | ✅ PASS | 0 known vulnerabilities |
@@ -94,7 +94,7 @@ TOTAL: 10,964 statements | 3,406 missed | 2,690 branches | 483 branch partial | 
 ## Test Suite Results
 
 ```
-642 passed, 6 skipped in 18.03s
+694 passed, 1 skipped in 19.51s
 ```
 
 ### Test Categories
@@ -111,7 +111,7 @@ TOTAL: 10,964 statements | 3,406 missed | 2,690 branches | 483 branch partial | 
 | **TFEX** | 8 | Contract registry, margin, UAT gateway, risk engine |
 | **Prediction Markets** | 68 | CLOB adapter, live gate, CPMM, feed, backtest |
 | **Video EA Research** | 38 | Planner, replay, parameter sweep, Monte Carlo, lifecycle |
-| **Native Agent OS** | 14 | Sub-accounts, skill hub, execution engine, sandbox |
+| **Native Agent OS** | 18 | Sub-accounts, skill hub, execution engine, sandbox, server-side risk context enforcement |
 | **CCXT/External** | 18 | Multi-exchange adapter, sandbox/paper modes |
 | **TradingView/Telegram** | 17 | HMAC webhook, alert parsing, notification dispatch |
 | **OpenAPI Contract** | 6 | Safety contract validation |
@@ -235,6 +235,37 @@ $ docker compose config --quiet
 | 8 | **Independent kill paths** | Global `kill_switch` in `RiskEngine`; bot stop API; reconciliation gate | `test_risk.py`, `test_automation_controls.py` |
 | 9 | **SET ≠ TFEX semantics** | Separate `TfexRiskEngine`, `TfexOrderIntent`, `SettradeTfexGateway`; UAT-only mutation | `test_tfex.py`, `test_tfex_completion.py` |
 | 10 | **Deterministic & auditable** | All money-moving operations: typed, versioned, audit-hashed, OpenAPI-contracted | `test_audit_integrity.py`, `test_openapi_contract.py` |
+
+---
+
+## Security Hardening — Agent OS Risk Context Enforcement (2026-11-14)
+
+### Issue
+The `AgentExecutionEngine.submit_guarded_order` skill in `src/zksato/agent_os/engine.py` constructed `OrderSubmission(intent=intent)` without computing a server-side trusted `RiskContext`. This meant the `RiskEngine` evaluated agent-submitted orders against a default empty context (no market data availability, no session state, no quote age, no exposure totals), potentially allowing orders to bypass critical risk checks such as stale feed rejection, session enforcement, and exposure limits.
+
+### Fix
+Added server-side risk context computation before order submission, matching the pattern already used in `api.py` (`place_order`) and `automation.py` (`_execute_signal`):
+
+```python
+trusted_context = await self.trading_service.risk_context_for(intent)
+submission = OrderSubmission(intent=intent, risk=trusted_context)
+```
+
+This ensures every agent order intent is evaluated with:
+- Server-derived quote age and staleness check
+- Market session state (known/open)
+- Price band and tick size validation
+- Position/sector/gross/net exposure totals
+- Available line/cash checks
+- Daily order count and open order count
+
+### Tests Added (4 new tests in `tests/test_agent_os.py`)
+| Test | Coverage |
+|------|----------|
+| `test_agent_guarded_order_stale_market_data_rejected` | Stale market data fails closed for agent orders |
+| `test_agent_guarded_order_permission_denied` | Frozen sub-accounts cannot submit orders |
+| `test_agent_guarded_order_invalid_side_rejected` | Invalid side values rejected pre-RiskEngine |
+| `test_agent_guarded_order_zero_quantity_rejected` | Zero/negative quantity rejected pre-RiskEngine |
 
 ---
 
@@ -580,7 +611,7 @@ The following require **operator/broker/deployment evidence** and cannot be cert
 | Feed freshness | ≤ 5s | ✅ Configured (`ZKSATO_SLO_FEED_FRESHNESS_SECONDS=5`) |
 | Reconciliation backlog | 0 | ✅ Configured (`ZKSATO_SLO_RECONCILIATION_BACKLOG_MAX=0`) |
 | Branch coverage | ≥ 65% | ✅ **65.07%** |
-| Test execution time | < 30s | ✅ **17.74s** (486 tests) |
+| Test execution time | < 30s | ✅ **19.51s** (694 tests) |
 | Container startup | < 30s | ✅ Multi-stage build, healthchecks |
 
 ---
