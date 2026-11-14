@@ -44,7 +44,11 @@ class RiskRejectedError(Exception):
 
 
 class TradingModeError(Exception):
-    pass
+    """Raised when an operation is not permitted in the current trading mode."""
+
+    def __init__(self, message: str, mode: str | None = None) -> None:
+        super().__init__(message)
+        self.mode = mode
 
 
 class TradingService:
@@ -388,16 +392,16 @@ class TradingService:
         if self.settings.trading_mode == "paper":
             return
         if not self.settings.settrade_configured:
-            raise TradingModeError("Settrade credentials are not configured")
+            raise TradingModeError("Settrade credentials are not configured", mode=self.settings.trading_mode)
         if self.settings.trading_mode == "live" and automated:
             message = "autonomous live execution is disabled; live orders require approval"
-            raise TradingModeError(message)
+            raise TradingModeError(message, mode=self.settings.trading_mode)
         if self.settings.reconciliation_enabled and not self.store.broker_reconciliation_ready():
-            raise TradingModeError("broker reconciliation has not completed successfully")
+            raise TradingModeError("broker reconciliation has not completed successfully", mode=self.settings.trading_mode)
         if self.settings.trading_mode == "sandbox":
             return
         if not self.settings.live_trading_enabled:
-            raise TradingModeError("live trading is disabled by server policy")
+            raise TradingModeError("live trading is disabled by server policy", mode=self.settings.trading_mode)
         if not self.settings.live_requires_confirmation:
             return
         if approval_id and self.approvals is not None:
@@ -409,11 +413,11 @@ class TradingService:
                     require_distinct_approver=self.settings.require_distinct_approver,
                 )
             except ValueError as exc:
-                raise TradingModeError(str(exc)) from exc
+                raise TradingModeError(str(exc), mode=self.settings.trading_mode) from exc
             return
         # Legacy reusable live token has been removed; intent-bound approval is mandatory
         # even when ZKSATO_LEGACY_LIVE_TOKEN_ENABLED is set (fails closed per invariant #2).
-        raise TradingModeError("one-time intent-bound live approval is required")
+        raise TradingModeError("one-time intent-bound live approval is required", mode=self.settings.trading_mode)
 
     async def get_order(self, order_id: str) -> OrderRecord:
         order = self.store.find_order(order_id)

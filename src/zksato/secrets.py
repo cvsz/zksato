@@ -81,7 +81,6 @@ def validate_env_file(env_path: str = ".env") -> None:
 
     text = path.read_text(encoding="utf-8")
     key_re = re.compile(r"^[A-Z_][A-Z0-9_]*$")
-    secret_hints = re.compile(r"(?i)(password|secret|token|api_key|private_key|pin|credential)")
     shell_meta = re.compile(r"[;&|`$(){}[\]<>]")
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
@@ -101,5 +100,9 @@ def validate_env_file(env_path: str = ".env") -> None:
             raise ValueError(
                 f"{env_path}:{lineno}: value for '{key}' contains shell metacharacters"
             )
-        if secret_hints.search(key) and val and not is_placeholder:
+        # คีย์ที่เป็นหรือลงท้ายด้วยคำว่าลับจริง (ค่าที่ไม่ควรเขียนตรงใน .env) เท่านั้นที่ต้องใช้ placeholder
+        is_secret_key = bool(
+            re.search(r"(?:^|_)(SECRET|API_KEY|PRIVATE_KEY|PASSWORD|PIN|CREDENTIAL|TOKEN)$", key)
+        )
+        if is_secret_key and val and not is_placeholder:
             raise ValueError(f"{env_path}:{lineno}: secret key '{key}' must use a placeholder")

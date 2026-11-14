@@ -425,6 +425,25 @@ tui-install: install-cli
 tui-start:
 	@printf '$(CYAN)Launching zksato TUI…$(RESET)\n'
 	@if [ -f .env ]; then set -a; . ./.env; set +a; fi; \
+	# Ensure the backend is reachable on :9569; start it in paper mode if not. \
+	if ! curl -fsS http://127.0.0.1:9569/health >/dev/null 2>&1; then \
+		printf '$(CYAN)Backend not reachable on :9569; starting it…$(RESET)\n'; \
+		ZKSATO_TRADING_MODE=paper $(PYTHON) -m uvicorn zksato.api:app --host 127.0.0.1 --port 9569 & \
+		echo $$! > /tmp/zksato-backend.pid; \
+		ready=0; \
+		for i in $$(seq 1 20); do \
+			if curl -fsS http://127.0.0.1:9569/health >/dev/null 2>&1; then \
+				ready=1; \
+				break; \
+			fi; \
+			sleep 0.5; \
+		done; \
+		if [ "$$ready" = "1" ]; then \
+			printf '$(GREEN)Backend ready on :9569$(RESET)\n'; \
+		else \
+			printf '$(YELLOW)Backend did not become ready; TUI will start in offline mode$(RESET)\n'; \
+		fi; \
+	fi; \
 	$(PYTHON) -m zksato_cli.main tui start --host localhost --port 9569
 
 tui-build:
@@ -440,7 +459,6 @@ tui-build:
 		--hidden-import=yaml \
 		--collect-all=textual \
 		--collect-all=rich \
-		--entry-point="zksato_cli.main:app" \
 		--distpath=dist/tui \
 		--workpath=build/tui \
 		--specpath=build/tui \

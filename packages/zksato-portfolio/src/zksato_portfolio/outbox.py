@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 from zksato_core.models import OutboxMessage
 
 from zksato_portfolio.persistence import PersistenceLayer
 
+logger = logging.getLogger(__name__)
+
 
 class OutboxDelivery:
-    """Delivers outbox messages with retry logic."""
+    """Delivers outbox messages with retry logic and dead-letter handling.
+
+    Messages that exceed ``max_retries`` are dead-lettered (marked as
+    ``dead_lettered_at``) so poison messages cannot block the delivery loop
+    forever.  Delivery exceptions are logged rather than swallowed silently.
+    """
 
     def __init__(
         self,
@@ -44,9 +53,10 @@ class OutboxDelivery:
 
     async def _delivery_loop(self) -> None:
         while self._running:
-            # Failures are retried on the next batch; production wires real logging here
-            with contextlib.suppress(Exception):
+            try:
                 await self._process_batch()
+            except Exception as exc:  # log and continue; never kill the loop
+                logger.exception("outbox batch failed: %s", exc)
             await asyncio.sleep(1.0)
 
     async def _process_batch(self) -> None:
@@ -59,10 +69,25 @@ class OutboxDelivery:
             try:
                 await self.handler(message)
                 await self.persistence.mark_outbox_sent(str(message.id))
-            except Exception as e:
+            except Exception as exc:
                 message.retry_count += 1
-                message.last_error = str(e)
+                message.last_error = str(exc)
+                message.last_attempt_at = datetime.now(UTC)
                 if message.retry_count >= self.max_retries:
-                    # Move to dead letter or alert
-                    pass
+                    # Dead-letter: stop retrying this poison message so it
+                    # cannot block the delivery loop forever.
+                    await self.persistence.mark_outbox_dead_lettered(str(message.id))
+                    logger.error(
+                        "outbox message %s dead-lettered after %d retries: %s",
+                        message.id,
+                        message.retry_count,
+                        exc,
+                    )
+                else:
+                    logger.warning(
+                        "outbox message %s attempt %d failed: %s",
+                        message.id,
+                        message.retry_count,
+                        exc,
+                    )
                 await asyncio.sleep(self.retry_delay)

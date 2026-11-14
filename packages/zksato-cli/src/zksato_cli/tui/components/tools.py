@@ -18,6 +18,8 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widget import Widget
 
+from ..styles import COLORS
+
 
 class ToolPanel(Widget):
     """Tool execution display panel."""
@@ -99,11 +101,13 @@ class ToolPanel(Widget):
         status = entry["status"]
         result = entry.get("result")
 
-        status_color = {
-            "pending": "warning",
-            "completed": "success",
-            "error": "error",
-        }.get(status, "muted")
+        status_color = COLORS[
+            {
+                "pending": "warning",
+                "completed": "success",
+                "error": "error",
+            }.get(status, "muted")
+        ]
 
         if self.tool_display == "emoji":
             tool_emoji = {

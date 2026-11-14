@@ -453,7 +453,7 @@ async def liveness() -> dict[str, str]:
 
 
 @app.get("/health")
-async def health() -> dict[str, object]:
+async def health(_principal: ReadPrincipal) -> dict[str, object]:
     return await _health_payload()
 
 

@@ -13,7 +13,7 @@ This report documents the complete validation of **zksato v2.0.0-dev** — a ris
 | Gate | Status | Evidence |
 |------|--------|----------|
 | **Code Quality (ruff)** | ✅ PASS | `ruff check .` — all checks passed |
-| **Code Format (ruff format)** | ✅ PASS | 630 files already formatted |
+| **Code Format (ruff format)** | ✅ PASS | 634 files already formatted |
 | **Type Safety (mypy)** | ✅ PASS | 86 source files, no issues |
 | **Unit/Integration Tests** | ✅ PASS | 694 passed, 6 skipped (~33s) |
 | **Security Scan (bandit)** | ✅ PASS | 0 HIGH/MEDIUM findings |
@@ -93,7 +93,7 @@ Success: no issues found in 86 source files
 $ ruff check .
 All checks passed!
 $ ruff format --check .
-630 files already formatted
+634 files already formatted
 ```
 
 - **Target:** Python 3.11
@@ -174,7 +174,7 @@ Added database component settings to `Settings` in `src/zksato/config.py`:
 |---------|-------|-------------|
 | `ZKSATO_POSTGRES_HOST` | `zpostgressql` | PostgreSQL host |
 | `ZKSATO_POSTGRES_PORT` | `5432` | PostgreSQL port |
-| `ZKSATO_POSTGRES_DB` | `zcoder_db` | Production database |
+| `ZKSATO_POSTGRES_DB` | `zksato` | Production database |
 | `ZKSATO_TEST_POSTGRES_DB` | `zksato_db` | Test database |
 | `ZKSATO_POSTGRES_USER` | `zksato` | Database user (repo-name) |
 | `ZKSATO_POSTGRES_PASSWORD_FILE` | `/run/secrets/zksato_postgres_password` | Password file |
@@ -187,7 +187,7 @@ Added database component settings to `Settings` in `src/zksato/config.py`:
 - `/run/secrets/zksato_postgres_password` — PostgreSQL password for `zksato` role
 - `/run/secrets/zksato_zredis_password` — Redis ACL password
 
-Then grant `zksato` role access to `zcoder_db` and `zksato_db` on `zpostgressql`.
+Then grant `zksato` role access to `zksato` and `zksato_db` on `zpostgressql`.
 
 ### 3. Secret-File Loading Already Supported
 
@@ -204,6 +204,18 @@ Then grant `zksato` role access to `zcoder_db` and `zksato_db` on `zpostgressql`
 | `prediction_clob_api_key` | `zksato_prediction_clob_api_key` |
 | `prediction_clob_api_secret` | `zksato_prediction_clob_api_secret` |
 | `prediction_clob_passphrase` | `zksato_prediction_clob_passphrase` |
+
+### 4. Additional Security Fixes (2026-11-14)
+
+| Fix | File | Description |
+|-----|------|-------------|
+| Precise secret key detection | `src/zksato/secrets.py` | `validate_env_file()` now flags only keys ending with `_SECRET`, `_API_KEY`, `_PRIVATE_KEY`, `_PASSWORD`, `_PIN`, `_CREDENTIAL`, `_TOKEN` as secret keys requiring `${...}` placeholders; `_DIR`, `_ENABLED`, `_NAME` etc. are treated as configuration |
+| `TradingModeError` carries mode | `src/zksato/service.py` | `TradingModeError` now accepts a `mode` parameter for better debugging and auditing of rejected live/sandbox operations |
+| Outbox dead-letter handling | `packages/zksato-portfolio/src/zksato_portfolio/outbox.py` | Messages exceeding `max_retries` are dead-lettered (`dead_lettered_at` set) so poison messages cannot block the delivery loop forever; exceptions are logged instead of silently swallowed |
+| `OutboxMessage` writable fields | `packages/zksato-core/src/zksato_core/models.py` | `OutboxMessage` unfrozen; added `retry_count`, `last_error`, `last_attempt_at`, `dead_lettered_at` fields |
+| Persistence dead-letter method | `packages/zksato-portfolio/src/zksato_portfolio/persistence.py` | Added `mark_outbox_dead_lettered()` abstract method + `InMemoryPersistence` implementation; `get_pending_outbox()` filters out dead-lettered messages |
+| `/health` requires auth | `src/zksato/api.py` | `/health` endpoint now requires `ReadPrincipal` authentication (previously unauthenticated) |
+| `postgres_db` default matches docker-compose | `src/zksato/config.py` | Default `postgres_db` changed from `zcoder_db` to `zksato` to match `docker-compose.yml` `POSTGRES_DB: zksato` |
 
 ---
 
@@ -300,7 +312,7 @@ Browser/API Client → FastAPI (validation, no secrets) → TradingService (risk
 |-------|---------|--------|
 | Install dev dependencies | `pip install -e '.[dev]'` | ✅ |
 | Lint (ruff) | `ruff check .` | ✅ All checks passed |
-| Format check | `ruff format --check .` | ✅ 630 files formatted |
+| Format check | `ruff format --check .` | ✅ 634 files formatted |
 | Type check (mypy) | `mypy src/zksato scripts` | ✅ 86 files, no issues |
 | Security scan (bandit) | `bandit -q -r src packages -ll` | ✅ 0 HIGH/MEDIUM |
 | Shell lint (shellcheck) | `shellcheck deploy/*.sh scripts/*.sh` | ✅ 0 issues |
@@ -400,7 +412,7 @@ The following require **operator/broker/deployment evidence** and cannot be cert
    - `/run/secrets/zksato_session_secret` — Session signing secret
    - `/run/secrets/zksato_api_keys` — API key definitions
 
-2. **Grant database access:** Create `zksato` user on `zpostgressql`; grant access to `zcoder_db` and `zksato_db`
+2. **Grant database access:** Create `zksato` user on `zpostgressql`; grant access to `zksato` and `zksato_db`
 
 3. **Set environment** via `.env`:
    - `ZKSATO_ENVIRONMENT=dev|test|uat|prod`

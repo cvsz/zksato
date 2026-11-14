@@ -49,6 +49,9 @@ class PersistenceLayer(ABC):
     @abstractmethod
     async def mark_outbox_sent(self, message_id: str) -> None: ...
 
+    @abstractmethod
+    async def mark_outbox_dead_lettered(self, message_id: str) -> None: ...
+
 
 class InMemoryPersistence(PersistenceLayer):
     """In-memory persistence for testing."""
@@ -105,11 +108,17 @@ class InMemoryPersistence(PersistenceLayer):
         self._outbox.append(message)
 
     async def get_pending_outbox(self, limit: int = 100) -> list[OutboxMessage]:
-        pending = [m for m in self._outbox if not m.sent_at]
+        pending = [m for m in self._outbox if not m.sent_at and not m.dead_lettered_at]
         return pending[:limit]
 
     async def mark_outbox_sent(self, message_id: str) -> None:
         for m in self._outbox:
             if str(m.id) == message_id:
                 m.sent_at = datetime.now(UTC)
+                break
+
+    async def mark_outbox_dead_lettered(self, message_id: str) -> None:
+        for m in self._outbox:
+            if str(m.id) == message_id:
+                m.dead_lettered_at = datetime.now(UTC)
                 break
