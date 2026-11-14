@@ -105,3 +105,8 @@ Status meanings: **Implemented** = repository code exists and is covered by auto
 | Agent platform | MCP client & server | Implemented | stdio/SSE/WebSocket transports, tool/resource/prompt discovery, manager config persistence |
 | Agent platform | CRDT shared state | Implemented | G/PN counters, LWW registers, OR-sets with merge-convergence semantics |
 | Agent platform | Test coverage | Implemented | `tests/test_agent_platform.py` (48 tests); `packages/` in ruff/mypy/bandit gates |
+
+| Market data | Technical indicators (SMA, EMA, RSI, MACD, Bollinger, VWAP, ATR, Williams %R) | Implemented | NumPy-vectorized indicators in `packages/zksato-market/src/zksato_market/features.py` |
+| UI | MIRO module registry (Probability Lattice, Tail Probability Ridge, Relationship Graph, PNL dot-matrix) | Implemented | Module registry in `src/zksato/dashboard.py` with frontend rAF loop integration |
+| Strategy | LLM-driven decision engine (call_openrouter, parse_decision, build_market_features, resolve_execution_mode) | Implemented | `packages/zksato-strategy/src/zksato_strategy/llm_decision.py` with safety-first design |
+| Automation | Autotrade bot CLI (run_cycle, main_loop, execution mode gate) | Implemented | `packages/zksato-automation/src/zksato_automation/bot.py` with safety gate and daily-loss halt |
