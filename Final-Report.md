@@ -168,7 +168,7 @@ Per Safety Invariant #4 ("Broker credentials, PINs, tokens, and confirmation sec
 
 ### 2. Database Configuration Per Ops Plan Step 2.4
 
-Added database component settings to `Settings` in `src/zksato/config.py`:
+Added database component settings to `Settings` in `src/zksato/config.py`, including automatic URL building from component settings when `ZKSATO_DATABASE_URL` / `ZKSATO_TEST_DATABASE_URL` / `ZKSATO_REDIS_URL` are not supplied directly. Passwords are read from mounted secret files under `ZKSATO_SECRET_DIR` (`/run/secrets`).
 
 | Setting | Value | Description |
 |---------|-------|-------------|
@@ -182,6 +182,13 @@ Added database component settings to `Settings` in `src/zksato/config.py`:
 | `ZKSATO_REDIS_PORT` | `6379` | Redis port |
 | `ZKSATO_REDIS_DB` | `0` | Redis database index |
 | `ZKSATO_REDIS_PASSWORD_FILE` | `/run/secrets/zksato_zredis_password` | Password file |
+
+**Automatic URL building (new in this revision):**
+- `DATABASE_URL` → `postgresql+psycopg://{user}:{password}@{host}:{port}/{db}` (built when not set directly; password from secret file)
+- `TEST_DATABASE_URL` → same pattern against `test_postgres_db`
+- `REDIS_URL` → `redis://[:password]@{host}:{port}/{db}` (built when not set directly; password from secret file)
+
+When the secret file is missing/unreadable, URLs resolve to `None` and the system degrades gracefully to in-memory state — never failing open.
 
 **Operator must create (not committed):**
 - `/run/secrets/zksato_postgres_password` — PostgreSQL password for `zksato` role

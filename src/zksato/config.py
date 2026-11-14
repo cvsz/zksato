@@ -285,12 +285,14 @@ class Settings(BaseSettings):
 
         Reads the PostgreSQL password from the mounted secret file
         (``postgres_password_file`` under ``secret_dir``).  Returns ``None`` when
-        the password file is unavailable so callers can degrade gracefully to
-        in-memory state.
+        the password file is not configured or unreadable so callers can degrade
+        gracefully to in-memory state.
         """
         if self.database_url:
             return self.database_url
-        password = self._read_secret_file(self.postgres_password_file) if self.postgres_password_file else None
+        if not self.postgres_password_file:
+            return None
+        password = self._read_secret_file(self.postgres_password_file)
         if not password:
             return None
         return (
@@ -300,7 +302,9 @@ class Settings(BaseSettings):
 
     def _build_test_database_url(self) -> str | None:
         """Build ``TEST_DATABASE_URL`` from component settings (test database)."""
-        password = self._read_secret_file(self.postgres_password_file) if self.postgres_password_file else None
+        if not self.postgres_password_file:
+            return None
+        password = self._read_secret_file(self.postgres_password_file)
         if not password:
             return None
         return (
@@ -312,11 +316,14 @@ class Settings(BaseSettings):
         """Build ``REDIS_URL`` from component settings when not supplied directly.
 
         Reads the Redis ACL password from the mounted secret file
-        (``redis_password_file`` under ``secret_dir``).
+        (``redis_password_file`` under ``secret_dir``).  Returns ``None`` when
+        the password file is not configured or unreadable.
         """
         if self.redis_url:
             return self.redis_url
-        password = self._read_secret_file(self.redis_password_file) if self.redis_password_file else None
+        if not self.redis_password_file:
+            return None
+        password = self._read_secret_file(self.redis_password_file)
         if password:
             return f"redis://:{password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
         return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
