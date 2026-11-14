@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -130,9 +130,7 @@ async def test_agent_guarded_order_stale_market_data_rejected() -> None:
     # Age the quote directly in the store to exceed the staleness threshold
     quote = store.get_quote("BTC/USDT")
     assert quote is not None
-    quote.timestamp = datetime.now(UTC).replace(
-        minute=datetime.now(UTC).minute - 5
-    )  # 5 minutes old >> 10s threshold
+    quote.timestamp = datetime.now(UTC) - timedelta(minutes=5)  # 5 minutes old >> 10s threshold
 
     broker = PaperBroker(store)
     service = TradingService(settings, broker, store)
