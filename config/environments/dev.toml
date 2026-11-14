@@ -18,7 +18,7 @@ paper_price_improvement = true
 
 [database]
 # database_url = "sqlite+aiosqlite:///./zksato.db"
-# database_url = "postgresql+psycopg://zksato:zksato_dev_only@localhost:5432/zksato"
+# database_url = "postgresql+psycopg://zksato:$(cat /run/secrets/zksato_postgres_password)@zpostgressql:5432/zcoder_db"
 
 [redis]
 # redis_url = "redis://localhost:6379/0"

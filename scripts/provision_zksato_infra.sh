@@ -9,12 +9,12 @@ POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_ADMIN_USER="${POSTGRES_ADMIN_USER:-postgres}"
 POSTGRES_DB_NAME="${POSTGRES_DB_NAME:-zksato}"
 ZKSATO_DB_USER="${ZKSATO_DB_USER:-zksato}"
-ZKSATO_DB_PASSWORD="${ZKSATO_DB_PASSWORD:-zksato_dev_only}"
+ZKSATO_DB_PASSWORD="${ZKSATO_DB_PASSWORD:?must set ZKSATO_DB_PASSWORD (or mount /run/secrets/zksato_postgres_password)}"
 
 REDIS_HOST="${REDIS_HOST:-zredis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_USER="${REDIS_USER:-zksato}"
-REDIS_PASSWORD="${REDIS_PASSWORD:-zksato_redis_pass}"
+REDIS_PASSWORD="${REDIS_PASSWORD:?must set REDIS_PASSWORD (or mount /run/secrets/zksato_zredis_password)}"
 
 echo "=== 1. Provisioning PostgreSQL user and database (${POSTGRES_HOST}:${POSTGRES_PORT}) ==="
 
