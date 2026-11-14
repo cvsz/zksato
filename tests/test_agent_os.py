@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -111,3 +111,139 @@ async def test_agent_execution_engine_routing() -> None:
         order_id=order_id,
     )
     assert cancel_res["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_agent_guarded_order_stale_market_data_rejected() -> None:
+    """Agent orders must be rejected when market data is stale (fail closed)."""
+    settings = Settings(trading_mode="paper", market_data_stale_seconds=10.0)
+    store = StateStore()
+    store.update_quote(
+        Quote(
+            symbol="BTC/USDT",
+            bid=50000.0,
+            offer=50010.0,
+            last=50005.0,
+            timestamp=datetime.now(UTC),
+        )
+    )
+    # Age the quote directly in the store to exceed the staleness threshold
+    quote = store.get_quote("BTC/USDT")
+    assert quote is not None
+    quote.timestamp = datetime.now(UTC) - timedelta(minutes=5)  # 5 minutes old >> 10s threshold
+
+    broker = PaperBroker(store)
+    service = TradingService(settings, broker, store)
+
+    subaccount_mgr = AgentSubAccountManager()
+    acc = subaccount_mgr.create_subaccount("grid_bot", collateral_usd=2000.0)
+
+    engine = AgentExecutionEngine(settings, service, subaccount_mgr)
+
+    order_res = await engine.skills.execute_skill(
+        "submit_guarded_order",
+        sub_account_id=acc.sub_account_id,
+        symbol="BTC/USDT",
+        side="buy",
+        quantity=1,
+        price=50000.0,
+        order_type="limit",
+    )
+    assert order_res["success"] is True
+    result = order_res["result"]
+    assert result["approved"] is False
+    assert any("stale" in r.lower() for r in result.get("reasons", []))
+
+
+@pytest.mark.asyncio
+async def test_agent_guarded_order_permission_denied() -> None:
+    """Frozen sub-accounts must not be able to submit orders."""
+    settings = Settings(trading_mode="paper")
+    store = StateStore()
+    store.update_quote(
+        Quote(
+            symbol="BTC/USDT",
+            bid=50000.0,
+            offer=50010.0,
+            last=50005.0,
+            timestamp=datetime.now(UTC),
+        )
+    )
+    broker = PaperBroker(store)
+    service = TradingService(settings, broker, store)
+
+    subaccount_mgr = AgentSubAccountManager()
+    acc = subaccount_mgr.create_subaccount("frozen_agent", collateral_usd=2000.0)
+    subaccount_mgr.freeze_subaccount(acc.sub_account_id)
+
+    engine = AgentExecutionEngine(settings, service, subaccount_mgr)
+
+    order_res = await engine.skills.execute_skill(
+        "submit_guarded_order",
+        sub_account_id=acc.sub_account_id,
+        symbol="BTC/USDT",
+        side="buy",
+        quantity=1,
+        price=50000.0,
+        order_type="limit",
+    )
+    assert order_res["success"] is True
+    result = order_res["result"]
+    assert result["approved"] is False
+    assert "unauthorized" in result.get("reason", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_agent_guarded_order_invalid_side_rejected() -> None:
+    """Invalid side values must be rejected before reaching RiskEngine."""
+    settings = Settings(trading_mode="paper")
+    store = StateStore()
+    broker = PaperBroker(store)
+    service = TradingService(settings, broker, store)
+
+    subaccount_mgr = AgentSubAccountManager()
+    acc = subaccount_mgr.create_subaccount("bad_agent", collateral_usd=2000.0)
+
+    engine = AgentExecutionEngine(settings, service, subaccount_mgr)
+
+    order_res = await engine.skills.execute_skill(
+        "submit_guarded_order",
+        sub_account_id=acc.sub_account_id,
+        symbol="BTC/USDT",
+        side="invalid_side",
+        quantity=1,
+        price=50000.0,
+        order_type="limit",
+    )
+    assert order_res["success"] is True
+    result = order_res["result"]
+    assert result["approved"] is False
+    assert "side" in result.get("reason", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_agent_guarded_order_zero_quantity_rejected() -> None:
+    """Zero or negative quantity must be rejected before reaching RiskEngine."""
+    settings = Settings(trading_mode="paper")
+    store = StateStore()
+    broker = PaperBroker(store)
+    service = TradingService(settings, broker, store)
+
+    subaccount_mgr = AgentSubAccountManager()
+    acc = subaccount_mgr.create_subaccount("zero_qty_agent", collateral_usd=2000.0)
+
+    engine = AgentExecutionEngine(settings, service, subaccount_mgr)
+
+    order_res = await engine.skills.execute_skill(
+        "submit_guarded_order",
+        sub_account_id=acc.sub_account_id,
+        symbol="BTC/USDT",
+        side="buy",
+        quantity=0,
+        price=50000.0,
+        order_type="limit",
+    )
+    assert order_res["success"] is True
+    result = order_res["result"]
+    assert result["approved"] is False
+    assert "quantity" in result.get("reason", "").lower()
