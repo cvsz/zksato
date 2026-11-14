@@ -18,11 +18,11 @@ COLORS = {
     "warning": "yellow",
     "error": "red",
     "info": "blue",
-    "muted": "grey",
+    "muted": "gray70",
     "surface": "black",
-    "surface_light": "grey",
+    "surface_light": "gray70",
     "text": "white",
-    "text_dim": "grey70",
+    "text_dim": "gray70",
 }
 
 # Risk level colors
@@ -45,9 +45,9 @@ STATUS_COLORS = {
     "pending": "yellow",
     "open": "blue",
     "filled": "green",
-    "cancelled": "grey",
+    "cancelled": "gray70",
     "rejected": "red",
-    "expired": "grey",
+    "expired": "gray70",
 }
 
 

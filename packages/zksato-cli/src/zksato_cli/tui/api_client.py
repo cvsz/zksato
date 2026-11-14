@@ -39,10 +39,10 @@ class ZKSATOAPIClient:
             await self._client.aclose()
             self._client = None
 
-    async def health(self) -> dict[str, Any]:
+    async def health(self, timeout: float = 5.0) -> dict[str, Any]:
         """Check API health."""
         client = await self._get_client()
-        resp = await client.get("/health")
+        resp = await client.get("/health", timeout=timeout)
         resp.raise_for_status()
         return resp.json()  # type: ignore[no-any-return]
 

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         return (
             init_settings,
+            dotenv_settings,
             AWSSecretManagerSettingsSource(settings_cls),
             env_settings,
         )
@@ -50,12 +51,13 @@ class Settings(BaseSettings):
     paper_price_improvement: bool = True
 
     database_url: str | None = None
+    test_database_url: str | None = None
     redis_url: str | None = None
     # Database component settings (used to build DATABASE_URL when the full URL
     # is not supplied directly; passwords are read from mounted secret files).
     postgres_host: str = "zpostgressql"
     postgres_port: int = Field(default=5432, ge=1, le=65535)
-    postgres_db: str = "zcoder_db"
+    postgres_db: str = "zksato"
     postgres_user: str = "zksato"
     postgres_password_file: str | None = None
     test_postgres_db: str = "zksato_db"
@@ -264,6 +266,60 @@ class Settings(BaseSettings):
                 continue
             if value:
                 setattr(self, field_name, value)
+
+        # Build DATABASE_URL / TEST_DATABASE_URL / REDIS_URL from component
+        # settings when not supplied directly, reading passwords from mounted
+        # secret files.
+        built_db = self._build_database_url()
+        if built_db is not None:
+            object.__setattr__(self, "database_url", built_db)
+        built_test_db = self._build_test_database_url()
+        if built_test_db is not None:
+            object.__setattr__(self, "test_database_url", built_test_db)
+        built_redis = self._build_redis_url()
+        if built_redis is not None:
+            object.__setattr__(self, "redis_url", built_redis)
+
+    def _build_database_url(self) -> str | None:
+        """Build ``DATABASE_URL`` from component settings when not supplied directly.
+
+        Reads the PostgreSQL password from the mounted secret file
+        (``postgres_password_file`` under ``secret_dir``).  Returns ``None`` when
+        the password file is unavailable so callers can degrade gracefully to
+        in-memory state.
+        """
+        if self.database_url:
+            return self.database_url
+        password = self._read_secret_file(self.postgres_password_file) if self.postgres_password_file else None
+        if not password:
+            return None
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    def _build_test_database_url(self) -> str | None:
+        """Build ``TEST_DATABASE_URL`` from component settings (test database)."""
+        password = self._read_secret_file(self.postgres_password_file) if self.postgres_password_file else None
+        if not password:
+            return None
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.test_postgres_db}"
+        )
+
+    def _build_redis_url(self) -> str | None:
+        """Build ``REDIS_URL`` from component settings when not supplied directly.
+
+        Reads the Redis ACL password from the mounted secret file
+        (``redis_password_file`` under ``secret_dir``).
+        """
+        if self.redis_url:
+            return self.redis_url
+        password = self._read_secret_file(self.redis_password_file) if self.redis_password_file else None
+        if password:
+            return f"redis://:{password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
     @property
     def watchlist(self) -> list[str]:
