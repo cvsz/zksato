@@ -36,8 +36,8 @@ The platform provides:
 | Databases | Missing | `zcoder_db` and `zksato_db` created, owned by `zksato` |
 | Schema privileges | Not granted | `GRANT ALL ON SCHEMA public` + table/sequence privileges on both DBs |
 | Password files | Not created | `/run/secrets/zksato_postgres_password`, `/run/secrets/zksato_zredis_password` (operator-placed) |
-| DATABASE_URL | Inline password at `172.26.0.7:5432` | `postgresql+psycopg://zksato:zksato_dev_only@zpostgressql:5432/zcoder_db` |
-| TEST_DATABASE_URL | Inline password at `172.26.0.7:5432` | `postgresql+psycopg://zksato:zksato_dev_only@zpostgressql:5432/zksato_db` |
+| DATABASE_URL | Placeholder password (operator-placed secret file) | `postgresql+psycopg://zksato:<password>@zpostgressql:5432/zcoder_db` |
+| TEST_DATABASE_URL | Placeholder password (operator-placed secret file) | `postgresql+psycopg://zksato:<password>@zpostgressql:5432/zksato_db` |
 | ZKSATO_POSTGRES_HOST | `zpostgresql` | `zpostgressql` |
 | ZKSATO_POSTGRES_PORT | `5432` | `5432` |
 | ZKSATO_POSTGRES_PASSWORD_FILE | `/run/secrets/zksato_postgres_password` | `/run/secrets/zksato_postgres_password` |
