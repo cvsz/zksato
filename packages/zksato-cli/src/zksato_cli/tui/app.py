@@ -16,6 +16,7 @@ from typing import ClassVar
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.widgets import Footer, Header
 
 from .api_client import ZKSATOAPIClient
@@ -120,24 +121,51 @@ class ZKSATOTUI(App[None]):
             api_key=self.config.api_key,
         )
 
-        # Try to connect to API
+        # Try to connect to the API. If the backend is unavailable, start in
+        # offline mode instead of crashing: the background refresh loop and the
+        # individual command handlers already tolerate API failures, and the
+        # chat panel posts a warning so the operator sees why data is missing.
         client = self.api_client
         assert client is not None
         try:
             health = await client.health()
-            self.query_one("#chat-panel", ChatPanel).add_system_message(
-                f"Connected to zksato API: {health.get('status', 'unknown')}"
-            )
+            self._post_system_message(f"Connected to zksato API: {health.get('status', 'unknown')}")
         except Exception as exc:
-            self.query_one("#chat-panel", ChatPanel).add_system_message(
-                f"Warning: Could not connect to API: {exc}"
+            self._post_system_message(
+                f"Warning: Could not connect to API at {self.config.api_base_url}: {exc}"
+            )
+            self._post_system_message(
+                "Running in offline mode. Run 'make start-backend' to enable "
+                "data and order commands."
             )
 
-        # Start background data refresh
+        # Start background data refresh (tolerates the API being down)
         self._update_task = asyncio.create_task(self._periodic_refresh())
 
         # Focus the input panel
-        self.query_one("#input-panel", InputPanel).focus()
+        input_panel = self._input_panel()
+        if input_panel is not None:
+            input_panel.focus()
+
+    def _chat_panel(self) -> ChatPanel | None:
+        """Return the chat panel if it is mounted, else None."""
+        try:
+            return self.query_one("#chat-panel", ChatPanel)
+        except NoMatches:
+            return None
+
+    def _input_panel(self) -> InputPanel | None:
+        """Return the input panel if it is mounted, else None."""
+        try:
+            return self.query_one("#input-panel", InputPanel)
+        except NoMatches:
+            return None
+
+    def _post_system_message(self, content: str) -> None:
+        """Post a system message to the chat panel when it is available."""
+        panel = self._chat_panel()
+        if panel is not None:
+            panel.add_system_message(content)
 
     async def on_unmount(self) -> None:
         """Clean up on unmount."""

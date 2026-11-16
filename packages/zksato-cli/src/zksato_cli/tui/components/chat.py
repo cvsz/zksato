@@ -16,6 +16,8 @@ from rich.text import Text
 from textual.reactive import reactive
 from textual.widget import Widget
 
+from ..styles import COLORS
+
 
 class ChatMessage:
     """Represents a single chat message."""
@@ -111,10 +113,10 @@ class ChatPanel(Widget):
                 "system": "blue",
                 "tool": "yellow",
                 "risk": "red",
-            }.get(msg.role, "grey")
+            }.get(msg.role, COLORS["muted"])
 
             role_label = Text(f"[{msg.role.upper()}] ", style=Style(color=role_color, bold=True))
-            time_label = Text(f" {timestamp} ", style=Style(color="muted", dim=True))
+            time_label = Text(f" {timestamp} ", style=Style(color=COLORS["muted"], dim=True))
 
             content_text = Text(msg.content, style="")
             renders.append(Text.assemble(role_label, time_label, "\n", content_text, "\n"))
