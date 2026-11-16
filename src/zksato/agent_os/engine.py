@@ -70,6 +70,11 @@ class AgentExecutionEngine:
                     "reason": "Unauthorized agent sub-account or permission denied",
                 }
 
+            if params.side.lower() not in {"buy", "sell"}:
+                return {"approved": False, "reason": "side must be buy or sell"}
+            if float(params.quantity) <= 0:
+                return {"approved": False, "reason": "quantity must be positive"}
+
             intent_side = Side.BUY if params.side.lower() == "buy" else Side.SELL
             intent_type = (
                 OrderType.LIMIT if params.order_type.lower() == "limit" else OrderType.MARKET
@@ -83,10 +88,6 @@ class AgentExecutionEngine:
             else:
                 stop_loss = params.stop_loss
 
-            if params.side.lower() not in {"buy", "sell"}:
-                return {"approved": False, "reason": "side must be buy or sell"}
-            if float(params.quantity) <= 0:
-                return {"approved": False, "reason": "quantity must be positive"}
             intent = OrderIntent(
                 symbol=params.symbol,
                 side=intent_side,
@@ -97,7 +98,11 @@ class AgentExecutionEngine:
                 take_profit=params.take_profit,
                 source=f"agent_os:{acc.agent_name}",
             )
-            submission = OrderSubmission(intent=intent)
+
+            # Server-side trusted risk context — never trust client-supplied risk context.
+            # Matches the pattern used in api.py place_order and automation.py _execute_signal.
+            trusted_context = await self.trading_service.risk_context_for(intent)
+            submission = OrderSubmission(intent=intent, risk=trusted_context)
 
             # Route through trusted TradingService with risk evaluation
             try:

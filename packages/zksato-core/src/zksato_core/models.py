@@ -498,7 +498,7 @@ class AuditEvent:
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class OutboxMessage:
     """Outbox message for reliable delivery."""
 
@@ -507,6 +507,10 @@ class OutboxMessage:
     payload: dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     sent_at: datetime | None = None
+    retry_count: int = 0
+    last_error: str | None = None
+    last_attempt_at: datetime | None = None
+    dead_lettered_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

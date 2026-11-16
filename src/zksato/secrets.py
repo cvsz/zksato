@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from importlib import import_module
 from typing import Any
 
@@ -72,7 +73,6 @@ def validate_env_file(env_path: str = ".env") -> None:
 
     Raises ValueError with a descriptive message on any violation.
     """
-    import re
     from pathlib import Path
 
     path = Path(env_path)
@@ -81,7 +81,6 @@ def validate_env_file(env_path: str = ".env") -> None:
 
     text = path.read_text(encoding="utf-8")
     key_re = re.compile(r"^[A-Z_][A-Z0-9_]*$")
-    secret_hints = re.compile(r"(?i)(password|secret|token|api_key|private_key|pin|credential)")
     shell_meta = re.compile(r"[;&|`$(){}[\]<>]")
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
@@ -97,9 +96,16 @@ def validate_env_file(env_path: str = ".env") -> None:
             raise ValueError(f"{env_path}:{lineno}: invalid environment variable name '{key}'")
         # Allow ${...} placeholder syntax for secret values
         is_placeholder = val.startswith("${") and val.endswith("}")
-        if not is_placeholder and shell_meta.search(val):
+        # Allow $(cat /path/to/secret) secret-file reference syntax anywhere in value
+        secret_ref_pattern = re.compile(r"\$\(cat\s+/[^)]+\)")
+        val_without_refs = secret_ref_pattern.sub("", val)
+        if not is_placeholder and shell_meta.search(val_without_refs):
             raise ValueError(
                 f"{env_path}:{lineno}: value for '{key}' contains shell metacharacters"
             )
-        if secret_hints.search(key) and val and not is_placeholder:
+        # คีย์ที่เป็นหรือลงท้ายด้วยคำว่าลับจริง (ค่าที่ไม่ควรเขียนตรงใน .env) เท่านั้นที่ต้องใช้ placeholder
+        is_secret_key = bool(
+            re.search(r"(?:^|_)(SECRET|API_KEY|PRIVATE_KEY|PASSWORD|PIN|CREDENTIAL|TOKEN)$", key)
+        )
+        if is_secret_key and val and not is_placeholder:
             raise ValueError(f"{env_path}:{lineno}: secret key '{key}' must use a placeholder")

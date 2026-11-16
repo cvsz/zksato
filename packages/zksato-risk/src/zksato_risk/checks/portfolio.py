@@ -9,28 +9,52 @@ from zksato_risk.checks.base import BaseRiskCheck
 class VaRCheck(BaseRiskCheck):
     """Value-at-Risk check."""
 
-    def __init__(self, confidence_level: float = 0.95, portfolio_value: float = 100_000.0) -> None:
+    def __init__(
+        self,
+        confidence_level: float = 0.95,
+        portfolio_value: float = 100_000.0,
+        max_var_pct: float = 5.0,
+    ) -> None:
         self.confidence_level = confidence_level
         self.portfolio_value = portfolio_value
+        self.max_var_pct = max_var_pct
         self.name = "var"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        # VaR check requires historical returns
-        # This is a placeholder for integration with portfolio risk manager
-        return []
+        reasons: list[str] = []
+        # Conservative VaR proxy: current drawdown as worst-case loss at confidence level.
+        # Historical-return VaR is computed via PortfolioRiskManager.calculate_var when a
+        # returns series is supplied externally; here we fail closed on drawdown.
+        if context.drawdown_pct > self.max_var_pct:
+            reasons.append(
+                f"VaR estimate {context.drawdown_pct:.2f}% exceeds max {self.max_var_pct:.2f}%"
+            )
+        return reasons
 
 
 class CVaRCheck(BaseRiskCheck):
     """Conditional Value-at-Risk check."""
 
-    def __init__(self, confidence_level: float = 0.95, portfolio_value: float = 100_000.0) -> None:
+    def __init__(
+        self,
+        confidence_level: float = 0.95,
+        portfolio_value: float = 100_000.0,
+        max_cvar_pct: float = 7.0,
+    ) -> None:
         self.confidence_level = confidence_level
         self.portfolio_value = portfolio_value
+        self.max_cvar_pct = max_cvar_pct
         self.name = "cvar"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        # CVaR check requires historical returns
-        return []
+        reasons: list[str] = []
+        # CVaR proxy: negative daily PnL as expected tail loss beyond VaR.
+        cvar_estimate = abs(context.daily_pnl_pct) if context.daily_pnl_pct < 0 else 0.0
+        if cvar_estimate > self.max_cvar_pct:
+            reasons.append(
+                f"CVaR estimate {cvar_estimate:.2f}% exceeds max {self.max_cvar_pct:.2f}%"
+            )
+        return reasons
 
 
 class CorrelationCheck(BaseRiskCheck):
@@ -41,9 +65,14 @@ class CorrelationCheck(BaseRiskCheck):
         self.name = "correlation"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        # Correlation check requires portfolio positions and price history
-        # This is a placeholder for integration with portfolio risk manager
-        return []
+        reasons: list[str] = []
+        # Sector exposure as correlation/concentration proxy.
+        if context.sector_exposure_pct > self.max_correlation * 100.0:
+            reasons.append(
+                f"sector exposure {context.sector_exposure_pct:.2f}% exceeds correlation proxy "
+                f"{self.max_correlation:.2f}"
+            )
+        return reasons
 
 
 class AllocationCheck(BaseRiskCheck):
@@ -54,8 +83,14 @@ class AllocationCheck(BaseRiskCheck):
         self.name = "allocation"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        # Allocation check requires portfolio positions
-        return []
+        reasons: list[str] = []
+        # Projected position allocation after the trade.
+        if context.position_pct_after_trade > self.max_allocation_pct:
+            reasons.append(
+                f"position allocation {context.position_pct_after_trade:.2f}% exceeds max "
+                f"{self.max_allocation_pct:.2f}%"
+            )
+        return reasons
 
 
 class StrategyConflictCheck(BaseRiskCheck):
@@ -66,8 +101,23 @@ class StrategyConflictCheck(BaseRiskCheck):
         self.name = "strategy_conflict"
 
     def check(self, intent: OrderIntent, context: RiskContext) -> list[str]:
-        # Strategy conflict check requires active strategies list
-        return []
+        reasons: list[str] = []
+        if not self.conflicting_strategies:
+            return reasons
+        conflicts = {
+            pair.strip() for pair in self.conflicting_strategies.split(",") if pair.strip()
+        }
+        intent_source = intent.source.strip()
+        for conflict in conflicts:
+            parts = conflict.split("-")
+            if len(parts) != 2:
+                continue
+            a, b = parts[0].strip(), parts[1].strip()
+            if intent_source == a:
+                reasons.append(f"strategy {intent_source} conflicts with active {b}")
+            elif intent_source == b:
+                reasons.append(f"strategy {intent_source} conflicts with active {a}")
+        return reasons
 
 
 class PortfolioRiskManager:

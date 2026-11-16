@@ -1,4 +1,4 @@
-"""zksato-market: Market data, feeds, and adapters for zksato trading platform."""
+"""zksato-market: Market data, feeds, adapters, and technical indicators for zksato trading platform."""
 
 from zksato_market.adapters import (
     CCXTAdapter,
@@ -7,6 +7,7 @@ from zksato_market.adapters import (
     SettradeAdapter,
 )
 from zksato_market.calendar import TradingCalendar
+from zksato_market.features import build_market_features
 from zksato_market.feeds import (
     BinanceFeed,
     BinanceTHFeed,
@@ -48,7 +49,6 @@ __all__ = [
     "CCXTAdapter",
     "CCXTFeed",
     "CompositeFeed",
-    # Feeds
     "Feed",
     "FeedConfig",
     "FeedEvent",
@@ -57,19 +57,15 @@ __all__ = [
     "FeedStatus",
     "Instrument",
     "KuCoinFeed",
-    # Adapters
     "MarketDataAdapter",
     "MarketDataFeed",
-    # Scanner
     "MarketScanner",
-    # Types
     "MarketType",
     "MultiFeed",
     "MultiMarketScanner",
     "OKXFeed",
     "Quote",
     "RESTAdapter",
-    # Reference
     "ReferenceData",
     "ReplayEvent",
     "ReplayFeed",
@@ -78,8 +74,8 @@ __all__ = [
     "SettradeFeed",
     "SettradeRealtimeFeed",
     "Trade",
-    # Calendar
     "TradingCalendar",
+    "build_market_features",
     "get_reference_data",
     "load_reference_data",
 ]
