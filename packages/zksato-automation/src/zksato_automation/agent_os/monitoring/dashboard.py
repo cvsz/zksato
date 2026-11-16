@@ -6,7 +6,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -173,10 +173,15 @@ class OrchestrationMonitor:
         if monitor_data.started_at is None and task_state == TaskState.RUNNING:
             monitor_data.started_at = datetime.now(UTC)
 
-        # Estimate completion time
-        if monitor_data.started_at and monitor_data.retry_count > 0:
-            monitor_data.estimated_completion = (
-                datetime.now(UTC) + __import__("asyncio").get_event_loop().time() * 0  # placeholder
+        # Estimate completion time from elapsed time, current progress, and retry penalty
+        if monitor_data.started_at and monitor_data.progress > 0.0:
+            elapsed_seconds = (datetime.now(UTC) - monitor_data.started_at).total_seconds()
+            estimated_total_seconds = elapsed_seconds / monitor_data.progress
+            remaining_seconds = max(0.0, estimated_total_seconds - elapsed_seconds)
+            # Add a fixed penalty per retry to account for re-execution overhead
+            remaining_seconds += monitor_data.retry_count * 30.0
+            monitor_data.estimated_completion = datetime.now(UTC) + timedelta(
+                seconds=remaining_seconds
             )
 
         self._notify("task_updated", str(task.task_id))
