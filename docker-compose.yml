@@ -7,8 +7,8 @@ services:
       - path: .env
         required: false
     environment:
-      ZKSATO_DATABASE_URL: "postgresql+psycopg://zksato:${POSTGRES_PASSWORD:-zksato_dev_only}@postgres:5432/zksato"
-      ZKSATO_REDIS_URL: "redis://redis:6379/0"
+      ZKSATO_DATABASE_URL: "${ZKSATO_DATABASE_URL}"
+      ZKSATO_REDIS_URL: "${ZKSATO_REDIS_URL}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +64,7 @@ services:
     environment:
       POSTGRES_DB: zksato
       POSTGRES_USER: zksato
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zksato_dev_only}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

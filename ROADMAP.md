@@ -160,3 +160,14 @@ Deferred to a later phase (tracked in `PHASE4_PLAN.md`): Git worktree integratio
 ## Non-negotiable invariant
 
 **Autonomous live-money execution remains forbidden by design.** AI, agents, workflows and strategies may research, rank, explain, paper-trade and operate in broker UAT, but live equity mutation requires deterministic server-side risk plus explicit operator authorization. TFEX mutation remains UAT-only until external certification is complete.
+
+
+### Phase 5 — LLM-Driven Decision Engine & Market Features (v2.1.0)
+- [x] LLM-driven decision engine (`packages/zksato-strategy/src/zksato_strategy/llm_decision.py`) — adapted from anglerfish-fable5, safety-first design, fail-closed HOLD default
+- [x] Market technical indicators (`packages/zksato-market/src/zksato_market/features.py`) — NumPy-vectorized SMA, EMA, RSI, MACD, Bollinger, VWAP, ATR, Williams %R
+- [x] Dashboard MIRO module registry (`src/zksato/dashboard.py`) — extensible UI modules with global rAF loop integration
+- [x] Autotrade bot CLI (`packages/zksato-automation/src/zksato_automation/bot.py`) — safety gate at resolve_execution_mode(), DRY_RUN by default, daily-loss halt
+- [x] All 10 safety invariants from AGENTS.md preserved
+- [x] Full pytest validation: 694 passed, no regressions
+- [x] ruff check/format passes
+- [x] Documentation updated (CHANGELOG, FEATURE-MATRIX, ROADMAP)

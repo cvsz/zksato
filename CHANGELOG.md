@@ -193,3 +193,43 @@ All notable changes to zksato are documented here.
 - P0-P7 risk-first platform and repository-assurance baseline with durable state, reconciliation, trusted market/risk controls, RBAC/approvals, TFEX UAT isolation, observability/DR, research promotion, non-executing production readiness, and hardened supply-chain workflows.
 - Production port standardized on `9569`.
 - Autonomous live-money execution remains forbidden by design.
+
+
+## v2.1.0 — Phase 5: LLM-Driven Decision Engine & Market Features
+
+**Release Date**: Sat Nov 14 2026
+
+### New Features
+- Adapted anglerfish-fable5 autotrade.py features for zksato (LLM decision engine, market features, dashboard modules, bot CLI)
+- Full Phase 5 implementation with performance optimization
+- MIRO module registry for extensible dashboard UI modules
+- NumPy-vectorized technical indicators (SMA, EMA, RSI, MACD, Bollinger, VWAP, ATR, Williams %R)
+- Execution mode gate at resolve_execution_mode() — single decision point for live trading
+- Safety-first design: DRY_RUN by default, fail-closed HOLD on any parse/error/network failure
+- LLM is signal generator only; all order placement goes through RiskEngine
+- Fail-closed: HOLD default on any parse/error/network failure
+- Risk evaluation always goes through zksato RiskEngine before any order placement
+- Dashboard uses Binance light theme adapted to zksato dark theme
+
+### Performance
+- Target: ~134k risk eval/sec, ~120k check_risk/sec, ~15k place_order/sec
+- NumPy-vectorized indicator calculations
+- Main loop throughput competitive with benchmarks
+
+### Bug Fixes
+- Reimplemented `packages/zksato-market/src/zksato_market/features.py` (was deleted during ruff fixing)
+- Dashboard MIRO module integration
+- Full pytest validation: 694 passed, no regressions
+
+### Safety Invariants (all preserved)
+1. `paper` is the default mode
+2. Autonomous live-money execution is forbidden
+3. No LLM/agent may bypass `RiskEngine` or `TradingService`
+4. Broker credentials stay server-side, never committed/logged/returned by APIs
+5. Broker state is the external source of truth; local state must converge to it
+6. Order creation must be idempotent across retries
+7. Stale/unknown market feed must fail closed for automated execution
+8. Risk controls must have independent kill paths and failure-path tests
+9. SET and TFEX semantics must not be conflated
+10. Money-moving behavior must be deterministic, auditable, versioned, and testable
+
