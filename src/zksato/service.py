@@ -113,12 +113,8 @@ class TradingService:
         # use stored indexes for O(1) lookups instead of iterating all orders
         all_orders = self.store.orders  # raw list, cached under lock in store
         today = datetime.now(UTC).date()
-        orders_today = sum(
-            1 for o in all_orders if o.created_at.date() == today
-        )
-        open_orders = sum(
-            1 for o in all_orders if o.status in OPEN_ORDER_STATUSES
-        )
+        orders_today = sum(1 for o in all_orders if o.created_at.date() == today)
+        open_orders = sum(1 for o in all_orders if o.status in OPEN_ORDER_STATUSES)
 
         spread_pct: float | None = None
         if quote and quote.bid and quote.offer and quote.last:
