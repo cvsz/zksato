@@ -38,11 +38,11 @@ class RiskEngine:
         opening_risk = intent.side == Side.BUY and not context.reduces_exposure
         is_prediction = intent.side in {Side.UP, Side.DOWN}
 
-        # ── Gate 1: static / settings-gated checks ────────────────────────
+        # Gate 1: static / settings-gated checks
         self._check_static(reasons, intent, context, is_prediction, opening_risk)
-        # Static checks are evaluated for informational purposes only.
+        # Static checks are evaluated; runtime gates below still run.
 
-        # ── Gate 2: opening-risk limits (daily loss, drawdown, positions) ─
+        # Gate 2: opening-risk limits (daily loss, drawdown, positions)
         # These only matter when the order *opens* exposure.  Reducing sells
         # and prediction orders bypass this entire block.
         if opening_risk:
@@ -114,7 +114,7 @@ class RiskEngine:
                 if estimated_risk_pct > self.settings.max_risk_per_trade_pct:
                     reasons.append("estimated stop-loss risk exceeds per-trade risk budget")
 
-        # ── Gate 4: prediction-only checks ────────────────────────────────
+        # Gate 4: prediction-only checks
         if is_prediction:
             if (
                 context.quote_age_seconds is not None

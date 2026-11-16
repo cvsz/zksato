@@ -334,8 +334,6 @@ class OrchestratorV2:
 
     async def _task_dispatcher(self) -> None:
         """Dispatch tasks to available agents."""
-        # Cache agent registry for faster lookups
-        _ = self.agent_registry
 
         while self._running:
             try:

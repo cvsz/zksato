@@ -67,10 +67,9 @@ class RepositoryState:
 
         modified = []
         if modified_result.success and modified_result.stdout.strip():
+            lines = modified_result.stdout.strip().split("\n")
             # Porcelain format: XY path where X=staging, Y=working
-            modified.extend(
-                line[3:] for line in modified_result.stdout.strip().split("\n") if len(line) >= 2
-            )
+            modified = [line[3:] for line in lines if len(line) >= 2]
 
         return cls(
             head=head_result.stdout.strip() if head_result.success else None,

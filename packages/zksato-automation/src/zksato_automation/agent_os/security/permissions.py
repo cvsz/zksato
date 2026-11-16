@@ -598,7 +598,7 @@ def setup_builtin_tools(permission_manager: PermissionManager, tool_executor: To
                 return {"success": False, "error": f"Unsupported method: {method}"}
 
         return {
-            "success": response.is_error is False,
+            "success": not response.is_error,
             "status_code": response.status_code,
             "body": response.text,
         }
