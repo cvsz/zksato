@@ -110,6 +110,7 @@ class OrderIntent(BaseModel):
     client_order_id: str | None = Field(default=None, min_length=1, max_length=128)
     source: str = Field(default="manual", min_length=1, max_length=64)
     company_name: str | None = None
+    sector: str | None = None
 
     @field_validator("symbol")
     @classmethod
