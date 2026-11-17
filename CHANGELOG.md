@@ -2,6 +2,24 @@
 
 All notable changes to zksato are documented here.
 
+## [Unreleased]
+
+### Repository organization
+- Moved root-level plans/specs to `docs/plans/` and reports/checklists to `docs/reports/`
+  (renamed `IMPLEMENTATION-CHECHLIST.md` → `IMPLEMENTATION-CHECKLIST.md`; the older
+  `implementation-checklist.md` → `IMPLEMENTATION-CHECKLIST-v1.md`); updated references.
+- Stopped tracking generated `coverage.xml` and `openapi.json` (regenerate with CI / `make openapi`).
+- Added READMEs for `apps/`, `config/`, `contracts/`, `deploy/`, `examples/`, `frontend/`,
+  `scripts/`, `docs/{plans,reports,audit,integrations}/`; rewrote `docs/PROJECT-STRUCTURE.md`
+  to document the `src/zksato` (runtime) vs `packages/*` (monorepo) split.
+- Aligned workspace dev pin `ruff==0.16.6` → `0.17.5` to match the root package and CI.
+
+### Known issues documented
+- `config.py` TOML overrides resolve a non-existent path (`src/config/settings.toml`) and are
+  never applied; `config/environments/*.toml` are unused (see `config/README.md`).
+- `uv.lock` is out of sync with `pyproject.toml`; `uv lock` would change many pins
+  (including uvicorn 0.54.0 → 0.50.1) and needs a dedicated review.
+
 ## [1.1.0] - 2026-11-14 — Agent Engineering Platform (Phase 4) + Build Repair
 
 ### Agent Engineering Platform (Phase 4)

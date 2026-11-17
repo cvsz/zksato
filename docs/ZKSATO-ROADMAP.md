@@ -210,7 +210,7 @@ Telegram	Signal ingestion
 Doc	Status	What's Needed
 AGENTS.md	✅ Complete	Operating contract
 README.md	✅ Updated	Product overview
-Final-Report.md	✅ Updated	Master audit report
+docs/reports/Final-Report.md	✅ Updated	Master audit report
 docs/API-SPEC.md	❌ Missing	OpenAPI contract
 docs/DATABASE.md	❌ Missing	Database schema
 docs/DOMAIN-MODEL.md	❌ Missing	Domain model

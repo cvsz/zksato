@@ -5,7 +5,7 @@
 
 > **Resolution (2026-11-14, v1.1.0):** The Phase 3 coding-agent gaps identified below are closed by the Phase 4
 > Agent Engineering Platform — A2A multi-agent orchestration, MCP, context management, sessions, skills, plan mode,
-> and a 48-test suite (`tests/test_agent_platform.py`). Delivered surface is tracked in `PHASE4_PLAN.md` and `ROADMAP.md` (P15).
+> and a 48-test suite (`tests/test_agent_platform.py`). Delivered surface is tracked in `../plans/PHASE4_PLAN.md` and `../../ROADMAP.md` (P15).
 
 ---
 
