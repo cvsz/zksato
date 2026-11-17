@@ -1,0 +1,129 @@
+[application]
+name = "zksato"
+environment = "dev"
+trading_mode = "paper"
+
+[database]
+url = ""
+test_database_url = ""
+redis_url = ""
+
+[postgres]
+host = "zpostgressql"
+port = 5432
+db = "zksato"
+user = "zksato"
+password_file = "/run/secrets/postgres_password"
+
+[redis]
+host = "zredis"
+port = 6379
+db = 0
+password_file = "/run/secrets/redis_password"
+
+[coordination]
+lock_ttl_seconds = 30
+reconciliation_enabled = true
+reconciliation_interval_seconds = 15.0
+
+[market_data]
+stale_seconds = 10.0
+timezone = "Asia/Bangkok"
+enforce_market_sessions = false
+
+[risk]
+max_positions = 5
+max_position_pct = 10.0
+max_risk_per_trade_pct = 0.5
+max_daily_loss_pct = 2.0
+max_drawdown_pct = 5.0
+max_orders_per_day = 50
+max_open_orders = 20
+max_notional_per_order = 100000.0
+max_price_deviation_pct = 10.0
+max_gross_exposure_pct = 80.0
+max_net_exposure_pct = 80.0
+max_symbol_exposure_pct = 20.0
+max_sector_exposure_pct = 35.0
+max_spread_pct = 3.0
+max_consecutive_broker_errors = 5
+require_stop_loss = true
+allow_equity_short_selling = false
+kill_switch = false
+
+[strategy]
+default = "ema_cross"
+default_order_size = 100
+default_stop_loss_pct = 2.0
+default_take_profit_pct = 4.0
+watchlist = "AOT,PTT,CPALL,KBANK,ADVANC"
+
+[tfex]
+max_contracts = 20
+max_margin_usage_pct = 50.0
+expiry_restriction_days = 2
+strict_reference_data = false
+
+[notification]
+webhook_url = ""
+dispatch_interval_seconds = 2.0
+timeout_seconds = 5.0
+batch_size = 50
+retry_base_seconds = 5.0
+retry_max_seconds = 300.0
+max_attempts = 5
+
+[tradingview]
+webhook_secret = ""
+
+[telegram]
+bot_token = ""
+chat_id = ""
+enabled = false
+notify_orders = true
+notify_fills = true
+notify_kill_switch = true
+notify_risk_rejections = true
+notify_pnl = true
+notify_var = true
+notify_tradingview = true
+notify_reconciliation = true
+
+[risk_free_rate]
+value = 0.02
+
+[log]
+level = "INFO"
+json = true
+
+[otel]
+endpoint = ""
+service_name = "zksato"
+
+[slo]
+feed_freshness_seconds = 5.0
+api_p95_ms = 500.0
+
+[research]
+min_trades = 20
+max_drawdown_pct = 20.0
+min_oos_return_pct = -100.0
+
+[ccxt]
+enabled = false
+exchanges = ""
+sandbox = true
+
+[prediction]
+enabled = false
+venue = "polymarket"
+max_order_usd = 10.0
+enable_live = false
+clob_url = "https://clob.polymarket.com"
+clob_api_key = ""
+clob_api_secret = ""
+clob_passphrase = ""
+clob_timeout_seconds = 10.0
+max_directional_residual = 100.0
+min_prediction_edge = 0.03
+max_complete_set_cost = 1.0
