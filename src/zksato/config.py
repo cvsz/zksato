@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
+import tomllib
 from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
@@ -10,19 +9,12 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
-try:
-    import tomllib
-
-    HAS_TOML = True
-except ImportError:
-    import tomli as tomllib
-
-    HAS_TOML = True
-
 from zksato.secrets import AWSSecretManagerSettingsSource
 
+HAS_TOML = True
 
-def _load_toml_config(toml_path: Path) -> dict:
+
+def _load_toml_config(toml_path: Path) -> dict[str, object]:
     """Load configuration from a TOML file, returning empty dict on failure."""
     try:
         return tomllib.load(toml_path.open("rb"))
@@ -75,7 +67,7 @@ class Settings(BaseSettings):
                 continue
             # Type-coerce the TOML value to match the settings attribute type
             existing_attr = getattr(cls, key, None)
-            if isinstance(existing_attr, Field):
+            if type(existing_attr) is Field:
                 # Pydantic Field has defaults; respect TOML for the default value
                 continue
             with suppress(ValueError, TypeError):
