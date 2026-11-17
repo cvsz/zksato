@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -24,8 +25,7 @@ from zksato.secrets import AWSSecretManagerSettingsSource
 def _load_toml_config(toml_path: Path) -> dict:
     """Load configuration from a TOML file, returning empty dict on failure."""
     try:
-        with open(toml_path, "rb") as f:
-            return tomllib.load(f)
+        return tomllib.load(toml_path.open("rb"))
     except (OSError, Exception):
         return {}
 
@@ -46,21 +46,15 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # Load from TOML config file if present (Phase 1.2: Configuration System Overhaul)
-        toml_path = Path(__file__).parent.parent / "config" / "settings.toml"
-        toml_config = _load_toml_config(toml_path) if toml_path.exists() else {}
-
         return (
             init_settings,
             dotenv_settings,
             AWSSecretManagerSettingsSource(settings_cls),
             env_settings,
-            # TomlSettingsSource will pick up top-level keys as attribute overrides;
-            # we merge them manually below after instantiation via _apply_toml_overrides.
         )
 
     @classmethod
-    def _apply_toml_overrides(cls, settings_instance: "Settings") -> "Settings":
+    def _apply_toml_overrides(cls, settings_instance: Settings) -> Settings:
         """Apply TOML config file overrides after settings instantiation.
 
         Pydantic-settings does not natively support TOML merging cleanly with
@@ -84,11 +78,8 @@ class Settings(BaseSettings):
             if isinstance(existing_attr, Field):
                 # Pydantic Field has defaults; respect TOML for the default value
                 continue
-            try:
+            with suppress(ValueError, TypeError):
                 setattr(settings_instance, key, value)
-            except (ValueError, TypeError):
-                # If type coercion fails, keep the existing value
-                pass
         return settings_instance
 
     app_name: str = "zksato"
