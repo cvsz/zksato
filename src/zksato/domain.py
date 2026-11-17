@@ -54,6 +54,8 @@ class Quote(BaseModel):
     volume: float = Field(default=0, ge=0)
     value: float = Field(default=0, ge=0)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    company_name: str | None = None
+    sector: str | None = None
 
     @field_validator("symbol")
     @classmethod
@@ -88,6 +90,8 @@ class Bar(BaseModel):
     volume: float = Field(default=0, ge=0)
     value: float = Field(default=0, ge=0)
     source: str = Field(default="unknown", min_length=1, max_length=64)
+    company_name: str | None = None
+    sector: str | None = None
 
     @field_validator("symbol")
     @classmethod
@@ -105,6 +109,7 @@ class OrderIntent(BaseModel):
     take_profit: float | None = Field(default=None, gt=0)
     client_order_id: str | None = Field(default=None, min_length=1, max_length=128)
     source: str = Field(default="manual", min_length=1, max_length=64)
+    company_name: str | None = None
 
     @field_validator("symbol")
     @classmethod
@@ -133,6 +138,7 @@ class RiskContext(BaseModel):
     net_exposure_pct: float = 0.0
     symbol_exposure_pct: float = Field(default=0.0, ge=0)
     sector_exposure_pct: float = Field(default=0.0, ge=0)
+    sector: str | None = None
     quote_age_seconds: float | None = Field(default=None, ge=0)
     spread_pct: float | None = Field(default=None, ge=0)
     market_session_known: bool = True
