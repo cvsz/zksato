@@ -59,7 +59,7 @@ v1.0.0 completes production infrastructure, TFEX UAT certification tools, AI res
 - [x] **48-test platform suite** (`tests/test_agent_platform.py`) covering orchestrator e2e, A2A, hooks, context, sessions, skills, plans, MCP, CRDTs, and specialized agents
 - [x] **Workspace lint/type/security gates extended to `packages/`** (ruff, mypy, bandit across `src` + all monorepo packages)
 
-Deferred to a later phase (tracked in `PHASE4_PLAN.md`): Git worktree integration, LSP diagnostics, PII redaction, production conflict resolver (file ownership is tracked; resolver is stubbed).
+Deferred to a later phase (tracked in `docs/plans/PHASE4_PLAN.md`): Git worktree integration, LSP diagnostics, PII redaction, production conflict resolver (file ownership is tracked; resolver is stubbed).
 
 ## Previous release — v0.5 P0-P8 repository/source completion
 - [x] PostgreSQL/SQLAlchemy system of record for trading state, evidence, idempotency, outbox and historical bars

@@ -115,7 +115,7 @@ uvicorn zksato.api:app --reload --port 9569
 ```
 
 The Phase 4 Agent Engineering Platform (multi-agent orchestration, A2A, MCP, context, sessions, skills, plan mode)
-lives in `packages/zksato-automation` and `packages/zksato-cli`; see `PHASE4_PLAN.md` and `ROADMAP.md` (P15).
+lives in `packages/zksato-automation` and `packages/zksato-cli`; see `docs/plans/PHASE4_PLAN.md` and `ROADMAP.md` (P15).
 
 Docker Compose:
 

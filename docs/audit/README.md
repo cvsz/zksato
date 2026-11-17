@@ -1,0 +1,9 @@
+# Domain audits
+
+Focused audit reports by area. Point-in-time; verify against current code.
+
+- Platform: `MASTER_AUDIT.md`, `ARCHITECTURE_AUDIT.md`, `PULL_REQUEST_AUDIT.md`
+- Trading safety: `TRADING_ENGINE_AUDIT.md`, `RISK_MANAGEMENT_REVIEW.md`, `FINANCIAL_DATA_INTEGRITY.md`, `MARKET_DATA_INTEGRATION.md`
+- Security: `API_SECURITY_REVIEW.md`, `PENETRATION_TEST_REPORT.md`, `GITHUB_WORKFLOW_SECURITY.md`, `ZTRADER_SECURITY_BOUNDARY.md`
+- Data and dependencies: `DATABASE_AUDIT.md`, `DEPENDENCY_UPGRADE_REPORT.md`
+- Quality: `INTEGRATION_TEST_REPORT.md`, `PERFORMANCE_REPORT.md`

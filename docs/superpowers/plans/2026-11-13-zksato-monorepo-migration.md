@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, UV workspaces, Hatchling build, Pydantic 2, FastAPI, pytest, Hypothesis, Ruff, MyPy
 
-**Spec:** `/home/cvsz/zksato/PHASE-1-SPEC.md`
+**Spec:** `docs/plans/PHASE-1-SPEC.md`
 
 ## Global Constraints
 

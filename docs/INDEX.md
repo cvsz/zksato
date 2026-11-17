@@ -108,6 +108,13 @@
 - `DOCUMENTATION-STANDARD.md`
 - `AI-ASSISTANCE.md`
 
+## Plans, reports, and audits
+- `plans/README.md` — implementation plans and specs (Phase 1 spec, Phase 4/5 plans, upgrade plans)
+- `reports/README.md` — point-in-time validation reports and engineering checklists
+- `audit/README.md` — domain audits (trading engine, risk, security, database, performance)
+- `integrations/README.md` — third-party integration specs (ztrader advisory intent)
+- `superpowers/plans/` — agent execution plans
+
 ## Reusable templates
 - `templates/README.md` — template catalog and usage
 - ADR, RFC, change, migration, test, security, incident, postmortem, runbook, UAT, DR, performance, release, rollout/rollback, broker-certification and production-readiness evidence templates.
@@ -123,5 +130,5 @@
 ## Agent system
 - `../agents/README.md`
 - `../skills/README.md`
-- `../PHASE4_PLAN.md` — Phase 4 Agent Engineering Platform status (orchestrator/A2A/MCP/context/sessions/skills/plans)
+- `plans/PHASE4_PLAN.md` — Phase 4 Agent Engineering Platform status (orchestrator/A2A/MCP/context/sessions/skills/plans)
 - `../ROADMAP.md` (P15) — Agent Engineering Platform roadmap entry

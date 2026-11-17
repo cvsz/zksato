@@ -9,7 +9,7 @@
 **Tech Stack:** Python 3.11+, UV workspaces, Pydantic v2, FastAPI, SQLAlchemy 2.0, Redis, PostgreSQL, OpenTelemetry, Optuna, Hypothesis, pytest, Ruff, mypy, Typer+Rich for CLI.
 
 **Spec:** 
-- `/home/cvsz/zksato/GEMINI-CLI-PATTERNS.md` (patterns mapping)
+- `docs/plans/GEMINI-CLI-PATTERNS.md` (patterns mapping)
 - `/home/cvsz/zksato/ROADMAP.md` (roadmap and external gates)
 - `/home/cvsz/zksato/AGENTS.md` (engineering operating contract)
 - `/home/cvsz/zksato/docs/FEATURE-MATRIX.md` (capability truth table)

@@ -19,7 +19,7 @@ license = { text = "MIT" }
 dev = [
     "pytest>=9.0,<10.0",
     "pytest-asyncio>=1.4,<2.0",
-    "ruff==0.16.6",
+    "ruff==0.17.5",
 ]
 
 [tool.hatch.build.targets.wheel]
