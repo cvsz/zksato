@@ -1,25 +1,65 @@
 from __future__ import annotations
 
+import logging
+import os
+import re
 import tomllib
-from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from zksato.secrets import AWSSecretManagerSettingsSource
 
+logger = logging.getLogger(__name__)
+
 HAS_TOML = True
 
+# src/zksato/config.py -> repository root. Override with ZKSATO_CONFIG_FILE.
+DEFAULT_TOML_PATH = Path(__file__).resolve().parents[2] / "config" / "settings.toml"
 
-def _load_toml_config(toml_path: Path) -> dict[str, object]:
-    """Load configuration from a TOML file, returning empty dict on failure."""
-    try:
-        return tomllib.load(toml_path.open("rb"))
-    except (OSError, Exception):
-        return {}
+# Sections whose keys map to identically named Settings fields. Every other
+# section maps only as ``<section>_<key>`` so that, e.g., [research]
+# max_drawdown_pct can never overwrite the risk limit of the same name.
+_FLAT_TOML_SECTIONS = frozenset(
+    {
+        "application",
+        "coordination",
+        "database",
+        "market_data",
+        "prediction",
+        "risk",
+        "strategy",
+        "tfex",
+    }
+)
+# Secrets must come from env / secret files, never from a committed TOML file.
+_SECRET_FIELD = re.compile(r"(secret|token|password|passphrase|api_key)(?!_file)")
+# Live trading is enabled only by explicit operator env configuration.
+_TOML_FORBIDDEN_VALUES: dict[str, tuple[object, ...]] = {
+    "trading_mode": ("live",),
+    "live_trading_enabled": (True,),
+}
+
+
+def _load_toml_config(toml_path: Path) -> dict[str, Any]:
+    """Load a TOML file; a malformed file fails closed with ValueError."""
+    with toml_path.open("rb") as handle:
+        try:
+            return tomllib.load(handle)
+        except tomllib.TOMLDecodeError as exc:
+            raise ValueError(f"invalid TOML in {toml_path}: {exc}") from exc
+
+
+def _toml_field_name(section: str, key: str, fields: dict[str, Any]) -> str | None:
+    qualified = f"{section}_{key}"
+    if qualified in fields:
+        return qualified
+    if section in _FLAT_TOML_SECTIONS and key in fields:
+        return key
+    return None
 
 
 class Settings(BaseSettings):
@@ -46,33 +86,54 @@ class Settings(BaseSettings):
         )
 
     @classmethod
-    def _apply_toml_overrides(cls, settings_instance: Settings) -> Settings:
-        """Apply TOML config file overrides after settings instantiation.
+    def _apply_toml_overrides(
+        cls, settings_instance: Settings, toml_path: Path | None = None
+    ) -> Settings:
+        """Overlay ``config/settings.toml`` beneath env-derived settings.
 
-        Pydantic-settings does not natively support TOML merging cleanly with
-        nested sections, so we apply top-level overrides here. Deeper nesting can
-        be added later by extending this method.
+        Precedence: explicit sources (init, .env, AWS secrets, ZKSATO_* env) >
+        TOML > field defaults. ``[section] key`` maps to ``section_key`` or, for
+        ``_FLAT_TOML_SECTIONS``, to ``key``. Empty strings mean unset. TOML may
+        not set secrets or enable live trading. Ambiguous mappings, malformed
+        files, and values failing validation raise ValueError (fail closed).
         """
-        toml_path = Path(__file__).parent.parent / "config" / "settings.toml"
-        if not toml_path.exists():
+        if toml_path is None:
+            override = os.environ.get("ZKSATO_CONFIG_FILE")
+            toml_path = Path(override) if override else DEFAULT_TOML_PATH
+        if not toml_path.is_file():
             return settings_instance
 
-        toml_config = _load_toml_config(toml_path)
-        for key, value in toml_config.items():
-            # Only override if the setting is not already explicitly set via env
-            if not hasattr(settings_instance, key):
+        fields = cls.model_fields
+        updates: dict[str, Any] = {}
+        sources: dict[str, str] = {}
+        for section, values in _load_toml_config(toml_path).items():
+            if not isinstance(values, dict):
+                logger.warning("config TOML: ignoring top-level key %r", section)
                 continue
-            # Skip private/internal attributes
-            if key.startswith("_"):
-                continue
-            # Type-coerce the TOML value to match the settings attribute type
-            existing_attr = getattr(cls, key, None)
-            if type(existing_attr) is Field:
-                # Pydantic Field has defaults; respect TOML for the default value
-                continue
-            with suppress(ValueError, TypeError):
-                setattr(settings_instance, key, value)
-        return settings_instance
+            for key, value in values.items():
+                origin = f"[{section}] {key}"
+                name = _toml_field_name(section, key, fields)
+                if name is None:
+                    logger.debug("config TOML: no setting for %s", origin)
+                    continue
+                if name in sources:
+                    raise ValueError(
+                        f"config TOML: {origin} and {sources[name]} both map to {name!r}"
+                    )
+                sources[name] = origin
+                if value == "" or name in settings_instance.model_fields_set:
+                    continue
+                if _SECRET_FIELD.search(name):
+                    logger.warning("config TOML: refusing secret %s; use env", origin)
+                    continue
+                if value in _TOML_FORBIDDEN_VALUES.get(name, ()):
+                    logger.warning("config TOML: refusing %s=%r; use env", origin, value)
+                    continue
+                updates[name] = value
+
+        if not updates:
+            return settings_instance
+        return cls.model_validate({**settings_instance.model_dump(), **updates})
 
     app_name: str = "zksato"
     environment: Literal["dev", "test", "uat", "prod"] = "dev"
