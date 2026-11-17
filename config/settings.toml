@@ -13,13 +13,11 @@ host = "zpostgressql"
 port = 5432
 db = "zksato"
 user = "zksato"
-password_file = "/run/secrets/postgres_password"
 
 [redis]
 host = "zredis"
 port = 6379
 db = 0
-password_file = "/run/secrets/redis_password"
 
 [coordination]
 lock_ttl_seconds = 30
