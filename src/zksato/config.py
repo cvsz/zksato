@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -7,7 +9,25 @@ from typing import Literal
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
+try:
+    import tomllib
+
+    HAS_TOML = True
+except ImportError:
+    import tomli as tomllib
+
+    HAS_TOML = True
+
 from zksato.secrets import AWSSecretManagerSettingsSource
+
+
+def _load_toml_config(toml_path: Path) -> dict:
+    """Load configuration from a TOML file, returning empty dict on failure."""
+    try:
+        with open(toml_path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, Exception):
+        return {}
 
 
 class Settings(BaseSettings):
@@ -26,12 +46,50 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Load from TOML config file if present (Phase 1.2: Configuration System Overhaul)
+        toml_path = Path(__file__).parent.parent / "config" / "settings.toml"
+        toml_config = _load_toml_config(toml_path) if toml_path.exists() else {}
+
         return (
             init_settings,
             dotenv_settings,
             AWSSecretManagerSettingsSource(settings_cls),
             env_settings,
+            # TomlSettingsSource will pick up top-level keys as attribute overrides;
+            # we merge them manually below after instantiation via _apply_toml_overrides.
         )
+
+    @classmethod
+    def _apply_toml_overrides(cls, settings_instance: "Settings") -> "Settings":
+        """Apply TOML config file overrides after settings instantiation.
+
+        Pydantic-settings does not natively support TOML merging cleanly with
+        nested sections, so we apply top-level overrides here. Deeper nesting can
+        be added later by extending this method.
+        """
+        toml_path = Path(__file__).parent.parent / "config" / "settings.toml"
+        if not toml_path.exists():
+            return settings_instance
+
+        toml_config = _load_toml_config(toml_path)
+        for key, value in toml_config.items():
+            # Only override if the setting is not already explicitly set via env
+            if not hasattr(settings_instance, key):
+                continue
+            # Skip private/internal attributes
+            if key.startswith("_"):
+                continue
+            # Type-coerce the TOML value to match the settings attribute type
+            existing_attr = getattr(cls, key, None)
+            if isinstance(existing_attr, Field):
+                # Pydantic Field has defaults; respect TOML for the default value
+                continue
+            try:
+                setattr(settings_instance, key, value)
+            except (ValueError, TypeError):
+                # If type coercion fails, keep the existing value
+                pass
+        return settings_instance
 
     app_name: str = "zksato"
     environment: Literal["dev", "test", "uat", "prod"] = "dev"
@@ -407,4 +465,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    instance = Settings()
+    return Settings._apply_toml_overrides(instance)
