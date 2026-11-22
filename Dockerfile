@@ -1,4 +1,4 @@
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
@@ -17,7 +17,7 @@ COPY src ./src
 RUN python -m pip install --upgrade pip \
     && python -m pip install .
 
-FROM python:3.14-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
